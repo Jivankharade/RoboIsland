@@ -1484,7 +1484,7 @@ export class CanvasEngine {
 
       switch (tab) {
         case 'music':
-          this.targetHeight = isMusicWithLyrics ? 340 : 280;
+          this.targetHeight = 280;
           break;
         case 'chat':
           this.targetHeight = 320;
@@ -1900,22 +1900,20 @@ export class CanvasEngine {
       this.updateTargetDimensions();
     }
 
-    // Rest Mode & Compact Mode Hover Expansion
+    // Option B (Two-Stage Dynamic Island Model):
+    // Hovering peeks to compact (medium); hovering over compact stays in compact (medium).
+    // The Island never auto-expands into the Large card on hover.
+    // Expanding to the full Large Hub requires a deliberate user click.
     if (inBounds && this.mode === 'rest') {
       this.restoreFromRest('compact');
       if (this.collapseTimer) {
         clearTimeout(this.collapseTimer);
         this.collapseTimer = null;
       }
-      this.expand();
     } else if (inBounds && this.mode === 'compact') {
-      if (!(performance.now() < this.volumeHudUntil) && !(performance.now() < this.chargerSurgeUntil)) {
-        // Smart Hover Expansion: entering the compact island expands it smoothly
-        if (this.collapseTimer) {
-          clearTimeout(this.collapseTimer);
-          this.collapseTimer = null;
-        }
-        this.expand();
+      if (this.collapseTimer) {
+        clearTimeout(this.collapseTimer);
+        this.collapseTimer = null;
       }
     } else if (!inBounds) {
       this.justRestoredFromRest = false;
@@ -1927,7 +1925,17 @@ export class CanvasEngine {
             if (this.mode === 'expanded' && !this.isHovered && this.canAutoCollapse()) {
               this.collapse();
             }
-          }, 200);
+          }, 350);
+        }
+      } else if (this.mode === 'compact' && this.config?.restModeEnabled && !this.mediaState.active && !this.focusState.active) {
+        // Return to rest only when music and focus are not active
+        if (!this.collapseTimer) {
+          this.collapseTimer = window.setTimeout(() => {
+            this.collapseTimer = null;
+            if (this.mode === 'compact' && !this.isHovered && !this.mediaState.active && !this.focusState.active) {
+              this.enterRest();
+            }
+          }, 400);
         }
       }
     } else if (inBounds && this.collapseTimer) {

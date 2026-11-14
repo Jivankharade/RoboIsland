@@ -2778,7 +2778,7 @@
         const isMusicWithLyrics = (tab === "music" || this.activeTab === "media") && this.hasSyncedLyrics();
         switch (tab) {
           case "music":
-            this.targetHeight = isMusicWithLyrics ? 340 : 280;
+            this.targetHeight = 280;
             break;
           case "chat":
             this.targetHeight = 320;
@@ -3125,14 +3125,10 @@
           clearTimeout(this.collapseTimer);
           this.collapseTimer = null;
         }
-        this.expand();
       } else if (inBounds && this.mode === "compact") {
-        if (!(performance.now() < this.volumeHudUntil) && !(performance.now() < this.chargerSurgeUntil)) {
-          if (this.collapseTimer) {
-            clearTimeout(this.collapseTimer);
-            this.collapseTimer = null;
-          }
-          this.expand();
+        if (this.collapseTimer) {
+          clearTimeout(this.collapseTimer);
+          this.collapseTimer = null;
         }
       } else if (!inBounds) {
         this.justRestoredFromRest = false;
@@ -3143,7 +3139,16 @@
               if (this.mode === "expanded" && !this.isHovered && this.canAutoCollapse()) {
                 this.collapse();
               }
-            }, 200);
+            }, 350);
+          }
+        } else if (this.mode === "compact" && this.config?.restModeEnabled && !this.mediaState.active && !this.focusState.active) {
+          if (!this.collapseTimer) {
+            this.collapseTimer = window.setTimeout(() => {
+              this.collapseTimer = null;
+              if (this.mode === "compact" && !this.isHovered && !this.mediaState.active && !this.focusState.active) {
+                this.enterRest();
+              }
+            }, 400);
           }
         }
       } else if (inBounds && this.collapseTimer) {
