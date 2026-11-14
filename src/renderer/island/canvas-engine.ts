@@ -668,19 +668,6 @@ export class CanvasEngine {
 
   private lastTime = performance.now();
 
-  // Cinema Mode & Universal Subtitles
-  public isCinemaActive = false;
-  public isSubtitleActive = false;
-  public cinemaTargetLang = 'en';
-  public ccButtonHitRect: { x: number; y: number; w: number; h: number } | null = null;
-  public cinemaToastTimer: any = null;
-
-  public matchesBrowserApp(app: string): boolean {
-    if (!app) return false;
-    const lower = app.toLowerCase();
-    return ['chrome', 'msedge', 'edge', 'firefox', 'brave', 'opera', 'vivaldi', 'arc', 'chromium', 'browser'].some(b => lower.includes(b));
-  }
-
   // UX-4: Resource Optimization — idle frame throttling and dirty-flag render
   private _idleFrameCount = 0;
   private _lastRenderHash = '';
@@ -844,19 +831,6 @@ export class CanvasEngine {
       const effectiveH = this.mode === 'expanded' ? Math.max(this.targetHeight, this.currentHeight) : this.currentHeight;
       const inIsland = Math.abs(e.clientX - cx) <= effectiveW / 2 && e.clientY >= topY && e.clientY <= topY + effectiveH;
       const onEyes = (this.mode === 'compact' || this.mode === 'rest') && Math.abs(e.clientX - cx) <= 32 && e.clientY >= topY && e.clientY <= topY + effectiveH;
-
-      // If clicking in compact CC button zone, do not start drag/swipe gestures
-      if (this.mode === 'compact') {
-        const isVideoOrCinema = this.isCinemaActive || (this.mediaState.app && this.matchesBrowserApp(this.mediaState.app));
-        const pillRight = cx + this.currentWidth / 2;
-        const inCcZone = (this.ccButtonHitRect && e.clientX >= this.ccButtonHitRect.x - 8 && e.clientX <= this.ccButtonHitRect.x + this.ccButtonHitRect.w + 8) ||
-                         (isVideoOrCinema && e.clientX >= pillRight - 68 && e.clientX <= pillRight - 18);
-        if (inCcZone && e.clientY >= 0 && e.clientY <= topY + this.currentHeight + 12) {
-          dragStart = null;
-          swallowClick = false;
-          return;
-        }
-      }
 
       if (inIsland) {
         dragStart = { x: e.clientX, y: e.clientY, time: performance.now(), onEyes };
@@ -1282,7 +1256,6 @@ export class CanvasEngine {
           }
         });
       }
-      this.initCinemaSubtitleHandlers();
     }
 
     if (typeof window !== 'undefined') {
@@ -2162,32 +2135,6 @@ export class CanvasEngine {
         }
       }
       return;
-    }
-
-    // Compact Cinema [CC] Badge Click (YouTube, Chrome, Edge, and 3rd party video streaming)
-    if (this.mode === 'compact') {
-      const isVideoOrCinema = this.isCinemaActive || (this.mediaState.app && this.matchesBrowserApp(this.mediaState.app));
-      const pillRight = cx + this.currentWidth / 2;
-      const inCcExact = Boolean(
-        this.ccButtonHitRect &&
-        x >= this.ccButtonHitRect.x - 8 &&
-        x <= this.ccButtonHitRect.x + this.ccButtonHitRect.w + 8 &&
-        y >= 0 &&
-        y <= topY + this.currentHeight + 12
-      );
-
-      const inCcRelative = Boolean(
-        isVideoOrCinema &&
-        x >= pillRight - 68 &&
-        x <= pillRight - 18 &&
-        y >= 0 &&
-        y <= topY + this.currentHeight + 12
-      );
-
-      if (inCcExact || inCcRelative) {
-        this.toggleSubtitles();
-        return;
-      }
     }
 
     // Notification Interactive Button Clicks (TwoCode Parity: Allow, Deny, View, Dismiss)
@@ -3381,62 +3328,9 @@ export class CanvasEngine {
     }
     this.ctx.restore();
 
-    // 2b. Universal Cinema Subtitle [CC] Pill Button (YouTube, Browsers & Streaming Sites)
-    const isVideoOrCinema = this.isCinemaActive || (this.mediaState.app && this.matchesBrowserApp(this.mediaState.app));
-    let ccX0 = vizX;
-    if (isVideoOrCinema) {
-      const ccW = 32;
-      const ccH = 17;
-      const ccX = vizX - ccW - 8;
-      const ccY = cy - ccH / 2;
-      this.ccButtonHitRect = { x: ccX, y: ccY, w: ccW, h: ccH };
-      ccX0 = ccX;
-
-      const isHovered = Boolean(
-        this.pointerX >= ccX - 6 &&
-        this.pointerX <= ccX + ccW + 6 &&
-        this.pointerY >= 0 &&
-        this.pointerY <= topY + this.currentHeight + 8
-      );
-
-      this.ctx.save();
-      this.ctx.beginPath();
-      this.ctx.roundRect(ccX, ccY, ccW, ccH, 5);
-
-      if (this.isSubtitleActive) {
-        // Active Subtitles: Glowing golden amber pill
-        this.ctx.fillStyle = '#f59e0b';
-        this.ctx.shadowColor = '#f59e0b';
-        this.ctx.shadowBlur = 8;
-        this.ctx.fill();
-
-        this.ctx.fillStyle = '#000000';
-        this.ctx.font = '700 9.5px Inter, -apple-system, sans-serif';
-        this.ctx.textAlign = 'center';
-        this.ctx.textBaseline = 'middle';
-        this.ctx.fillText('CC', ccX + ccW / 2, cy + 0.5);
-      } else {
-        // Inactive / Ready state: Translucent frosted glass pill with hover brightness
-        this.ctx.fillStyle = isHovered ? 'rgba(255, 255, 255, 0.28)' : 'rgba(255, 255, 255, 0.14)';
-        this.ctx.strokeStyle = isHovered ? '#ffffff' : 'rgba(255, 255, 255, 0.45)';
-        this.ctx.lineWidth = isHovered ? 1.5 : 1;
-        this.ctx.fill();
-        this.ctx.stroke();
-
-        this.ctx.fillStyle = '#ffffff';
-        this.ctx.font = '700 9.5px Inter, -apple-system, sans-serif';
-        this.ctx.textAlign = 'center';
-        this.ctx.textBaseline = 'middle';
-        this.ctx.fillText('CC', ccX + ccW / 2, cy + 0.5);
-      }
-      this.ctx.restore();
-    } else {
-      this.ccButtonHitRect = null;
-    }
-
     // 3. Middle Content: Synchronized Lyrics or Song / Ad Title (No eyes during media playback)
     const x0 = coverX + cs + 12;
-    const x1 = ccX0 - 10;
+    const x1 = vizX - 12;
     const w = Math.max(20, x1 - x0);
     const band = 20;
 
@@ -5866,195 +5760,6 @@ export class CanvasEngine {
           ? '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="22" x2="16" y1="9" y2="15"/><line x1="16" x2="22" y1="9" y2="15"/>'
           : '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>'
       }</svg></span>`;
-    }
-  }
-
-  private subtitleFadeTimer: any = null;
-
-  private initCinemaSubtitleHandlers(): void {
-    const api = (window as any).roboIsland;
-    if (!api) return;
-
-    const cinemaBadge = document.getElementById('btn-cinema-badge');
-    const cinemaText = document.getElementById('btn-cinema-text');
-    const subHud = document.getElementById('cinema-subtitle-hud');
-    const subText = document.getElementById('cinema-subtitle-text');
-    const subTitle = document.getElementById('cinema-title-label');
-    const langPill = document.getElementById('cinema-lang-pill');
-    const langText = document.getElementById('cinema-lang-text');
-
-    // Video Detection Toast Elements
-    const toastEl = document.getElementById('cinema-detect-toast');
-    const toastApp = document.getElementById('cinema-toast-app');
-    const toastTitle = document.getElementById('cinema-toast-title');
-    const toastLang = document.getElementById('cinema-toast-lang-badge');
-    const btnToastEnable = document.getElementById('btn-cinema-toast-enable');
-    const btnToastDismiss = document.getElementById('btn-cinema-toast-dismiss');
-
-    // Subtitle Prompt Event: Triggered on YouTube, Chrome, Edge, and 3rd party video streaming
-    if (api.onCinemaPromptSubtitles) {
-      api.onCinemaPromptSubtitles((data: any) => {
-        if (!data || !toastEl) return;
-        this.isCinemaActive = true;
-        if (toastApp) toastApp.textContent = (data.app || 'Video').toUpperCase();
-        if (toastTitle) toastTitle.textContent = data.title || 'Video Detected';
-        const targetLang = (data.targetLanguage || this.cinemaTargetLang || 'hi').toUpperCase();
-        if (toastLang) toastLang.textContent = `EN -> ${targetLang}`;
-
-        toastEl.classList.remove('hidden');
-
-        if (this.cinemaToastTimer) clearTimeout(this.cinemaToastTimer);
-        this.cinemaToastTimer = setTimeout(() => {
-          if (toastEl) toastEl.classList.add('hidden');
-        }, 7500);
-      });
-    }
-
-    if (btnToastEnable) {
-      btnToastEnable.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.isSubtitleActive = true;
-        api.setSubtitleEnabled?.(true);
-        api.testPreviewSubtitle?.();
-        if (subHud) subHud.classList.remove('hidden');
-        if (toastEl) toastEl.classList.add('hidden');
-      });
-    }
-
-    if (btnToastDismiss) {
-      btnToastDismiss.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (toastEl) toastEl.classList.add('hidden');
-      });
-    }
-
-    if (api.onCinemaStateChanged) {
-      api.onCinemaStateChanged((state: any) => {
-        if (!state) return;
-        this.isCinemaActive = Boolean(state.isCinemaMode);
-        this.cinemaTargetLang = state.targetLanguage || 'en';
-        if (cinemaBadge && cinemaText) {
-          cinemaBadge.classList.toggle('hidden', !state.isCinemaMode);
-          cinemaText.textContent = `CINEMA: ${String(state.targetLanguage || 'EN').toUpperCase()}`;
-        }
-        if (subHud) {
-          subHud.classList.remove('pos-bottom', 'pos-top');
-          subHud.classList.add(state.subtitlePosition === 'top' ? 'pos-top' : 'pos-bottom');
-
-          subHud.classList.remove('size-small', 'size-medium', 'size-large');
-          subHud.classList.add(`size-${state.subtitleFontSize || 'medium'}`);
-        }
-        if (langText) {
-          langText.textContent = String(state.targetLanguage || 'EN').toUpperCase();
-        }
-        if (subTitle && state.activeTitle) {
-          subTitle.textContent = state.activeTitle;
-        }
-        if (!state.isCinemaMode && toastEl) {
-          toastEl.classList.add('hidden');
-        }
-      });
-    }
-
-    if (api.onSubtitleCue) {
-      api.onSubtitleCue((cue: any) => {
-        if (!cue || !subHud || !subText) return;
-        subText.textContent = cue.text || cue.originalText || '';
-        if (langText && cue.targetLang) {
-          langText.textContent = cue.targetLang.toUpperCase();
-        }
-        subHud.classList.remove('hidden');
-
-        if (this.subtitleFadeTimer) clearTimeout(this.subtitleFadeTimer);
-        this.subtitleFadeTimer = setTimeout(() => {
-          if (subHud) subHud.classList.add('hidden');
-        }, cue.durationMs || 4000);
-      });
-    }
-
-    if (api.onSubtitleClear) {
-      api.onSubtitleClear(() => {
-        if (subHud) subHud.classList.add('hidden');
-      });
-    }
-
-    if (langPill) {
-      langPill.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const langs = ['en', 'hi', 'mr', 'es', 'ja', 'fr', 'de'];
-        const current = (langText?.textContent || 'EN').toLowerCase();
-        const next = langs[(langs.indexOf(current) + 1) % langs.length];
-        api.setSubtitleLanguage?.(next);
-      });
-    }
-
-    if (cinemaBadge) {
-      cinemaBadge.addEventListener('click', (e) => {
-        e.stopPropagation();
-        api.testPreviewSubtitle?.();
-      });
-    }
-
-    // Media Panel Subtitle Controls
-    const btnMediaSubToggle = document.getElementById('btn-media-subtitles-toggle');
-    const btnMediaSubLang = document.getElementById('btn-media-subtitles-lang');
-    const mediaSubStatusText = document.getElementById('media-subtitles-status-text');
-    const mediaSubLangLabel = document.getElementById('media-subtitles-lang-label');
-
-    if (btnMediaSubToggle) {
-      btnMediaSubToggle.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.toggleSubtitles();
-      });
-    }
-
-    if (btnMediaSubLang) {
-      btnMediaSubLang.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const langs = ['en', 'hi', 'mr', 'es', 'ja', 'fr', 'de'];
-        const current = (mediaSubLangLabel?.textContent || 'HI').toLowerCase();
-        const next = langs[(langs.indexOf(current) + 1) % langs.length];
-        api.setSubtitleLanguage?.(next);
-      });
-    }
-  }
-
-  public toggleSubtitles(): void {
-    const next = !this.isSubtitleActive;
-    this.isSubtitleActive = next;
-    const api = (window as any).roboIsland;
-    const subHud = document.getElementById('cinema-subtitle-hud');
-    const subText = document.getElementById('cinema-subtitle-text');
-    const langText = document.getElementById('cinema-lang-text');
-    const toastEl = document.getElementById('cinema-detect-toast');
-    const mediaSubStatusText = document.getElementById('media-subtitles-status-text');
-    const mediaSubLangLabel = document.getElementById('media-subtitles-lang-label');
-
-    try {
-      AudioSynth.getInstance().playMelody(next ? 'pop' : 'badge');
-    } catch {}
-
-    if (toastEl) {
-      toastEl.classList.add('hidden');
-    }
-
-    const langUpper = (this.cinemaTargetLang || 'hi').toUpperCase();
-    if (mediaSubLangLabel) mediaSubLangLabel.textContent = langUpper;
-
-    if (next) {
-      api?.setSubtitleEnabled?.(true);
-      api?.testPreviewSubtitle?.();
-      if (mediaSubStatusText) mediaSubStatusText.textContent = `Live Subtitles: ON (${langUpper})`;
-      if (subHud) {
-        subHud.classList.remove('hidden');
-        if (subText) subText.textContent = `Live Subtitles Active (${langUpper})...`;
-        if (langText) langText.textContent = langUpper;
-      }
-    } else {
-      api?.setSubtitleEnabled?.(false);
-      api?.clearSubtitles?.();
-      if (mediaSubStatusText) mediaSubStatusText.textContent = 'Live Subtitles: OFF (Click to Start)';
-      if (subHud) subHud.classList.add('hidden');
     }
   }
 

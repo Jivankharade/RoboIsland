@@ -215,35 +215,7 @@ const api = {
     },
     snoozeDistraction: (minutes) => electron_1.ipcRenderer.invoke('focus:emergency-override', minutes),
     minimizeDistraction: (pid) => electron_1.ipcRenderer.invoke('focus:minimize', pid),
-    getLicenseStatus: () => electron_1.ipcRenderer.invoke('license:get-status'),
-    // Cinema Mode & Live Subtitle API
-    getCinemaState: () => electron_1.ipcRenderer.invoke('cinema:get-state'),
-    onCinemaStateChanged: (callback) => {
-        const handler = (_event, state) => callback(state);
-        electron_1.ipcRenderer.on('cinema:state-changed', handler);
-        return () => electron_1.ipcRenderer.removeListener('cinema:state-changed', handler);
-    },
-    onCinemaPromptSubtitles: (callback) => {
-        const handler = (_event, data) => callback(data);
-        electron_1.ipcRenderer.on('cinema:prompt-subtitles', handler);
-        return () => electron_1.ipcRenderer.removeListener('cinema:prompt-subtitles', handler);
-    },
-    onSubtitleCue: (callback) => {
-        const handler = (_event, cue) => callback(cue);
-        electron_1.ipcRenderer.on('subtitle:cue', handler);
-        return () => electron_1.ipcRenderer.removeListener('subtitle:cue', handler);
-    },
-    onSubtitleClear: (callback) => {
-        const handler = () => callback();
-        electron_1.ipcRenderer.on('subtitle:clear', handler);
-        return () => electron_1.ipcRenderer.removeListener('subtitle:clear', handler);
-    },
-    testPreviewSubtitle: () => electron_1.ipcRenderer.invoke('subtitle:test-preview'),
-    setSubtitleEnabled: (enabled) => electron_1.ipcRenderer.invoke('subtitle:set-enabled', enabled),
-    clearSubtitles: () => electron_1.ipcRenderer.invoke('subtitle:clear'),
-    setSubtitleLanguage: (lang) => electron_1.ipcRenderer.invoke('cinema:set-language', lang),
-    setSubtitlePosition: (pos) => electron_1.ipcRenderer.invoke('cinema:set-position', pos),
-    pushSubtitleTranscript: (text, sourceLang) => electron_1.ipcRenderer.invoke('subtitle:push-transcript', text, sourceLang)
+    getLicenseStatus: () => electron_1.ipcRenderer.invoke('license:get-status')
 };
 if (process.contextIsolated) {
     electron_1.contextBridge.exposeInMainWorld('roboIsland', api);

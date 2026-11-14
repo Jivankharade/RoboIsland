@@ -117,10 +117,6 @@
       </div>
 
       <div id="status-right">
-        <button id="btn-cinema-badge" class="cinema-status-badge hidden" title="Cinema Mode Active">
-          <span class="cinema-badge-dot"></span>
-          <span id="btn-cinema-text">CINEMA</span>
-        </button>
         <button id="btn-header-music" class="header-music-btn hidden" title="Now Playing">
           <span class="header-eq-bars">
             <span></span><span></span><span></span><span></span>
@@ -415,17 +411,6 @@
               </button>
               <input type="range" id="media-vol-slider" min="0" max="100" value="50" class="media-vol-slider" title="Volume">
             </div>
-          </div>
-
-          <!-- Cinema Live Subtitles Bar inside Media Panel -->
-          <div class="media-subtitles-bar">
-            <button id="btn-media-subtitles-toggle" class="media-subtitles-btn" title="Toggle Live Subtitles">
-              <span class="subtitles-cc-badge">CC</span>
-              <span id="media-subtitles-status-text">Live Subtitles (Click to Toggle)</span>
-            </button>
-            <button id="btn-media-subtitles-lang" class="media-subtitles-lang-btn" title="Switch Target Language">
-              <span id="media-subtitles-lang-label">HI</span>
-            </button>
           </div>
         </div>
       </section>
@@ -754,51 +739,6 @@
           <button id="btn-guard-back" class="btn-guard-back">Go back</button>
           <button id="btn-guard-anyway" class="btn-guard-anyway" disabled>Open anyway (5)</button>
         </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Cinema / Video Subtitle Detection Banner Toast (Both Compact & Expanded) -->
-  <div id="cinema-detect-toast" class="cinema-detect-toast hidden" role="alert">
-    <div class="toast-cc-badge">
-      <span class="toast-cc-text">CC</span>
-      <span class="toast-pulse-dot"></span>
-    </div>
-    <div class="toast-info-block">
-      <div class="toast-primary-line">
-        <span class="toast-app-badge" id="cinema-toast-app">Chrome</span>
-        <span class="toast-heading">Video Detected</span>
-      </div>
-      <span id="cinema-toast-title" class="toast-subtitle-title">Video Playing</span>
-    </div>
-    <div class="toast-actions-block">
-      <button id="btn-cinema-toast-enable" class="btn-toast-turn-on" title="Turn on live subtitles">
-        Add Subtitles (<span id="cinema-toast-lang-badge">EN -> HI</span>)
-      </button>
-      <button id="btn-cinema-toast-dismiss" class="btn-toast-dismiss" title="Dismiss">
-        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="18" y1="6" x2="6" y2="18"></line>
-          <line x1="6" y1="6" x2="18" y2="18"></line>
-        </svg>
-      </button>
-    </div>
-  </div>
-
-  <!-- Cinema Mode Floating Subtitle HUD Overlay -->
-  <div id="cinema-subtitle-hud" class="cinema-subtitle-hud hidden" aria-live="polite">
-    <div class="cinema-subtitle-inner">
-      <div class="cinema-subtitle-meta">
-        <div class="cinema-badge">
-          <span class="cinema-pulse-dot"></span>
-          <span id="cinema-badge-label">CINEMA</span>
-        </div>
-        <span id="cinema-title-label" class="cinema-title-label">Live Captions</span>
-        <button id="cinema-lang-pill" class="cinema-lang-pill" title="Target Language">
-          <span id="cinema-lang-text">EN</span>
-        </button>
-      </div>
-      <div id="cinema-subtitle-text-wrap" class="cinema-subtitle-text-wrap">
-        <p id="cinema-subtitle-text" class="cinema-subtitle-text">Waiting for dialogue...</p>
       </div>
     </div>
   </div>

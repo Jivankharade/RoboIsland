@@ -13,8 +13,6 @@ import { weatherService } from './weather-service';
 import { systemMetricsEngine } from './system-metrics';
 import { gameModeManager } from './game-mode';
 import { LicenseManager } from './license-manager';
-import { cinemaDetector } from './cinema-detector';
-import { subtitleEngine } from './subtitle-engine';
 
 // Enforce single instance lock
 const gotTheLock = app.requestSingleInstanceLock();
@@ -55,10 +53,6 @@ app.whenReady().then(() => {
   productivityEngine = new ProductivityEngine();
   aiProviderManager = new AIProviderManager();
   registerAIProviderIPC(aiProviderManager);
-
-  // Initialize Cinema Detector and Subtitle Engine
-  cinemaDetector.getState();
-  subtitleEngine.getCurrentCue();
 
   // Create System Tray
   trayManager = new TrayManager(islandWindow, () => {

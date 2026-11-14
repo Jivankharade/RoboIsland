@@ -67,7 +67,6 @@
       this.initVolume();
       this.initNetwork();
       this.initLicense();
-      this.initCinema();
     }
     setupNavigation() {
       const navButtons = document.querySelectorAll(".nav-item");
@@ -408,68 +407,6 @@
         window.settingsApi.updateConfig(partial);
         this.showSaveFeedback();
       }
-    }
-    initCinema() {
-      const api = window.settingsApi;
-      if (!api) return;
-      const autoToggle = document.getElementById("cinema-auto-detect-toggle");
-      const subToggle = document.getElementById("cinema-subtitles-toggle");
-      const langSelect = document.getElementById("cinema-language-select");
-      const fontSelect = document.getElementById("cinema-font-size-select");
-      const posBottom = document.getElementById("pos-bottom");
-      const posTop = document.getElementById("pos-top");
-      const btnTest = document.getElementById("btn-test-cinema-subtitles");
-      const testStatus = document.getElementById("cinema-test-status");
-      if (autoToggle) autoToggle.checked = this.config.cinemaAutoDetect !== false;
-      if (subToggle) subToggle.checked = this.config.subtitleEnabled !== false;
-      if (langSelect) langSelect.value = this.config.subtitleLanguage || "en";
-      if (fontSelect) fontSelect.value = this.config.subtitleFontSize || "medium";
-      if (this.config.subtitlePosition === "top") {
-        if (posTop) posTop.checked = true;
-      } else {
-        if (posBottom) posBottom.checked = true;
-      }
-      autoToggle?.addEventListener("change", () => {
-        const enabled = autoToggle.checked;
-        this.saveConfig({ cinemaAutoDetect: enabled });
-        api.setCinemaAutoDetect?.(enabled);
-      });
-      subToggle?.addEventListener("change", () => {
-        const enabled = subToggle.checked;
-        this.saveConfig({ subtitleEnabled: enabled });
-        api.setSubtitleEnabled?.(enabled);
-      });
-      langSelect?.addEventListener("change", () => {
-        const lang = langSelect.value;
-        this.saveConfig({ subtitleLanguage: lang });
-        api.setSubtitleLanguage?.(lang);
-      });
-      fontSelect?.addEventListener("change", () => {
-        const size = fontSelect.value;
-        this.saveConfig({ subtitleFontSize: size });
-        api.setSubtitleFontSize?.(size);
-      });
-      const updatePos = (pos) => {
-        this.saveConfig({ subtitlePosition: pos });
-        api.setSubtitlePosition?.(pos);
-      };
-      posBottom?.addEventListener("change", () => {
-        if (posBottom.checked) updatePos("bottom");
-      });
-      posTop?.addEventListener("change", () => {
-        if (posTop.checked) updatePos("top");
-      });
-      btnTest?.addEventListener("click", async () => {
-        if (testStatus) testStatus.textContent = "Streaming preview line to Dynamic Island...";
-        try {
-          const cue = await api.testPreviewSubtitle?.();
-          if (testStatus && cue) {
-            testStatus.textContent = `Live: "${cue.text}" (${cue.targetLang.toUpperCase()})`;
-          }
-        } catch (e) {
-          if (testStatus) testStatus.textContent = "Preview sent!";
-        }
-      });
     }
     populateFormFields() {
       const roboNameInput = document.getElementById("input-robo-name");

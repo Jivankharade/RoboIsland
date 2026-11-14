@@ -39,7 +39,6 @@ const path = __importStar(require("path"));
 const electron_1 = require("electron");
 const spotify_pkce_1 = require("./spotify-pkce");
 const config_store_1 = require("./config-store");
-const cinema_detector_1 = require("./cinema-detector");
 class MediaEngine {
     child = null;
     spotifyClient;
@@ -286,7 +285,6 @@ class MediaEngine {
             }
             // 3. Focus Guard Foreground Window
             if (data.front) {
-                cinema_detector_1.cinemaDetector.updateForegroundContext(data.front.title || '', data.front.proc || data.front.app || '', Boolean(data.front.fullscreen), this.smtcState.playing, data.front?.mediaType);
                 electron_1.BrowserWindow.getAllWindows().forEach(win => {
                     if (!win.isDestroyed()) {
                         win.webContents.send('guard:front-changed', data.front);
@@ -319,7 +317,6 @@ class MediaEngine {
                     durationMs: this.smtcDurationMs,
                     coverUrl
                 };
-                cinema_detector_1.cinemaDetector.updateForegroundContext(this.smtcState.title, this.smtcState.app, false, isPlaying, data.type || data.mediaType);
                 // If Spotify is not actively playing, switch activeSource to SMTC or none
                 if (this.activeSource !== 'spotify' || !this.spotifyState?.isPlaying) {
                     this.activeSource = this.smtcState.active ? 'smtc' : (this.spotifyState ? 'spotify' : 'none');

@@ -230,36 +230,7 @@ const api = {
   },
   snoozeDistraction: (minutes?: number) => ipcRenderer.invoke('focus:emergency-override', minutes),
   minimizeDistraction: (pid?: number) => ipcRenderer.invoke('focus:minimize', pid),
-  getLicenseStatus: () => ipcRenderer.invoke('license:get-status'),
-
-  // Cinema Mode & Live Subtitle API
-  getCinemaState: () => ipcRenderer.invoke('cinema:get-state'),
-  onCinemaStateChanged: (callback: (state: any) => void) => {
-    const handler = (_event: any, state: any) => callback(state);
-    ipcRenderer.on('cinema:state-changed', handler);
-    return () => ipcRenderer.removeListener('cinema:state-changed', handler);
-  },
-  onCinemaPromptSubtitles: (callback: (data: any) => void) => {
-    const handler = (_event: any, data: any) => callback(data);
-    ipcRenderer.on('cinema:prompt-subtitles', handler);
-    return () => ipcRenderer.removeListener('cinema:prompt-subtitles', handler);
-  },
-  onSubtitleCue: (callback: (cue: any) => void) => {
-    const handler = (_event: any, cue: any) => callback(cue);
-    ipcRenderer.on('subtitle:cue', handler);
-    return () => ipcRenderer.removeListener('subtitle:cue', handler);
-  },
-  onSubtitleClear: (callback: () => void) => {
-    const handler = () => callback();
-    ipcRenderer.on('subtitle:clear', handler);
-    return () => ipcRenderer.removeListener('subtitle:clear', handler);
-  },
-  testPreviewSubtitle: () => ipcRenderer.invoke('subtitle:test-preview'),
-  setSubtitleEnabled: (enabled: boolean) => ipcRenderer.invoke('subtitle:set-enabled', enabled),
-  clearSubtitles: () => ipcRenderer.invoke('subtitle:clear'),
-  setSubtitleLanguage: (lang: string) => ipcRenderer.invoke('cinema:set-language', lang),
-  setSubtitlePosition: (pos: 'bottom' | 'top') => ipcRenderer.invoke('cinema:set-position', pos),
-  pushSubtitleTranscript: (text: string, sourceLang?: string) => ipcRenderer.invoke('subtitle:push-transcript', text, sourceLang)
+  getLicenseStatus: () => ipcRenderer.invoke('license:get-status')
 };
 
 if (process.contextIsolated) {
