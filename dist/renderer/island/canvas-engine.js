@@ -2809,13 +2809,8 @@ class CanvasEngine {
             this.ctx.shadowBlur = 14;
             this.ctx.shadowOffsetY = 3;
             // TwoCode double-pass frosted glass: first pass under shadow, second pass crisp on top
-            const seeThrough = typeof this.config?.seeThrough === 'number'
-                ? (1 - Math.max(0, Math.min(60, this.config.seeThrough)) / 100)
-                : typeof this.config?.islandOpacity === 'number' && this.config.islandOpacity < 1
-                    ? this.config.islandOpacity
-                    : this.mode === 'expanded' ? 0.68 : 0.75;
-            const blackAlpha = (1 - Math.sqrt(1 - Math.min(0.99, Math.max(0.1, seeThrough)))).toFixed(3);
-            const black = `rgba(0, 0, 0, ${blackAlpha})`;
+            const seeThrough = this.config?.islandAlpha ?? 0.96;
+            const black = seeThrough >= 1 ? '#000000' : `rgba(0,0,0,${(1 - Math.sqrt(1 - Math.min(0.999, seeThrough))).toFixed(3)})`;
             this.islandPath(this.ctx, pillLeft, topY, mainWidth, h, r);
             this.ctx.moveTo(bubbleCx + bubbleR, bubbleCy);
             this.ctx.arc(bubbleCx, bubbleCy, bubbleR, 0, Math.PI * 2);
@@ -2936,13 +2931,8 @@ class CanvasEngine {
         // Environmental Reactive Texture (Fire & Ice, Spider Web, Overgrown parity with TwoCode texture-ui.js)
         texture_engine_1.TextureEngine.getInstance().renderBehind(this.ctx, left, topY, w, h, r);
         // TwoCode double-pass frosted glass: first pass under shadow, second pass crisp on top
-        const seeThrough = typeof this.config?.seeThrough === 'number'
-            ? (1 - Math.max(0, Math.min(60, this.config.seeThrough)) / 100)
-            : typeof this.config?.islandOpacity === 'number' && this.config.islandOpacity < 1
-                ? this.config.islandOpacity
-                : this.mode === 'expanded' ? 0.68 : 0.75;
-        const blackAlpha = (1 - Math.sqrt(1 - Math.min(0.99, Math.max(0.1, seeThrough)))).toFixed(3);
-        const black = `rgba(0, 0, 0, ${blackAlpha})`;
+        const seeThrough = this.config?.islandAlpha ?? 0.96;
+        const black = seeThrough >= 1 ? '#000000' : `rgba(0,0,0,${(1 - Math.sqrt(1 - Math.min(0.999, seeThrough))).toFixed(3)})`;
         this.islandPath(this.ctx, left, topY, w, h, r);
         this.ctx.fillStyle = black;
         this.ctx.fill();

@@ -28,8 +28,6 @@ export class IslandWindow {
       frame: false,
       transparent: true,
       backgroundColor: '#00000000',
-      backgroundMaterial: 'acrylic',
-      vibrancy: 'under-window',
       resizable: false,
       movable: false,
       minimizable: false,
