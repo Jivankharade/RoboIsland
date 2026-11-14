@@ -42,5 +42,19 @@ electron_1.contextBridge.exposeInMainWorld('settingsApi', {
     // Pro Licensing & Owner Creator Hub
     getLicenseStatus: () => electron_1.ipcRenderer.invoke('license:get-status'),
     activateLicense: (key) => electron_1.ipcRenderer.invoke('license:activate', key),
-    generateCustomerKey: (customer) => electron_1.ipcRenderer.invoke('license:generate-key', customer)
+    generateCustomerKey: (customer) => electron_1.ipcRenderer.invoke('license:generate-key', customer),
+    // Cinema Mode & Subtitles Hub
+    getCinemaState: () => electron_1.ipcRenderer.invoke('cinema:get-state'),
+    setCinemaAutoDetect: (enabled) => electron_1.ipcRenderer.invoke('cinema:set-auto-detect', enabled),
+    setSubtitleLanguage: (lang) => electron_1.ipcRenderer.invoke('cinema:set-language', lang),
+    setSubtitlePosition: (pos) => electron_1.ipcRenderer.invoke('cinema:set-position', pos),
+    setSubtitleFontSize: (size) => electron_1.ipcRenderer.invoke('cinema:set-font-size', size),
+    setSubtitleEnabled: (enabled) => electron_1.ipcRenderer.invoke('subtitle:set-enabled', enabled),
+    testPreviewSubtitle: () => electron_1.ipcRenderer.invoke('subtitle:test-preview'),
+    getSupportedLanguages: () => electron_1.ipcRenderer.invoke('subtitle:get-languages'),
+    onCinemaStateChanged: (callback) => {
+        const handler = (_event, state) => callback(state);
+        electron_1.ipcRenderer.on('cinema:state-changed', handler);
+        return () => electron_1.ipcRenderer.removeListener('cinema:state-changed', handler);
+    }
 });

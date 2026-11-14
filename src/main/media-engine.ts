@@ -3,6 +3,7 @@ import * as path from 'path';
 import { BrowserWindow, ipcMain } from 'electron';
 import { SpotifyPKCEClient } from './spotify-pkce';
 import { configStore, RoboIslandConfig } from './config-store';
+import { cinemaDetector } from './cinema-detector';
 
 export interface MediaState {
   source: 'spotify' | 'smtc' | 'none';
@@ -331,6 +332,13 @@ export class MediaEngine {
 
       // 3. Focus Guard Foreground Window
       if (data.front) {
+        cinemaDetector.updateForegroundContext(
+          data.front.title || '',
+          data.front.proc || data.front.app || '',
+          Boolean(data.front.fullscreen),
+          this.smtcState.playing,
+          (data.front as any)?.mediaType
+        );
         BrowserWindow.getAllWindows().forEach(win => {
           if (!win.isDestroyed()) {
             win.webContents.send('guard:front-changed', data.front);
@@ -366,6 +374,14 @@ export class MediaEngine {
           durationMs: this.smtcDurationMs,
           coverUrl
         };
+
+        cinemaDetector.updateForegroundContext(
+          this.smtcState.title,
+          this.smtcState.app,
+          false,
+          isPlaying,
+          (data as any).type || (data as any).mediaType
+        );
 
         // If Spotify is not actively playing, switch activeSource to SMTC or none
         if (this.activeSource !== 'spotify' || !this.spotifyState?.isPlaying) {

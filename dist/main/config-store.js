@@ -96,7 +96,12 @@ exports.DEFAULT_CONFIG = {
     weatherCity: '',
     clockFormat: '12h',
     islandOpacity: 1.0,
-    language: 'en'
+    language: 'en',
+    cinemaAutoDetect: true,
+    subtitleLanguage: 'en',
+    subtitlePosition: 'bottom',
+    subtitleFontSize: 'medium',
+    subtitleEnabled: true
 };
 class ConfigStore {
     config;

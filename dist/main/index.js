@@ -48,6 +48,8 @@ const weather_service_1 = require("./weather-service");
 const system_metrics_1 = require("./system-metrics");
 const game_mode_1 = require("./game-mode");
 const license_manager_1 = require("./license-manager");
+const cinema_detector_1 = require("./cinema-detector");
+const subtitle_engine_1 = require("./subtitle-engine");
 // Enforce single instance lock
 const gotTheLock = electron_1.app.requestSingleInstanceLock();
 if (!gotTheLock) {
@@ -81,6 +83,9 @@ electron_1.app.whenReady().then(() => {
     productivityEngine = new productivity_engine_1.ProductivityEngine();
     aiProviderManager = new ai_provider_manager_1.AIProviderManager();
     (0, ai_provider_manager_1.registerAIProviderIPC)(aiProviderManager);
+    // Initialize Cinema Detector and Subtitle Engine
+    cinema_detector_1.cinemaDetector.getState();
+    subtitle_engine_1.subtitleEngine.getCurrentCue();
     // Create System Tray
     trayManager = new tray_manager_1.TrayManager(islandWindow, () => {
         openSettingsWindow();

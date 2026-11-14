@@ -64,6 +64,13 @@ export interface RoboIslandConfig {
   clockFormat?: '12h' | '24h';
   islandOpacity?: number;
   language?: 'en' | 'hi';
+  
+  // Cinema Mode & Live Subtitles
+  cinemaAutoDetect: boolean;
+  subtitleLanguage: string;
+  subtitlePosition: 'bottom' | 'top';
+  subtitleFontSize: 'small' | 'medium' | 'large';
+  subtitleEnabled: boolean;
 }
 
 export const DEFAULT_CONFIG: RoboIslandConfig = {
@@ -125,7 +132,12 @@ export const DEFAULT_CONFIG: RoboIslandConfig = {
   weatherCity: '',
   clockFormat: '12h',
   islandOpacity: 1.0,
-  language: 'en'
+  language: 'en',
+  cinemaAutoDetect: true,
+  subtitleLanguage: 'en',
+  subtitlePosition: 'bottom',
+  subtitleFontSize: 'medium',
+  subtitleEnabled: true
 };
 
 class ConfigStore {

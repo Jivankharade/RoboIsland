@@ -2565,6 +2565,7 @@
             }
           });
         }
+        this.initCinemaSubtitleHandlers();
       }
       if (typeof window !== "undefined") {
         window.__roboIslandSetMode = (mode) => this.setMode(mode);
@@ -6324,6 +6325,73 @@
       const btnMute = document.getElementById("btn-quick-mute");
       if (btnMute) {
         btnMute.innerHTML = `<span class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24">${this.volumeState.muted || level === 0 ? '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="22" x2="16" y1="9" y2="15"/><line x1="16" x2="22" y1="9" y2="15"/>' : '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>'}</svg></span>`;
+      }
+    }
+    subtitleFadeTimer = null;
+    initCinemaSubtitleHandlers() {
+      const api = window.roboIsland;
+      if (!api) return;
+      const cinemaBadge = document.getElementById("btn-cinema-badge");
+      const cinemaText = document.getElementById("btn-cinema-text");
+      const subHud = document.getElementById("cinema-subtitle-hud");
+      const subText = document.getElementById("cinema-subtitle-text");
+      const subTitle = document.getElementById("cinema-title-label");
+      const langPill = document.getElementById("cinema-lang-pill");
+      const langText = document.getElementById("cinema-lang-text");
+      if (api.onCinemaStateChanged) {
+        api.onCinemaStateChanged((state) => {
+          if (!state) return;
+          if (cinemaBadge && cinemaText) {
+            cinemaBadge.classList.toggle("hidden", !state.isCinemaMode);
+            cinemaText.textContent = `CINEMA: ${String(state.targetLanguage || "EN").toUpperCase()}`;
+          }
+          if (subHud) {
+            subHud.classList.remove("pos-bottom", "pos-top");
+            subHud.classList.add(state.subtitlePosition === "top" ? "pos-top" : "pos-bottom");
+            subHud.classList.remove("size-small", "size-medium", "size-large");
+            subHud.classList.add(`size-${state.subtitleFontSize || "medium"}`);
+          }
+          if (langText) {
+            langText.textContent = String(state.targetLanguage || "EN").toUpperCase();
+          }
+          if (subTitle && state.activeTitle) {
+            subTitle.textContent = state.activeTitle;
+          }
+        });
+      }
+      if (api.onSubtitleCue) {
+        api.onSubtitleCue((cue) => {
+          if (!cue || !subHud || !subText) return;
+          subText.textContent = cue.text || cue.originalText || "";
+          if (langText && cue.targetLang) {
+            langText.textContent = cue.targetLang.toUpperCase();
+          }
+          subHud.classList.remove("hidden");
+          if (this.subtitleFadeTimer) clearTimeout(this.subtitleFadeTimer);
+          this.subtitleFadeTimer = setTimeout(() => {
+            if (subHud) subHud.classList.add("hidden");
+          }, cue.durationMs || 4e3);
+        });
+      }
+      if (api.onSubtitleClear) {
+        api.onSubtitleClear(() => {
+          if (subHud) subHud.classList.add("hidden");
+        });
+      }
+      if (langPill) {
+        langPill.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const langs = ["en", "hi", "mr", "es", "ja", "fr", "de"];
+          const current = (langText?.textContent || "EN").toLowerCase();
+          const next = langs[(langs.indexOf(current) + 1) % langs.length];
+          api.setSubtitleLanguage?.(next);
+        });
+      }
+      if (cinemaBadge) {
+        cinemaBadge.addEventListener("click", (e) => {
+          e.stopPropagation();
+          api.testPreviewSubtitle?.();
+        });
       }
     }
     formatTime(ms) {

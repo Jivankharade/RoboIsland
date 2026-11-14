@@ -117,6 +117,10 @@
       </div>
 
       <div id="status-right">
+        <button id="btn-cinema-badge" class="cinema-status-badge hidden" title="Cinema Mode Active">
+          <span class="cinema-badge-dot"></span>
+          <span id="btn-cinema-text">CINEMA</span>
+        </button>
         <button id="btn-header-music" class="header-music-btn hidden" title="Now Playing">
           <span class="header-eq-bars">
             <span></span><span></span><span></span><span></span>
@@ -739,6 +743,25 @@
           <button id="btn-guard-back" class="btn-guard-back">Go back</button>
           <button id="btn-guard-anyway" class="btn-guard-anyway" disabled>Open anyway (5)</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cinema Mode Floating Subtitle HUD Overlay -->
+  <div id="cinema-subtitle-hud" class="cinema-subtitle-hud hidden" aria-live="polite">
+    <div class="cinema-subtitle-inner">
+      <div class="cinema-subtitle-meta">
+        <div class="cinema-badge">
+          <span class="cinema-pulse-dot"></span>
+          <span id="cinema-badge-label">CINEMA</span>
+        </div>
+        <span id="cinema-title-label" class="cinema-title-label">Live Captions</span>
+        <button id="cinema-lang-pill" class="cinema-lang-pill" title="Target Language">
+          <span id="cinema-lang-text">EN</span>
+        </button>
+      </div>
+      <div id="cinema-subtitle-text-wrap" class="cinema-subtitle-text-wrap">
+        <p id="cinema-subtitle-text" class="cinema-subtitle-text">Waiting for dialogue...</p>
       </div>
     </div>
   </div>

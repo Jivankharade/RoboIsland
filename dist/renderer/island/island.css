@@ -3633,5 +3633,172 @@ html, body {
   animation: airdropRadarPulse 2s infinite;
 }
 
+/* ============================================================================
+   Cinema Mode & Floating Subtitle HUD Styles (Zero-Emoji Compliance)
+   ============================================================================ */
+
+.cinema-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  background: rgba(255, 179, 64, 0.15);
+  border: 1px solid rgba(255, 179, 64, 0.35);
+  border-radius: 10px;
+  color: #ffb340;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.cinema-status-badge:hover {
+  background: rgba(255, 179, 64, 0.25);
+  border-color: rgba(255, 179, 64, 0.55);
+}
+
+.cinema-badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ffb340;
+  box-shadow: 0 0 8px #ffb340;
+  animation: cinemaPulse 1.8s infinite ease-in-out;
+}
+
+@keyframes cinemaPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.85); }
+}
+
+/* Floating Subtitle HUD */
+.cinema-subtitle-hud {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 99999;
+  max-width: 90vw;
+  width: auto;
+  min-width: 320px;
+  pointer-events: auto;
+  transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1), transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Position Variants */
+.cinema-subtitle-hud.pos-bottom {
+  bottom: 44px;
+  top: auto;
+}
+
+.cinema-subtitle-hud.pos-top {
+  top: 92px;
+  bottom: auto;
+}
+
+.cinema-subtitle-hud.hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%) translateY(8px);
+}
+
+.cinema-subtitle-inner {
+  background: rgba(10, 12, 16, 0.82);
+  backdrop-filter: blur(24px) saturate(190%);
+  -webkit-backdrop-filter: blur(24px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  padding: 10px 18px 14px 18px;
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cinema-subtitle-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 6px;
+}
+
+.cinema-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  color: #ffb340;
+}
+
+.cinema-pulse-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #ffb340;
+  box-shadow: 0 0 6px #ffb340;
+  animation: cinemaPulse 1.8s infinite ease-in-out;
+}
+
+.cinema-title-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.55);
+  max-width: 240px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cinema-lang-pill {
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  border-radius: 8px;
+  padding: 2px 7px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cinema-lang-pill:hover {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.cinema-subtitle-text-wrap {
+  text-align: center;
+  padding: 2px 8px;
+}
+
+.cinema-subtitle-text {
+  color: #ffffff;
+  font-weight: 600;
+  line-height: 1.45;
+  letter-spacing: 0.25px;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.95), 0 0 2px rgba(0, 0, 0, 0.85);
+  margin: 0;
+  transition: opacity 0.2s ease;
+}
+
+/* Font Size Modifiers */
+.cinema-subtitle-hud.size-small .cinema-subtitle-text {
+  font-size: 15px;
+}
+
+.cinema-subtitle-hud.size-medium .cinema-subtitle-text {
+  font-size: 19px;
+}
+
+.cinema-subtitle-hud.size-large .cinema-subtitle-text {
+  font-size: 24px;
+}
+
+
 
 

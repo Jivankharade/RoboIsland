@@ -45,5 +45,20 @@ contextBridge.exposeInMainWorld('settingsApi', {
   // Pro Licensing & Owner Creator Hub
   getLicenseStatus: () => ipcRenderer.invoke('license:get-status'),
   activateLicense: (key: string) => ipcRenderer.invoke('license:activate', key),
-  generateCustomerKey: (customer: string) => ipcRenderer.invoke('license:generate-key', customer)
+  generateCustomerKey: (customer: string) => ipcRenderer.invoke('license:generate-key', customer),
+
+  // Cinema Mode & Subtitles Hub
+  getCinemaState: () => ipcRenderer.invoke('cinema:get-state'),
+  setCinemaAutoDetect: (enabled: boolean) => ipcRenderer.invoke('cinema:set-auto-detect', enabled),
+  setSubtitleLanguage: (lang: string) => ipcRenderer.invoke('cinema:set-language', lang),
+  setSubtitlePosition: (pos: 'bottom' | 'top') => ipcRenderer.invoke('cinema:set-position', pos),
+  setSubtitleFontSize: (size: 'small' | 'medium' | 'large') => ipcRenderer.invoke('cinema:set-font-size', size),
+  setSubtitleEnabled: (enabled: boolean) => ipcRenderer.invoke('subtitle:set-enabled', enabled),
+  testPreviewSubtitle: () => ipcRenderer.invoke('subtitle:test-preview'),
+  getSupportedLanguages: () => ipcRenderer.invoke('subtitle:get-languages'),
+  onCinemaStateChanged: (callback: (state: any) => void) => {
+    const handler = (_event: any, state: any) => callback(state);
+    ipcRenderer.on('cinema:state-changed', handler);
+    return () => ipcRenderer.removeListener('cinema:state-changed', handler);
+  }
 });

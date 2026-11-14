@@ -45,7 +45,13 @@ RoboIsland brings the fluid, responsive Dynamic Island experience to desktop ope
 - **Two-Way Drag-Out**: Grab any staged file chip and drag it directly out of the island onto your Desktop, Windows File Explorer, or apps.
 - **Live Transfer Beam & Chime**: Real-time laser beam animation and ascending AirDrop chime upon completion.
 
-### 4. Real-Time AI Agent Monitoring (Claude Code & Codex)
+### 4. Cinema Mode & Universal Live Subtitles
+- **Automatic Movie & Series Detection**: Auto-detects VLC, MPV, PotPlayer, Netflix, YouTube, Prime Video, Hotstar, and fullscreen cinema playback.
+- **Universal Live Subtitle HUD**: Frosted-glass floating caption bar positioned at Bottom-Center (Cinema Standard) or Top Docked (below the Dynamic Island).
+- **Multi-Language Speech Translation**: Translates live cinema dialogue into English, Hindi, Marathi, Spanish, French, German, Japanese, Korean, and more.
+- **Cinema Tuck Mode**: Automatically compresses the Dynamic Island mascot into a tiny obsidian pebble to keep your entire video screen 100% unobstructed.
+
+### 5. Real-Time AI Agent Monitoring (Claude Code & Codex)
 - Embedded webhook receiver listening on `http://127.0.0.1:47823`.
 - Ingests tool calls, terminal commands, and file edits in real time.
 - **Unified Diff Viewer**: Inline color-coded file mutation viewer with additions and deletions.
