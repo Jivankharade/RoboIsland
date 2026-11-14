@@ -41,6 +41,7 @@ const path = __importStar(require("path"));
 const os = __importStar(require("os"));
 const dgram = __importStar(require("dgram"));
 const crypto = __importStar(require("crypto"));
+const document_converter_1 = require("./document-converter");
 class ProductivityEngine {
     // Clipboard History
     clipboardHistory = [];
@@ -60,6 +61,8 @@ class ProductivityEngine {
     lanIp = '127.0.0.1';
     // Guard Window
     guardWindow = null;
+    // Document Converter
+    documentConverter = new document_converter_1.DocumentConverter();
     constructor() {
         const userData = electron_1.app.getPath('userData');
         this.trayPath = path.join(userData, 'tray-files.json');
@@ -871,6 +874,30 @@ class ProductivityEngine {
             }
             catch (err) {
                 console.error('[ProductivityEngine] clipboard startDrag error:', err);
+            }
+        });
+        electron_1.ipcMain.handle('tools:convert-file', async (_event, args) => {
+            const { filePath, targetFormat } = args || {};
+            if (!filePath || !targetFormat) {
+                return { success: false, error: 'Missing file path or target format' };
+            }
+            try {
+                const res = await this.documentConverter.convert(filePath, targetFormat);
+                if (res.success && res.outputPath && fs.existsSync(res.outputPath)) {
+                    // Auto-stage converted file into tray shelf so user can drag it out or transfer it
+                    this.trayFiles = [...new Set([res.outputPath, ...this.trayFiles])].slice(0, 24);
+                    this.activeFilePath = res.outputPath;
+                    this.savePersistedTrayFiles();
+                    this.notifyRenderers({
+                        type: 'upload',
+                        files: [res.outputPath],
+                        name: path.basename(res.outputPath)
+                    });
+                }
+                return res;
+            }
+            catch (err) {
+                return { success: false, error: err.message || 'Conversion failed' };
             }
         });
         electron_1.ipcMain.handle('tools:note-save', (_event, text) => {

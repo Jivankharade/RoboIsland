@@ -6,6 +6,7 @@ import * as os from 'os';
 import * as dgram from 'dgram';
 import * as crypto from 'crypto';
 import { configStore } from './config-store';
+import { DocumentConverter } from './document-converter';
 
 export interface ClipboardItem {
   id: string;
@@ -41,6 +42,9 @@ export class ProductivityEngine {
 
   // Guard Window
   private guardWindow: BrowserWindow | null = null;
+
+  // Document Converter
+  private documentConverter = new DocumentConverter();
 
   constructor() {
     const userData = app.getPath('userData');
@@ -872,6 +876,30 @@ export class ProductivityEngine {
         }
       } catch (err) {
         console.error('[ProductivityEngine] clipboard startDrag error:', err);
+      }
+    });
+
+    ipcMain.handle('tools:convert-file', async (_event, args: { filePath: string; targetFormat: string }) => {
+      const { filePath, targetFormat } = args || {};
+      if (!filePath || !targetFormat) {
+        return { success: false, error: 'Missing file path or target format' };
+      }
+      try {
+        const res = await this.documentConverter.convert(filePath, targetFormat);
+        if (res.success && res.outputPath && fs.existsSync(res.outputPath)) {
+          // Auto-stage converted file into tray shelf so user can drag it out or transfer it
+          this.trayFiles = [...new Set([res.outputPath, ...this.trayFiles])].slice(0, 24);
+          this.activeFilePath = res.outputPath;
+          this.savePersistedTrayFiles();
+          this.notifyRenderers({
+            type: 'upload',
+            files: [res.outputPath],
+            name: path.basename(res.outputPath)
+          });
+        }
+        return res;
+      } catch (err: any) {
+        return { success: false, error: err.message || 'Conversion failed' };
       }
     });
 

@@ -113,6 +113,7 @@ const api = {
   setDropActiveFile: (filePath: string | null) => ipcRenderer.invoke('tools:drop-set-active', filePath),
   setDragging: (dragging: boolean) => ipcRenderer.send('island:set-dragging', dragging),
   startDragOut: (filePath: string) => ipcRenderer.send('tools:tray-drag-out', filePath),
+  convertFile: (filePath: string, targetFormat: string) => ipcRenderer.invoke('tools:convert-file', { filePath, targetFormat }),
   getFilePreviewData: (filePath: string) => ipcRenderer.invoke('tools:file-preview-data', filePath),
   showItemInFolder: (filePath: string) => ipcRenderer.invoke('tools:show-item-in-folder', filePath),
   openPath: (filePath: string) => ipcRenderer.invoke('tools:open-path', filePath),

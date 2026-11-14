@@ -1237,6 +1237,69 @@ html, body {
   to { transform: translateY(-6px); }
 }
 
+/* Donut Radial Converter Wheel (Inspired by Filee) */
+.donut-converter-wrap {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  pointer-events: none;
+  animation: donutBloom 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.donut-converter-wrap.hidden {
+  display: none !important;
+}
+
+@keyframes donutBloom {
+  0% { transform: scale(0.85); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.donut-interactive-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.donut-svg {
+  filter: drop-shadow(0 12px 30px rgba(0, 0, 0, 0.65));
+}
+
+.donut-slice {
+  cursor: pointer;
+  transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.donut-guide-banner {
+  margin-top: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 4px 12px;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(8px);
+}
+
+.donut-guide-banner b {
+  color: #00d2ff;
+}
+
+.donut-progress-arc {
+  animation: donutProgressSpin 1.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  transform-origin: 120px 120px;
+  transform: rotate(-90deg);
+}
+
+@keyframes donutProgressSpin {
+  0% { stroke-dashoffset: 301; }
+  100% { stroke-dashoffset: 0; }
+}
+
 /* Header Music Button */
 .header-music-btn {
   background: transparent;

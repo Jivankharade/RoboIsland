@@ -106,6 +106,7 @@ const api = {
     setDropActiveFile: (filePath) => electron_1.ipcRenderer.invoke('tools:drop-set-active', filePath),
     setDragging: (dragging) => electron_1.ipcRenderer.send('island:set-dragging', dragging),
     startDragOut: (filePath) => electron_1.ipcRenderer.send('tools:tray-drag-out', filePath),
+    convertFile: (filePath, targetFormat) => electron_1.ipcRenderer.invoke('tools:convert-file', { filePath, targetFormat }),
     getFilePreviewData: (filePath) => electron_1.ipcRenderer.invoke('tools:file-preview-data', filePath),
     showItemInFolder: (filePath) => electron_1.ipcRenderer.invoke('tools:show-item-in-folder', filePath),
     openPath: (filePath) => electron_1.ipcRenderer.invoke('tools:open-path', filePath),
