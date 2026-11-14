@@ -522,15 +522,29 @@ class RoboMascot {
         this.particles.update(dt);
     }
     poke(x, y) {
+        this.resetInactivity();
         this.pokeCount++;
         this.pokeTimer = 2.0;
-        this.jump(120);
+        // 1. Elastic squish & wobble spring
+        this.heightFactor = 0.62;
+        this.wobbleVelocity = -22;
+        this.tiltAngle = (Math.random() - 0.5) * 0.35;
+        this.jump(130);
+        // 2. Set circle eyes mood for 2.2 seconds
+        this.setMood('poked', 2200);
+        // 3. Sound effect & particles
         this.sounds.playChirp();
-        this.particles.burst(x, y, 12);
+        this.particles.burst(x, y, 14);
+        // 4. Playful vocal reaction
+        const pokePhrases = ['Eep!', 'Ouch!', 'Hey!', 'Hehe!', 'Whoa!'];
+        const phrase = pokePhrases[Math.floor(Math.random() * pokePhrases.length)];
+        this.speak(phrase, 1.2);
+        // 5. Dizzy spiral reaction if poked 5 times in rapid succession
         if (this.pokeCount >= 5) {
             this.dizzyDuration = 3.5;
             this.pokeCount = 0;
             this.sounds.playAlert();
+            this.speak('Whoa, dizzy!', 2.0);
         }
     }
     /**
@@ -664,12 +678,23 @@ class RoboMascot {
                 ctx.ellipse(0, -1, 5, 7.5, side * 0.15, 0, Math.PI * 2);
                 ctx.fill();
             }
-            // 8. SURPRISED: wide circular eyes
-            else if (effectiveMood === 'surprised') {
+            // 8. SURPRISED / POKED: wide circular eyes with pupil and glint
+            else if (effectiveMood === 'surprised' || effectiveMood === 'poked') {
                 ctx.scale(eyeScale, eyeScale);
                 ctx.beginPath();
-                ctx.arc(0, 0, 7, 0, Math.PI * 2);
+                ctx.arc(0, 0, 7.6, 0, Math.PI * 2);
                 ctx.fill();
+                ctx.save();
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = '#0a0d14';
+                ctx.beginPath();
+                ctx.arc(0, 0, 2.8, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(1.5, -1.5, 1.2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
             }
             // 9. RELAXED: soft calm half-oval
             else if (effectiveMood === 'relaxed') {
@@ -876,15 +901,19 @@ class RoboMascot {
                 ctx.fill();
                 this.drawVectorSparkle(ctx, 0, 0, 2.2, '#ffffff');
             }
-            else if (this.mood === 'surprised') {
-                // Wide circle with pinpoint pupil
+            else if (this.mood === 'surprised' || this.mood === 'poked') {
+                // Wide circle with pupil and highlight
                 ctx.beginPath();
-                ctx.arc(0, 0, eyeRadius * 1.15, 0, Math.PI * 2);
+                ctx.arc(0, 0, eyeRadius * 1.25, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.shadowBlur = 0;
                 ctx.fillStyle = '#0a0b0e';
                 ctx.beginPath();
-                ctx.arc(0, 0, 1.2, 0, Math.PI * 2);
+                ctx.arc(0, 0, 1.5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(0.8, -0.8, 0.7, 0, Math.PI * 2);
                 ctx.fill();
             }
             else if (this.mood === 'relaxed') {

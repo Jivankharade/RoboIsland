@@ -749,15 +749,24 @@
       this.particles.update(dt);
     }
     poke(x, y) {
+      this.resetInactivity();
       this.pokeCount++;
       this.pokeTimer = 2;
-      this.jump(120);
+      this.heightFactor = 0.62;
+      this.wobbleVelocity = -22;
+      this.tiltAngle = (Math.random() - 0.5) * 0.35;
+      this.jump(130);
+      this.setMood("poked", 2200);
       this.sounds.playChirp();
-      this.particles.burst(x, y, 12);
+      this.particles.burst(x, y, 14);
+      const pokePhrases = ["Eep!", "Ouch!", "Hey!", "Hehe!", "Whoa!"];
+      const phrase = pokePhrases[Math.floor(Math.random() * pokePhrases.length)];
+      this.speak(phrase, 1.2);
       if (this.pokeCount >= 5) {
         this.dizzyDuration = 3.5;
         this.pokeCount = 0;
         this.sounds.playAlert();
+        this.speak("Whoa, dizzy!", 2);
       }
     }
     /**
@@ -862,11 +871,22 @@
           ctx.beginPath();
           ctx.ellipse(0, -1, 5, 7.5, side * 0.15, 0, Math.PI * 2);
           ctx.fill();
-        } else if (effectiveMood === "surprised") {
+        } else if (effectiveMood === "surprised" || effectiveMood === "poked") {
           ctx.scale(eyeScale, eyeScale);
           ctx.beginPath();
-          ctx.arc(0, 0, 7, 0, Math.PI * 2);
+          ctx.arc(0, 0, 7.6, 0, Math.PI * 2);
           ctx.fill();
+          ctx.save();
+          ctx.shadowBlur = 0;
+          ctx.fillStyle = "#0a0d14";
+          ctx.beginPath();
+          ctx.arc(0, 0, 2.8, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = "#ffffff";
+          ctx.beginPath();
+          ctx.arc(1.5, -1.5, 1.2, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
         } else if (effectiveMood === "relaxed") {
           ctx.scale(eyeScale, eyeScale);
           ctx.beginPath();
@@ -1037,14 +1057,18 @@
           ctx.ellipse(0, 0, eyeRadius * 1.1, eyeRadius * 1.3, 0, 0, Math.PI * 2);
           ctx.fill();
           this.drawVectorSparkle(ctx, 0, 0, 2.2, "#ffffff");
-        } else if (this.mood === "surprised") {
+        } else if (this.mood === "surprised" || this.mood === "poked") {
           ctx.beginPath();
-          ctx.arc(0, 0, eyeRadius * 1.15, 0, Math.PI * 2);
+          ctx.arc(0, 0, eyeRadius * 1.25, 0, Math.PI * 2);
           ctx.fill();
           ctx.shadowBlur = 0;
           ctx.fillStyle = "#0a0b0e";
           ctx.beginPath();
-          ctx.arc(0, 0, 1.2, 0, Math.PI * 2);
+          ctx.arc(0, 0, 1.5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = "#ffffff";
+          ctx.beginPath();
+          ctx.arc(0.8, -0.8, 0.7, 0, Math.PI * 2);
           ctx.fill();
         } else if (this.mood === "relaxed") {
           ctx.beginPath();
@@ -1523,6 +1547,7 @@
     isHovered = false;
     isInteractive = false;
     collapseTimer = null;
+    compactClickTimer = null;
     isDraggingOver = false;
     justRestoredFromRest = false;
     // Live Media State (Windows SMTC, YouTube, Spotify)
@@ -2348,6 +2373,20 @@
         }
         this.handleClick(e.clientX, e.clientY, e.altKey);
       });
+      window.addEventListener("dblclick", (e) => {
+        if (e.target?.closest?.('input, textarea, button, select, [contenteditable="true"]')) return;
+        const cx = window.innerWidth / 2;
+        const topY = this.getTopY();
+        const effectiveW = this.mode === "expanded" ? Math.max(this.targetWidth, this.currentWidth) : this.currentWidth;
+        const effectiveH = this.mode === "expanded" ? Math.max(this.targetHeight, this.currentHeight) : this.currentHeight;
+        const halfW = effectiveW / 2;
+        const insideIsland = e.clientX >= cx - halfW - 14 && e.clientX <= cx + halfW + 14 && e.clientY >= 0 && e.clientY <= topY + effectiveH + 14;
+        if (insideIsland) {
+          e.preventDefault();
+          e.stopPropagation();
+          this.pokeMascot(e.clientX, e.clientY);
+        }
+      });
       window.addEventListener("contextmenu", (e) => {
         if (e.target?.closest?.('input, textarea, [contenteditable="true"]')) return;
         const cx = window.innerWidth / 2;
@@ -2606,6 +2645,7 @@
         window.__roboIslandMascotJump = (strength) => this.mascotJump(strength);
         window.__roboIslandMascotBounce = (strength) => this.mascotBounce(strength);
         window.__roboIslandMascotSpeak = (text, duration) => this.mascotSpeak(text, duration);
+        window.__roboIslandPokeMascot = (x, y) => this.pokeMascot(x, y);
         window.__roboIslandTriggerChargerSurge = (charging, level) => this.triggerChargerSurge(charging, level);
         window.__roboIslandTriggerVolumeHud = (level, muted) => this.triggerVolumeHud(level, Boolean(muted));
         window.__roboIslandTriggerSpeedometerHud = () => this.triggerSpeedometerHud();
@@ -3190,6 +3230,22 @@
     mascotSpeak(text, duration) {
       this.mascot.speak(text, duration);
     }
+    pokeMascot(x, y) {
+      if (this.compactClickTimer) {
+        clearTimeout(this.compactClickTimer);
+        this.compactClickTimer = null;
+      }
+      const cx = window.innerWidth / 2;
+      const topY = this.getTopY();
+      const midY = topY + this.currentHeight / 2;
+      const pokeX = typeof x === "number" ? x : cx;
+      const pokeY = typeof y === "number" ? y : midY;
+      this.mascot.poke(pokeX, pokeY);
+      try {
+        AudioSynth.getInstance().playMelody("pop");
+      } catch {
+      }
+    }
     enterRest() {
       if (this.collapseTimer) {
         clearTimeout(this.collapseTimer);
@@ -3523,18 +3579,26 @@
           }
         }
         if (Math.abs(x - cx) <= this.currentWidth / 2 && y >= topY && y <= topY + this.currentHeight) {
-          if (this.focusState.active && !(this.mediaState.active && this.mediaState.title)) {
-            this.activeTab = "focus";
-            this.showDomTab("focus");
-          } else if (this.mediaState.active && this.mediaState.title) {
-            this.activeTab = "media";
-            this.showDomTab("music");
-          } else {
-            this.activeTab = "home";
-            this.showDomTab("home");
+          if (this.compactClickTimer) {
+            clearTimeout(this.compactClickTimer);
+            this.compactClickTimer = null;
           }
-          this.mascot.jump();
-          this.expand();
+          this.compactClickTimer = setTimeout(() => {
+            this.compactClickTimer = null;
+            if (this.mode !== "compact") return;
+            if (this.focusState.active && !(this.mediaState.active && this.mediaState.title)) {
+              this.activeTab = "focus";
+              this.showDomTab("focus");
+            } else if (this.mediaState.active && this.mediaState.title) {
+              this.activeTab = "media";
+              this.showDomTab("music");
+            } else {
+              this.activeTab = "home";
+              this.showDomTab("home");
+            }
+            this.mascot.jump();
+            this.expand();
+          }, 220);
         }
         return;
       }
@@ -5401,6 +5465,23 @@
         }
         e.stopPropagation();
       });
+      this.domOverlayEl.addEventListener("dblclick", (e) => {
+        const target = e.target;
+        if (target?.closest?.('input, textarea, button, .nav-item, select, [contenteditable="true"]')) return;
+        e.stopPropagation();
+        this.pokeMascot(e.clientX, e.clientY);
+      });
+      const eyeSlot = document.getElementById("mascot-eye-slot");
+      if (eyeSlot) {
+        eyeSlot.addEventListener("click", (e) => {
+          e.stopPropagation();
+          this.pokeMascot(e.clientX, e.clientY);
+        });
+        eyeSlot.addEventListener("dblclick", (e) => {
+          e.stopPropagation();
+          this.pokeMascot(e.clientX, e.clientY);
+        });
+      }
       const navItems = this.domOverlayEl.querySelectorAll(".nav-item[data-tab]");
       navItems.forEach((btn) => {
         btn.addEventListener("click", (e) => {

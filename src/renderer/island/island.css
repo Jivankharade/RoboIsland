@@ -162,7 +162,13 @@ html, body {
   width: 36px;
   height: 18px;
   flex-shrink: 0;
-  pointer-events: none;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: transform 0.15s ease-out;
+}
+
+#mascot-eye-slot:hover {
+  transform: scale(1.1);
 }
 
 #status-datetime {

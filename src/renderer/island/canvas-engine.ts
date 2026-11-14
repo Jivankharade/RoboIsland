@@ -87,6 +87,7 @@ export class CanvasEngine {
   public isHovered = false;
   public isInteractive = false;
   private collapseTimer: any = null;
+  private compactClickTimer: any = null;
   private isDraggingOver = false;
   private justRestoredFromRest = false;
 
@@ -1026,6 +1027,28 @@ export class CanvasEngine {
       this.handleClick(e.clientX, e.clientY, e.altKey);
     });
 
+    // Double-Click on the Island: Poke Robo mascot (circle eyes, bouncy jump, cute sound)
+    window.addEventListener('dblclick', (e) => {
+      if ((e.target as HTMLElement)?.closest?.('input, textarea, button, select, [contenteditable="true"]')) return;
+
+      const cx = window.innerWidth / 2;
+      const topY = this.getTopY();
+      const effectiveW = this.mode === 'expanded' ? Math.max(this.targetWidth, this.currentWidth) : this.currentWidth;
+      const effectiveH = this.mode === 'expanded' ? Math.max(this.targetHeight, this.currentHeight) : this.currentHeight;
+      const halfW = effectiveW / 2;
+      const insideIsland =
+        e.clientX >= cx - halfW - 14 &&
+        e.clientX <= cx + halfW + 14 &&
+        e.clientY >= 0 &&
+        e.clientY <= topY + effectiveH + 14;
+
+      if (insideIsland) {
+        e.preventDefault();
+        e.stopPropagation();
+        this.pokeMascot(e.clientX, e.clientY);
+      }
+    });
+
     // Right-Click on the Island: TwoCode instant tuck away (Shift+Right-Click for context menu)
     window.addEventListener('contextmenu', (e) => {
       if ((e.target as HTMLElement)?.closest?.('input, textarea, [contenteditable="true"]')) return;
@@ -1299,6 +1322,7 @@ export class CanvasEngine {
       (window as any).__roboIslandMascotJump = (strength?: number) => this.mascotJump(strength);
       (window as any).__roboIslandMascotBounce = (strength?: number) => this.mascotBounce(strength);
       (window as any).__roboIslandMascotSpeak = (text: string, duration?: number) => this.mascotSpeak(text, duration);
+      (window as any).__roboIslandPokeMascot = (x?: number, y?: number) => this.pokeMascot(x, y);
       (window as any).__roboIslandTriggerChargerSurge = (charging?: boolean, level?: number) => this.triggerChargerSurge(charging, level);
       (window as any).__roboIslandTriggerVolumeHud = (level: number, muted?: boolean) => this.triggerVolumeHud(level, Boolean(muted));
       (window as any).__roboIslandTriggerSpeedometerHud = () => this.triggerSpeedometerHud();
@@ -1986,6 +2010,24 @@ export class CanvasEngine {
     this.mascot.speak(text, duration);
   }
 
+  public pokeMascot(x?: number, y?: number): void {
+    if (this.compactClickTimer) {
+      clearTimeout(this.compactClickTimer);
+      this.compactClickTimer = null;
+    }
+    const cx = window.innerWidth / 2;
+    const topY = this.getTopY();
+    const midY = topY + this.currentHeight / 2;
+    const pokeX = typeof x === 'number' ? x : cx;
+    const pokeY = typeof y === 'number' ? y : midY;
+
+    this.mascot.poke(pokeX, pokeY);
+
+    try {
+      AudioSynth.getInstance().playMelody('pop');
+    } catch {}
+  }
+
   public enterRest(): void {
     if (this.collapseTimer) {
       clearTimeout(this.collapseTimer);
@@ -2357,20 +2399,28 @@ export class CanvasEngine {
         }
       }
 
-      // In compact mode: click anywhere on pill triggers mascot jump and expands it
+      // In compact mode: click anywhere on pill triggers mascot jump and expands it (debounced for double-click poke)
       if (Math.abs(x - cx) <= this.currentWidth / 2 && y >= topY && y <= topY + this.currentHeight) {
-        if (this.focusState.active && !(this.mediaState.active && this.mediaState.title)) {
-          this.activeTab = 'focus';
-          this.showDomTab('focus');
-        } else if (this.mediaState.active && this.mediaState.title) {
-          this.activeTab = 'media';
-          this.showDomTab('music');
-        } else {
-          this.activeTab = 'home';
-          this.showDomTab('home');
+        if (this.compactClickTimer) {
+          clearTimeout(this.compactClickTimer);
+          this.compactClickTimer = null;
         }
-        this.mascot.jump();
-        this.expand();
+        this.compactClickTimer = setTimeout(() => {
+          this.compactClickTimer = null;
+          if (this.mode !== 'compact') return;
+          if (this.focusState.active && !(this.mediaState.active && this.mediaState.title)) {
+            this.activeTab = 'focus';
+            this.showDomTab('focus');
+          } else if (this.mediaState.active && this.mediaState.title) {
+            this.activeTab = 'media';
+            this.showDomTab('music');
+          } else {
+            this.activeTab = 'home';
+            this.showDomTab('home');
+          }
+          this.mascot.jump();
+          this.expand();
+        }, 220);
       }
       return;
     }
@@ -4681,6 +4731,26 @@ export class CanvasEngine {
       }
       e.stopPropagation();
     });
+
+    // Double-click on expanded overlay or mascot eye slot pokes Robo
+    this.domOverlayEl.addEventListener('dblclick', (e) => {
+      const target = e.target as HTMLElement;
+      if (target?.closest?.('input, textarea, button, .nav-item, select, [contenteditable="true"]')) return;
+      e.stopPropagation();
+      this.pokeMascot(e.clientX, e.clientY);
+    });
+
+    const eyeSlot = document.getElementById('mascot-eye-slot');
+    if (eyeSlot) {
+      eyeSlot.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.pokeMascot(e.clientX, e.clientY);
+      });
+      eyeSlot.addEventListener('dblclick', (e) => {
+        e.stopPropagation();
+        this.pokeMascot(e.clientX, e.clientY);
+      });
+    }
 
     // Bottom Navigation Bar tabs
     const navItems = this.domOverlayEl.querySelectorAll('.nav-item[data-tab]');

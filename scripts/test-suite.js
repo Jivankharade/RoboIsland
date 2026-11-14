@@ -212,6 +212,15 @@ async function runTests() {
   const psBuddy = spawnSync('powershell.exe', ['-NoProfile', '-Command', `Test-Path "dist/native/buddy-helper.ps1"`], { cwd: path.resolve(__dirname, '..'), encoding: 'utf8' });
   assert('buddy-helper.ps1 exists in dist/native', psBuddy.stdout.trim() === 'True');
 
+  // 8. Testing Mascot Double-Click Poke & Circle Eye Reaction
+  console.log('\n--- 8. Testing Mascot Double-Click Poke & Circle Eye Reaction ---');
+  const { RoboMascot } = require('../dist/renderer/island/robo-mascot.js');
+  const testMascot = new RoboMascot();
+  assert('RoboMascot initializes in neutral mood', testMascot.getMood() === 'neutral');
+  testMascot.poke(200, 100);
+  assert('Double-click poke activates circle eyes mood (poked)', testMascot.getMood() === 'poked');
+  assert('Double-click poke activates reactive jump physics', testMascot.isJumping && testMascot.jumpVelocity < 0);
+
   // Summary
   console.log('\n====================================================');
   console.log(`TEST SUMMARY: ${passed} PASSED, ${failed} FAILED`);
