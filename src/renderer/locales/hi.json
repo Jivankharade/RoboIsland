@@ -1,0 +1,64 @@
+{
+  "appName": "रोबोआइलैंड",
+  "statusReady": "तैयार",
+  "focusSession": "फोकस सत्र",
+  "weatherClear": "साफ़",
+
+  "nav": {
+    "home": "होम",
+    "chat": "चैट",
+    "monitor": "मॉनिटर",
+    "music": "संगीत",
+    "focus": "फोकस",
+    "files": "फ़ाइलें",
+    "system": "सिस्टम",
+    "settings": "सेटिंग्स",
+    "tray": "फ़ाइल ट्रे",
+    "clipboard": "क्लिपबोर्ड",
+    "notes": "नोट्स"
+  },
+
+  "actions": {
+    "search": "खोजें",
+    "send": "भेजें",
+    "clear": "साफ़ करें",
+    "save": "सहेजें",
+    "refresh": "ताज़ा करें",
+    "connect": "कनेक्ट करें",
+    "disconnect": "डिस्कनेक्ट करें",
+    "override": "ओवरराइड",
+    "allow": "अनुमति दें",
+    "deny": "अस्वीकार करें",
+    "copy": "कॉपी करें",
+    "copied": "कॉपी हो गया!",
+    "pause": "रोकें",
+    "resume": "फिर शुरू करें",
+    "stop": "बंद करें"
+  },
+
+  "settings": {
+    "language": "भाषा",
+    "theme": "थीम",
+    "sound": "ध्वनि",
+    "restMode": "विश्राम मोड",
+    "gameMode": "गेम मोड",
+    "about": "के बारे में",
+    "general": "सामान्य",
+    "connections": "कनेक्शन",
+    "dynamicIsland": "डायनामिक आइलैंड",
+    "focusGuard": "फोकस गार्ड",
+    "wardrobe": "अलमारी और पोशाक",
+    "account": "खाता और प्रोफ़ाइल",
+    "support": "सहायता और जानकारी",
+    "news": "समाचार और अपडेट"
+  },
+
+  "status": {
+    "cpuUsage": "सीपीयू उपयोग",
+    "ramUsage": "रैम उपयोग",
+    "batteryCharging": "चार्ज हो रहा है",
+    "batteryDischarging": "बैटरी",
+    "wifiConnected": "कनेक्टेड",
+    "bluetoothActive": "सक्रिय"
+  }
+}

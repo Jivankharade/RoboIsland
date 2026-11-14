@@ -1,0 +1,101 @@
+{
+  "name": "roboisland",
+  "version": "1.0.0",
+  "private": true,
+  "description": "RoboIsland - Dynamic Island and Intelligent Companion for Windows",
+  "main": "dist/main/index.js",
+  "scripts": {
+    "compile": "node scripts/build.js",
+    "build": "npm run compile",
+    "start": "electron .",
+    "dev": "npm run compile && electron .",
+    "test": "node scripts/test-suite.js",
+    "dist": "npm run compile && electron-builder --win",
+    "dist:nsis": "npm run compile && electron-builder --win nsis",
+    "dist:portable": "npm run compile && electron-builder --win portable",
+    "dist:appx": "npm run compile && electron-builder --win appx",
+    "dist:dir": "npm run compile && electron-builder --win --dir",
+    "dist:linux": "npm run compile && electron-builder --linux",
+    "dist:rpm": "npm run compile && electron-builder --linux rpm",
+    "dist:appimage": "npm run compile && electron-builder --linux AppImage"
+  },
+  "author": "RoboIsland Team",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "electron": "^45.2.1",
+    "electron-builder": "^26.7.0",
+    "esbuild": "^0.28.2",
+    "typescript": "^5.9.3"
+  },
+  "build": {
+    "appId": "com.roboisland.app",
+    "productName": "RoboIsland",
+    "copyright": "Copyright © 2026 RoboIsland. All Rights Reserved.",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "dist/native/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "RoboIsland",
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "installerHeaderIcon": "assets/icon.ico",
+      "artifactName": "RoboIsland-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "RoboIsland-Portable-${version}.${ext}"
+    },
+    "appx": {
+      "identityName": "RoboIsland.App",
+      "applicationId": "RoboIsland",
+      "backgroundColor": "#0c0d10",
+      "showNameOnTiles": false,
+      "languages": ["en-US"],
+      "artifactName": "RoboIsland-${version}.${ext}"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "rpm"
+      ],
+      "category": "Utility",
+      "icon": "assets/icon.png",
+      "maintainer": "Gaurav Kharade",
+      "synopsis": "Dynamic Island and Intelligent Companion",
+      "description": "Dynamic floating HUD companion, media controls, hardware telemetry, and LAN drop for your desktop."
+    },
+    "rpm": {
+      "packageName": "roboisland",
+      "artifactName": "RoboIsland-${version}.${arch}.${ext}"
+    },
+    "appImage": {
+      "artifactName": "RoboIsland-${version}.${arch}.${ext}"
+    }
+  }
+}

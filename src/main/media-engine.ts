@@ -1,0 +1,804 @@
+import { spawn, ChildProcess } from 'child_process';
+import * as path from 'path';
+import { BrowserWindow, ipcMain } from 'electron';
+import { SpotifyPKCEClient } from './spotify-pkce';
+import { configStore, RoboIslandConfig } from './config-store';
+
+export interface MediaState {
+  source: 'spotify' | 'smtc' | 'none';
+  title: string;
+  artist: string;
+  album: string;
+  albumArtUrl: string | null;
+  isPlaying: boolean;
+  positionMs: number;
+  durationMs: number;
+  supportsControls: boolean;
+}
+
+export interface MediaTrackState extends MediaState {
+  active: boolean;
+  app?: string;
+  playing: boolean;
+  coverUrl?: string;
+}
+
+export interface LyricLine {
+  timeMs: number;
+  text: string;
+}
+
+export interface SystemVolumeState {
+  level: number;
+  muted: boolean;
+}
+
+export interface SystemNetState {
+  wifi?: { on: boolean; ssid?: string; bars?: number };
+  bt?: { on: boolean; devices?: string[] };
+  wired?: boolean;
+}
+
+export class MediaEngine {
+  private child: ChildProcess | null = null;
+  private spotifyClient: SpotifyPKCEClient;
+
+  // Active Source Tracker: 'spotify' | 'smtc' | 'none'
+  private activeSource: 'spotify' | 'smtc' | 'none' = 'none';
+
+  // Windows SMTC State
+  private smtcState: {
+    active: boolean;
+    app: string;
+    title: string;
+    artist: string;
+    album: string;
+    playing: boolean;
+    positionMs: number;
+    durationMs: number;
+    coverUrl?: string;
+  } = {
+    active: false,
+    app: '',
+    title: '',
+    artist: '',
+    album: '',
+    playing: false,
+    positionMs: 0,
+    durationMs: 0
+  };
+  private smtcLastSampleTime = 0;
+  private smtcBasePositionMs = 0;
+  private smtcDurationMs = 0;
+
+  // Spotify Playback State
+  private spotifyState: MediaState | null = null;
+  private spotifyLastSampleTime = 0;
+  private spotifyPollTimer: NodeJS.Timeout | null = null;
+
+  private currentVolume: SystemVolumeState = { level: 50, muted: false };
+  private currentNet: SystemNetState = { wired: true };
+  private lyricsCache = new Map<string, LyricLine[]>();
+
+  constructor() {
+    const config = configStore.get();
+    this.spotifyClient = new SpotifyPKCEClient({
+      clientId: config.spotifyClientId
+    });
+    this.startWorker();
+    this.startSpotifyPolling();
+    this.setupIPC();
+  }
+
+  public getSpotifyClient(): SpotifyPKCEClient {
+    return this.spotifyClient;
+  }
+
+  // ==========================================================================
+  // Spotify Integration & Polling
+  // ==========================================================================
+  private startSpotifyPolling(): void {
+    if (this.spotifyPollTimer) clearInterval(this.spotifyPollTimer);
+
+    this.spotifyPollTimer = setInterval(async () => {
+      await this.pollSpotifyPlayer();
+    }, 1200);
+
+    // Initial check
+    setTimeout(() => this.pollSpotifyPlayer(), 500);
+  }
+
+  public async pollSpotifyPlayer(): Promise<void> {
+    if (!this.spotifyClient.isConnected()) {
+      if (this.activeSource === 'spotify') {
+        this.activeSource = this.smtcState.active ? 'smtc' : 'none';
+        this.spotifyState = null;
+        this.broadcastMediaState();
+      }
+      return;
+    }
+
+    try {
+      const token = await this.spotifyClient.getAccessToken();
+      if (!token) {
+        if (this.activeSource === 'spotify') {
+          this.activeSource = this.smtcState.active ? 'smtc' : 'none';
+          this.broadcastMediaState();
+        }
+        return;
+      }
+
+      const response = await fetch('https://api.spotify.com/v1/me/player', {
+        headers: {
+          Authorization: `Bearer ${token}`
+        },
+        signal: AbortSignal.timeout(3000)
+      });
+
+      if (response.status === 200) {
+        const data: any = await response.json();
+        if (data && data.item) {
+          this.spotifyState = MediaEngine.mapSpotifyToMediaState(
+            data.item,
+            Boolean(data.is_playing),
+            data.progress_ms || 0
+          );
+          this.spotifyLastSampleTime = Date.now();
+          this.activeSource = 'spotify';
+          this.broadcastMediaState();
+          return;
+        } else if (data && data.currently_playing_type === 'ad') {
+          this.spotifyState = {
+            source: 'spotify',
+            title: 'Advertisement',
+            artist: 'Spotify',
+            album: '',
+            albumArtUrl: null,
+            isPlaying: Boolean(data.is_playing),
+            positionMs: data.progress_ms || 0,
+            durationMs: 30000,
+            supportsControls: false
+          };
+          this.spotifyLastSampleTime = Date.now();
+          this.activeSource = 'spotify';
+          this.broadcastMediaState();
+          return;
+        }
+      } else if (response.status === 403) {
+        // Universal Fallback: HTTP 403 (non-developer / restricted account)
+        console.warn('[MediaEngine] Spotify returned HTTP 403. Falling back to Windows SMTC.');
+        this.activeSource = this.smtcState.active ? 'smtc' : 'none';
+        this.spotifyState = null;
+        this.broadcastMediaState();
+        return;
+      } else if (response.status === 204) {
+        // No content / nothing currently playing in Spotify
+        if (this.activeSource === 'spotify') {
+          this.activeSource = this.smtcState.active ? 'smtc' : 'none';
+          this.spotifyState = null;
+          this.broadcastMediaState();
+        }
+        return;
+      } else if (response.status === 401) {
+        await this.spotifyClient.refreshTokens();
+      }
+    } catch {
+      // Network failure or timeout: fallback to SMTC
+      if (this.activeSource === 'spotify' && !this.spotifyState?.isPlaying) {
+        this.activeSource = this.smtcState.active ? 'smtc' : 'none';
+      }
+    }
+  }
+
+  public static mapSpotifyToMediaState(item: any, isPlaying: boolean, progressMs: number): MediaState {
+    const artistName = (item.artists && Array.isArray(item.artists))
+      ? item.artists.map((a: any) => a.name).join(', ')
+      : (item.artist || '');
+    const albumName = item.album?.name || '';
+    const images = item.album?.images || [];
+    const albumArtUrl = (images.length > 0 && images[0]?.url) ? images[0].url : null;
+
+    return {
+      source: 'spotify',
+      title: item.name || '',
+      artist: artistName,
+      album: albumName,
+      albumArtUrl,
+      isPlaying,
+      positionMs: progressMs,
+      durationMs: Number(item.duration_ms) || 0,
+      supportsControls: true
+    };
+  }
+
+  public static mapSmtcToMediaState(smtc: {
+    title: string;
+    artist: string;
+    album: string;
+    coverUrl?: string;
+    playing: boolean;
+    positionMs: number;
+    durationMs: number;
+    active: boolean;
+  }): MediaState {
+    return {
+      source: smtc.active ? 'smtc' : 'none',
+      title: smtc.title || '',
+      artist: smtc.artist || '',
+      album: smtc.album || '',
+      albumArtUrl: smtc.coverUrl || null,
+      isPlaying: Boolean(smtc.playing),
+      positionMs: smtc.positionMs || 0,
+      durationMs: smtc.durationMs || 0,
+      supportsControls: true
+    };
+  }
+
+  public static resolveActiveSource(
+    spotifyStatus: number | null,
+    spotifyItem: any,
+    smtcState: { active: boolean }
+  ): 'spotify' | 'smtc' | 'none' {
+    if (spotifyStatus === 403 || spotifyStatus === null) {
+      return smtcState.active ? 'smtc' : 'none';
+    }
+    if (spotifyStatus === 200 && spotifyItem) {
+      return 'spotify';
+    }
+    return smtcState.active ? 'smtc' : 'none';
+  }
+
+  // ==========================================================================
+  // Windows SMTC Native Process (PowerShell Helper)
+  // ==========================================================================
+  private startWorker(): void {
+    if (process.platform !== 'win32') return;
+
+    let scriptPath = path.join(__dirname, '../native/media-session.ps1');
+    scriptPath = scriptPath.replace('app.asar', 'app.asar.unpacked');
+
+    try {
+      this.child = spawn('powershell.exe', [
+        '-NoProfile',
+        '-NonInteractive',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-File',
+        scriptPath
+      ], {
+        windowsHide: true,
+        stdio: ['pipe', 'pipe', 'ignore']
+      });
+
+      let buffer = '';
+      this.child.stdout?.setEncoding('utf8');
+      this.child.stdout?.on('data', (chunk: string) => {
+        buffer += chunk;
+        let index: number;
+        while ((index = buffer.indexOf('\n')) >= 0) {
+          const line = buffer.slice(0, index).trim();
+          buffer = buffer.slice(index + 1);
+          if (line) this.handleWorkerLine(line);
+        }
+      });
+
+      this.child.on('error', (err) => {
+        console.warn('[MediaEngine] PowerShell process error:', err);
+      });
+
+      this.child.on('exit', () => {
+        this.child = null;
+        setTimeout(() => this.startWorker(), 6000);
+      });
+
+      // Request initial network & volume state
+      setTimeout(() => {
+        this.sendCommand('net');
+      }, 1500);
+    } catch (err) {
+      console.error('[MediaEngine] Failed to spawn PowerShell helper:', err);
+    }
+  }
+
+  private handleWorkerLine(line: string): void {
+    try {
+      const data = JSON.parse(line);
+
+      // 1. Windows Audio Volume
+      if ('volume' in data) {
+        this.currentVolume = {
+          level: Number(data.volume) || 0,
+          muted: Boolean(data.muted)
+        };
+        BrowserWindow.getAllWindows().forEach(win => {
+          if (!win.isDestroyed()) {
+            win.webContents.send('system:volume-changed', this.currentVolume);
+          }
+        });
+        return;
+      }
+
+      // 2. Wi-Fi and Bluetooth Network State
+      if (data.net) {
+        this.currentNet = data.net;
+        BrowserWindow.getAllWindows().forEach(win => {
+          if (!win.isDestroyed()) {
+            win.webContents.send('system:network-changed', this.currentNet);
+          }
+        });
+        return;
+      }
+
+      // 3. Focus Guard Foreground Window
+      if (data.front) {
+        BrowserWindow.getAllWindows().forEach(win => {
+          if (!win.isDestroyed()) {
+            win.webContents.send('guard:front-changed', data.front);
+          }
+        });
+        return;
+      }
+
+      // 4. Media Playback State (Windows SMTC: Spotify, YouTube, Browsers)
+      if (typeof data.active === 'boolean') {
+        let coverUrl = this.smtcState.coverUrl;
+        if (data.art) {
+          const isJpeg = data.art.startsWith('/9j/') || data.art.startsWith('data:image/jpeg');
+          coverUrl = data.art.startsWith('data:') ? data.art : `data:image/${isJpeg ? 'jpeg' : 'png'};base64,${data.art}`;
+        } else if (data.title !== this.smtcState.title) {
+          coverUrl = undefined;
+        }
+
+        this.smtcLastSampleTime = Date.now();
+        this.smtcBasePositionMs = Number(data.position != null ? data.position : data.positionMs) || 0;
+        this.smtcDurationMs = Number(data.duration != null ? data.duration : data.durationMs) || 0;
+
+        const isPlaying = Boolean(data.playing);
+
+        this.smtcState = {
+          active: Boolean(data.active && data.title),
+          app: data.app || '',
+          title: data.title || '',
+          artist: data.artist || data.album || '',
+          album: data.album || '',
+          playing: isPlaying,
+          positionMs: this.smtcBasePositionMs,
+          durationMs: this.smtcDurationMs,
+          coverUrl
+        };
+
+        // If Spotify is not actively playing, switch activeSource to SMTC or none
+        if (this.activeSource !== 'spotify' || !this.spotifyState?.isPlaying) {
+          this.activeSource = this.smtcState.active ? 'smtc' : (this.spotifyState ? 'spotify' : 'none');
+          this.broadcastMediaState();
+        }
+      }
+    } catch {}
+  }
+
+  // ==========================================================================
+  // Unified State & Position Interpolation
+  // ==========================================================================
+  public getInterpolatedState(): MediaTrackState {
+    if (this.activeSource === 'spotify' && this.spotifyState) {
+      let pos = this.spotifyState.positionMs;
+      if (this.spotifyState.isPlaying) {
+        const elapsed = Date.now() - this.spotifyLastSampleTime;
+        pos += elapsed;
+        if (this.spotifyState.durationMs > 0) {
+          pos = Math.min(pos, this.spotifyState.durationMs);
+        }
+      }
+      return {
+        source: 'spotify',
+        active: true,
+        title: this.spotifyState.title,
+        artist: this.spotifyState.artist,
+        album: this.spotifyState.album,
+        albumArtUrl: this.spotifyState.albumArtUrl,
+        coverUrl: this.spotifyState.albumArtUrl || undefined,
+        isPlaying: this.spotifyState.isPlaying,
+        playing: this.spotifyState.isPlaying,
+        positionMs: Math.round(pos),
+        durationMs: this.spotifyState.durationMs,
+        supportsControls: true
+      };
+    }
+
+    if (this.activeSource === 'smtc' && this.smtcState.active) {
+      let pos = this.smtcBasePositionMs;
+      if (this.smtcState.playing) {
+        const elapsed = Date.now() - this.smtcLastSampleTime;
+        pos += elapsed;
+        if (this.smtcDurationMs > 0) {
+          pos = Math.min(pos, this.smtcDurationMs);
+        }
+      }
+      return {
+        source: 'smtc',
+        active: true,
+        app: this.smtcState.app,
+        title: this.smtcState.title,
+        artist: this.smtcState.artist,
+        album: this.smtcState.album,
+        albumArtUrl: this.smtcState.coverUrl || null,
+        coverUrl: this.smtcState.coverUrl,
+        isPlaying: this.smtcState.playing,
+        playing: this.smtcState.playing,
+        positionMs: Math.round(pos),
+        durationMs: this.smtcDurationMs,
+        supportsControls: true
+      };
+    }
+
+    // Default Inactive Media State
+    return {
+      source: 'none',
+      active: false,
+      title: '',
+      artist: '',
+      album: '',
+      albumArtUrl: null,
+      coverUrl: undefined,
+      isPlaying: false,
+      playing: false,
+      positionMs: 0,
+      durationMs: 0,
+      supportsControls: false
+    };
+  }
+
+  public getUnifiedState(): MediaState {
+    const s = this.getInterpolatedState();
+    return {
+      source: s.source,
+      title: s.title,
+      artist: s.artist,
+      album: s.album,
+      albumArtUrl: s.albumArtUrl,
+      isPlaying: s.isPlaying,
+      positionMs: s.positionMs,
+      durationMs: s.durationMs,
+      supportsControls: s.supportsControls
+    };
+  }
+
+  private broadcastMediaState(): void {
+    const state = this.getInterpolatedState();
+    BrowserWindow.getAllWindows().forEach(win => {
+      if (!win.isDestroyed()) {
+        win.webContents.send('media:state-changed', state);
+      }
+    });
+  }
+
+  public sendCommand(cmd: string): void {
+    if (this.child && this.child.stdin && !this.child.stdin.destroyed) {
+      try {
+        this.child.stdin.write(cmd + '\n');
+      } catch {}
+    }
+  }
+
+  // ==========================================================================
+  // Playback Controls (Spotify Web API with SMTC Fallback)
+  // ==========================================================================
+  public async playPause(): Promise<void> {
+    if (this.activeSource === 'spotify' && this.spotifyClient.isConnected()) {
+      try {
+        const token = await this.spotifyClient.getAccessToken();
+        if (token) {
+          const action = (this.spotifyState && this.spotifyState.isPlaying) ? 'pause' : 'play';
+          const res = await fetch(`https://api.spotify.com/v1/me/player/${action}`, {
+            method: 'PUT',
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (res.ok || res.status === 204) {
+            if (this.spotifyState) {
+              this.spotifyState.isPlaying = !this.spotifyState.isPlaying;
+              this.spotifyLastSampleTime = Date.now();
+              this.broadcastMediaState();
+            }
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('[MediaEngine] Spotify play/pause error, falling back to SMTC:', err);
+      }
+    }
+
+    // Fallback: Windows SMTC toggle
+    this.sendCommand('toggle');
+  }
+
+  public async next(): Promise<void> {
+    if (this.activeSource === 'spotify' && this.spotifyClient.isConnected()) {
+      try {
+        const token = await this.spotifyClient.getAccessToken();
+        if (token) {
+          const res = await fetch('https://api.spotify.com/v1/me/player/next', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (res.ok || res.status === 204) {
+            setTimeout(() => this.pollSpotifyPlayer(), 300);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('[MediaEngine] Spotify next error, falling back to SMTC:', err);
+      }
+    }
+
+    // Fallback: Windows SMTC next
+    this.sendCommand('next');
+  }
+
+  public async previous(): Promise<void> {
+    if (this.activeSource === 'spotify' && this.spotifyClient.isConnected()) {
+      try {
+        const token = await this.spotifyClient.getAccessToken();
+        if (token) {
+          const res = await fetch('https://api.spotify.com/v1/me/player/previous', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (res.ok || res.status === 204) {
+            setTimeout(() => this.pollSpotifyPlayer(), 300);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('[MediaEngine] Spotify previous error, falling back to SMTC:', err);
+      }
+    }
+
+    // Fallback: Windows SMTC previous
+    this.sendCommand('previous');
+  }
+
+  public async seek(positionMs: number): Promise<void> {
+    const targetMs = Math.max(0, Math.round(positionMs));
+
+    if (this.activeSource === 'spotify' && this.spotifyClient.isConnected()) {
+      try {
+        const token = await this.spotifyClient.getAccessToken();
+        if (token) {
+          const res = await fetch(`https://api.spotify.com/v1/me/player/seek?position_ms=${targetMs}`, {
+            method: 'PUT',
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (res.ok || res.status === 204) {
+            if (this.spotifyState) {
+              this.spotifyState.positionMs = targetMs;
+              this.spotifyLastSampleTime = Date.now();
+              this.broadcastMediaState();
+            }
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('[MediaEngine] Spotify seek error, falling back to SMTC:', err);
+      }
+    }
+
+    // Fallback: Windows SMTC seek
+    this.sendCommand(`seek ${targetMs}`);
+    this.smtcBasePositionMs = targetMs;
+    this.smtcLastSampleTime = Date.now();
+    this.broadcastMediaState();
+  }
+
+  // ==========================================================================
+  // Synced Lyrics (LRCLIB)
+  // ==========================================================================
+  public async fetchLyrics(title: string, artist: string, duration?: number): Promise<{ synced: boolean; currentLine: string; lines: LyricLine[] }> {
+    const key = `${artist}-${title}`.toLowerCase();
+    let lines = this.lyricsCache.get(key);
+
+    if (!lines && title) {
+      try {
+        const cleanTitle = title.replace(/\s*\(.*?\)/g, '').replace(/\s*\[.*?\]/g, '').trim();
+        const params = new URLSearchParams({
+          track_name: cleanTitle,
+          artist_name: artist
+        });
+        if (duration) params.append('duration', String(Math.round(duration / 1000)));
+
+        const res = await fetch(`https://lrclib.net/api/get?${params.toString()}`, {
+          signal: AbortSignal.timeout(6000)
+        });
+        if (res.ok) {
+          const json: any = await res.json();
+          if (json.syncedLyrics) {
+            lines = this.parseLrc(json.syncedLyrics);
+            this.lyricsCache.set(key, lines);
+          }
+        }
+      } catch {}
+    }
+
+    if (lines && lines.length > 0) {
+      const currentPos = this.getInterpolatedState().positionMs;
+      let matched = lines[0].text;
+      for (const line of lines) {
+        if (line.timeMs <= currentPos) {
+          matched = line.text;
+        } else {
+          break;
+        }
+      }
+      return { synced: true, currentLine: matched, lines };
+    }
+
+    return { synced: false, currentLine: '', lines: [] };
+  }
+
+  private parseLrc(lrc: string): LyricLine[] {
+    const lines: LyricLine[] = [];
+    const regex = /\[(\d{2}):(\d{2})\.(\d{2,3})\](.*)/g;
+    let match: RegExpExecArray | null;
+
+    while ((match = regex.exec(lrc)) !== null) {
+      const minutes = parseInt(match[1], 10);
+      const seconds = parseInt(match[2], 10);
+      const frac = parseInt(match[3].padEnd(3, '0').slice(0, 3), 10);
+      const timeMs = minutes * 60000 + seconds * 1000 + frac;
+      const text = match[4].trim();
+      if (text) {
+        lines.push({ timeMs, text });
+      }
+    }
+
+    return lines.sort((a, b) => a.timeMs - b.timeMs);
+  }
+
+  // ==========================================================================
+  // IPC Setup
+  // ==========================================================================
+  private setupIPC(): void {
+    // 1. Media State
+    ipcMain.handle('media:get-state', () => {
+      return this.getInterpolatedState();
+    });
+
+    // 2. Control Commands (backward-compatible)
+    ipcMain.handle('media:control', async (_event, action: string) => {
+      if (action === 'playPause' || action === 'toggle') {
+        await this.playPause();
+        return { ok: true };
+      }
+      if (action === 'play' || action === 'pause') {
+        await this.playPause();
+        return { ok: true };
+      }
+      if (action === 'next') {
+        await this.next();
+        return { ok: true };
+      }
+      if (action === 'previous' || action === 'prev') {
+        await this.previous();
+        return { ok: true };
+      }
+      return { ok: false, error: 'Unknown action' };
+    });
+
+    ipcMain.handle('media:play-pause', async () => {
+      await this.playPause();
+      return { ok: true };
+    });
+
+    ipcMain.handle('media:next', async () => {
+      await this.next();
+      return { ok: true };
+    });
+
+    ipcMain.handle('media:prev', async () => {
+      await this.previous();
+      return { ok: true };
+    });
+
+    ipcMain.handle('media:seek', async (_event, positionMs: number) => {
+      await this.seek(positionMs);
+      return { ok: true };
+    });
+
+    // 3. Spotify PKCE IPC
+    ipcMain.handle('media:connect-spotify', async () => {
+      const config = configStore.get();
+      if (config.spotifyClientId) {
+        this.spotifyClient.setClientId(config.spotifyClientId);
+      }
+      if (!this.spotifyClient.hasValidClientId()) {
+        const isSmtcActive = this.smtcState.active;
+        if (typeof BrowserWindow !== 'undefined') {
+          BrowserWindow.getAllWindows().forEach((win) => {
+            if (!win.isDestroyed()) {
+              win.webContents.send('notification:push', {
+                id: 'spotify-info-' + Date.now(),
+                title: 'Spotify Integration',
+                body: isSmtcActive
+                  ? 'Spotify is already active via Windows SMTC! For Spotify Connect Web API, configure Client ID in Settings.'
+                  : 'To connect Spotify Web API, enter your Client ID in Settings. Windows SMTC connects automatically when Spotify plays.',
+                kind: 'music',
+                durationMs: 5000
+              });
+            }
+          });
+        }
+        return false;
+      }
+      const success = await this.spotifyClient.startAuthFlow();
+      if (success) {
+        await this.pollSpotifyPlayer();
+      }
+      return success;
+    });
+
+    ipcMain.handle('media:disconnect-spotify', async () => {
+      await this.spotifyClient.disconnect();
+      if (this.activeSource === 'spotify') {
+        this.activeSource = this.smtcState.active ? 'smtc' : 'none';
+        this.spotifyState = null;
+        this.broadcastMediaState();
+      }
+      return { ok: true };
+    });
+
+    ipcMain.handle('media:get-spotify-status', () => {
+      return this.spotifyClient.getTokenStatus();
+    });
+
+    ipcMain.handle('media:spotify-devices', async () => {
+      return this.spotifyClient.getDevices();
+    });
+
+    ipcMain.handle('media:spotify-transfer', async (_event, deviceId: string) => {
+      const ok = await this.spotifyClient.transferPlayback(deviceId);
+      return { ok };
+    });
+
+    ipcMain.handle('media:get-lyrics', async (_event, query: { title: string; artist: string; duration?: number }) => {
+      return this.fetchLyrics(query.title, query.artist, query.duration);
+    });
+
+    // 4. Windows Volume Controls
+    ipcMain.handle('system:get-volume', () => {
+      return this.currentVolume;
+    });
+
+    ipcMain.handle('system:set-volume', (_event, percent: number) => {
+      this.sendCommand(`vol ${Math.round(percent)}`);
+      this.currentVolume.level = percent;
+      return { ok: true };
+    });
+
+    ipcMain.handle('system:set-mute', (_event, muted: boolean) => {
+      this.sendCommand(`mute ${muted ? '1' : '0'}`);
+      this.currentVolume.muted = muted;
+      return { ok: true };
+    });
+
+    // 5. Windows Network Controls
+    ipcMain.handle('system:get-network', () => {
+      this.sendCommand('net');
+      return this.currentNet;
+    });
+
+    ipcMain.handle('system:set-radio', (_event, kind: 'wifi' | 'bt', on: boolean) => {
+      this.sendCommand(`radio ${kind} ${on ? '1' : '0'}`);
+      return { ok: true };
+    });
+  }
+
+  public dispose(): void {
+    if (this.spotifyPollTimer) {
+      clearInterval(this.spotifyPollTimer);
+      this.spotifyPollTimer = null;
+    }
+    try {
+      this.sendCommand('quit');
+      this.child?.kill();
+    } catch {}
+  }
+}

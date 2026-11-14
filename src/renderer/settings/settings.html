@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>RoboIsland Settings</title>
+  <link rel="stylesheet" href="settings.css">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Left Navigation Sidebar -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-avatar"><svg class="i" viewBox="0 0 24 24"><use href="#i-bot"/></svg></div>
+        <div class="brand-info">
+          <div class="brand-title">RoboIsland</div>
+          <div class="brand-sub">Desktop Companion</div>
+        </div>
+        <span class="brand-badge">Free</span>
+      </div>
+
+      <nav class="nav-menu" id="nav">
+        <p class="nav-sec">RoboIsland</p>
+        <button class="nav-item active" data-tab="home">
+          <svg class="i" viewBox="0 0 24 24"><use href="#i-home"/></svg>
+          <em>Home &amp; Status</em>
+        </button>
+        <button class="nav-item" data-tab="connect">
+          <svg class="i" viewBox="0 0 24 24"><use href="#i-plug"/></svg>
+          <em>Connections</em>
+        </button>
+        <button class="nav-item" data-tab="ai">
+          <svg class="i" viewBox="0 0 24 24"><use href="#i-chat"/></svg>
+          <em>AI &amp; Chat</em>
+        </button>
+        <button class="nav-item" data-tab="apps">
+          <svg class="i" viewBox="0 0 24 24"><use href="#i-grid"/></svg>
+          <em>Apps Ecosystem</em>
+        </button>
+
+        <p class="nav-sec">Robo</p>
+        <button class="nav-item" data-tab="karakter">
+          <svg class="i" viewBox="0 0 24 24"><use href="#i-bot"/></svg>
+          <em>Robo Character</em>
+        </button>
+        <button class="nav-item" data-tab="wardrobe">
+          <svg class="i" viewBox="0 0 24 24"><use href="#i-shirt"/></svg>
+          <em>Wardrobe &amp; Skins</em>
+        </button>
+
+        <p class="nav-sec">Settings</p>
+        <button class="nav-item" data-tab="account">
+          <svg class="i" viewBox="0 0 24 24"><use href="#i-user"/></svg>
+          <em>Account &amp; Profile</em>
+        </button>
+        <button class="nav-item" data-tab="general">
+          <svg class="i" viewBox="0 0 24 24"><use href="#i-sliders"/></svg>
+          <em>General</em>
+        </button>
+        <button class="nav-item" data-tab="island">
+          <svg class="i" viewBox="0 0 24 24"><use href="#i-island"/></svg>
+          <em>Dynamic Island</em>
+        </button>
+        <button class="nav-item" data-tab="guard">
+          <svg class="i" viewBox="0 0 24 24"><use href="#i-guard"/></svg>
+          <em>Focus Guard</em>
+        </button>
+        <button class="nav-item" data-tab="news">
+          <svg class="i" viewBox="0 0 24 24"><use href="#i-news"/></svg>
+          <em>News &amp; Updates</em>
+        </button>
+        <button class="nav-item" data-tab="support">
+          <svg class="i" viewBox="0 0 24 24"><use href="#i-heart"/></svg>
+          <em>Support &amp; About</em>
+        </button>
+
+        <p class="nav-sec">Monetization</p>
+        <button class="nav-item" data-tab="license">
+          <svg class="i" viewBox="0 0 24 24"><use href="#i-crown"/></svg>
+          <em>Robo Pro &amp; License</em>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-pill">
+          <div class="mini-eyes"></div>
+          <div>
+            <b id="user-display-name">Robo Companion</b>
+            <small>100% Free Edition</small>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <header class="page-header">
+        <div>
+          <h1 id="page-title">Home &amp; Status</h1>
+          <p id="page-subtitle">Real-time system monitors, weather, and connected integrations.</p>
+        </div>
+        <div class="header-right">
+          <div class="search-box-wrap" id="search-box-wrap">
+            <svg class="i search-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            <input type="text" id="search-input" placeholder="Search settings..." autocomplete="off">
+          </div>
+          <div id="settings-save-pill" class="settings-save-pill">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            Saved
+          </div>
+        </div>
+      </header>
+
+      <div class="scroll-body" id="scroll-container">
+        <!-- 1. Home Tab -->
+        <section class="tab-pane active" id="pane-home">
+          <div class="kpi-grid">
+            <div class="kpi-card" id="card-weather">
+              <div class="kpi-icon" style="--c:#ffb35c"><svg class="i" viewBox="0 0 24 24"><use href="#i-sun-cloud"/></svg></div>
+              <div>
+                <b id="home-temp">--°C</b>
+                <small id="home-weather-cond">Checking weather...</small>
+              </div>
+            </div>
+            <div class="kpi-card" id="card-battery">
+              <div class="kpi-icon" style="--c:#00ff66" id="home-battery-icon"><svg class="i" viewBox="0 0 24 24"><use href="#i-battery"/></svg></div>
+              <div>
+                <b id="home-battery-level">--%</b>
+                <small id="home-battery-status">Battery</small>
+              </div>
+            </div>
+            <div class="kpi-card" id="card-wifi">
+              <div class="kpi-icon" style="--c:#00d2ff"><svg class="i" viewBox="0 0 24 24"><use href="#i-wifi"/></svg></div>
+              <div>
+                <b id="home-wifi-ssid">Connecting...</b>
+                <small id="home-wifi-bars">Wi-Fi Status</small>
+              </div>
+            </div>
+            <div class="kpi-card" id="card-time">
+              <div class="kpi-icon" style="--c:#cf53ff"><svg class="i" viewBox="0 0 24 24"><use href="#i-clock"/></svg></div>
+              <div>
+                <b id="home-clock">--:--</b>
+                <small id="home-date">Today</small>
+              </div>
+            </div>
+          </div>
+
+          <div class="section-title">Quick Actions</div>
+          <div class="card quick-actions-card">
+            <button class="quick-btn" data-goto="wardrobe">
+              <span class="quick-tile" style="--c:#ff8fb1"><svg class="i" viewBox="0 0 24 24"><use href="#i-shirt"/></svg></span>
+              <span class="quick-label">Wardrobe &amp; Customization</span>
+              <svg class="i quick-arrow" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+            <button class="quick-btn" data-goto="connect">
+              <span class="quick-tile" style="--c:#c6e994"><svg class="i" viewBox="0 0 24 24"><use href="#i-plug"/></svg></span>
+              <span class="quick-label">AI Connections &amp; Webhooks</span>
+              <svg class="i quick-arrow" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+            <button class="quick-btn" data-goto="island">
+              <span class="quick-tile" style="--c:#00d2ff"><svg class="i" viewBox="0 0 24 24"><use href="#i-island"/></svg></span>
+              <span class="quick-label">Dynamic Island Appearance</span>
+              <svg class="i quick-arrow" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+            <button class="quick-btn" data-goto="guard">
+              <span class="quick-tile" style="--c:#ffb35c"><svg class="i" viewBox="0 0 24 24"><use href="#i-guard"/></svg></span>
+              <span class="quick-label">Focus Guard &amp; App Limits</span>
+              <svg class="i quick-arrow" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+          </div>
+
+          <div class="section-title">Windows Media &amp; Volume</div>
+          <div class="card card-media-preview">
+            <div class="media-thumb" id="home-media-thumb"><svg class="i" viewBox="0 0 24 24"><use href="#i-music"/></svg></div>
+            <div class="media-info">
+              <b id="home-media-title">Nothing Playing</b>
+              <small id="home-media-artist">Windows SMTC (YouTube, Spotify, Browsers)</small>
+              <div class="media-mini-progress">
+                <div class="mini-progress-bar" id="home-progress-bar" style="width:0%"></div>
+              </div>
+            </div>
+            <div class="media-quick-ctrls">
+              <button class="icon-btn" id="btn-home-prev" title="Previous"><svg class="i" viewBox="0 0 24 24"><use href="#i-skip-back"/></svg></button>
+              <button class="icon-btn play-btn" id="btn-home-play" title="Play/Pause"><svg class="i" viewBox="0 0 24 24"><use href="#i-play"/></svg></button>
+              <button class="icon-btn" id="btn-home-next" title="Next"><svg class="i" viewBox="0 0 24 24"><use href="#i-skip-forward"/></svg></button>
+            </div>
+          </div>
+
+          <div class="section-title">Master Volume</div>
+          <div class="card volume-card">
+            <button class="icon-btn" id="btn-home-mute" title="Mute/Unmute"><svg class="i" viewBox="0 0 24 24"><use href="#i-volume"/></svg></button>
+            <input type="range" min="0" max="100" value="50" class="slider" id="home-volume-slider">
+            <span class="vol-label" id="home-vol-label">50%</span>
+          </div>
+        </section>
+
+        <!-- 2. Connections Tab -->
+        <section class="tab-pane" id="pane-connect">
+          <p class="tab-lead">Monitor Claude Code CLI, OpenAI Codex CLI, and desktop AI sessions in real-time.</p>
+          <div class="group-list">
+            <div class="row">
+              <div class="tile" style="--c:#c6e994"><svg class="i" viewBox="0 0 24 24"><use href="#i-zap"/></svg></div>
+              <div class="text">
+                <b>Claude Code Webhook Server</b>
+                <small>Auto-listens on port 47823 (or fallback 47824) for tool calls, permissions, and notifications.</small>
+              </div>
+              <span class="badge badge-green">Listening</span>
+              <button class="switch on" id="toggle-claude-hook"></button>
+            </div>
+            <div class="row-actions-bar">
+              <button class="btn btn-sm btn-ghost" id="btn-test-claude">Test Webhook Ping</button>
+              <button class="btn btn-sm btn-ghost" id="btn-copy-claude-guide">Copy Setup Command</button>
+            </div>
+            <div class="row" style="margin-top: 10px;">
+              <div class="tile" style="--c:#ffb35c"><svg class="i" viewBox="0 0 24 24"><use href="#i-brain"/></svg></div>
+              <div class="text">
+                <b>OpenAI Codex CLI Webhook</b>
+                <small>Captures Codex session tasks and diff preview executions.</small>
+              </div>
+              <span class="badge badge-green">Active</span>
+              <button class="switch on" id="toggle-codex-hook"></button>
+            </div>
+            <div class="row-actions-bar">
+              <button class="btn btn-sm btn-ghost" id="btn-test-codex">Test Codex Ping</button>
+              <button class="btn btn-sm btn-ghost" id="btn-copy-codex-guide">Copy Setup Command</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- 3. AI & Chat Tab -->
+        <section class="tab-pane" id="pane-ai">
+          <p class="tab-lead">Configure AI models, chat integration, and speech synthesis.</p>
+          <div class="card form-card">
+            <div class="form-row">
+              <label>Default AI Provider</label>
+              <select class="form-control" id="ai-provider-select">
+                <option value="claude">Claude Code (Anthropic CLI)</option>
+                <option value="codex">OpenAI Codex (GPT-4o / O3)</option>
+                <option value="ollama">Local Ollama / Open Source</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <label>OpenAI API Key (Optional for Buddy Vision &amp; Direct Chat)</label>
+              <div class="input-btn-group">
+                <input type="password" class="form-control" id="ai-api-key" placeholder="sk-proj-...">
+                <button class="btn btn-ghost" id="btn-toggle-key-visibility" title="Show / Hide Key">Show</button>
+                <button class="btn btn-ghost" id="btn-test-ai">Verify</button>
+              </div>
+            </div>
+            <div class="form-row toggle-row">
+              <div>
+                <b>Speech Synthesis (Robo Voice)</b>
+                <small>Speak AI completions and answers using native Windows Speech Synthesis.</small>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;">
+                <button class="btn btn-sm btn-ghost" id="btn-test-tts">Test Voice</button>
+                <button class="switch on" id="toggle-ai-tts"></button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 4. Apps Ecosystem Tab -->
+        <section class="tab-pane" id="pane-apps">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+            <p class="tab-lead" style="margin:0;">Manage your RoboIsland desktop apps. Every toggle is completely functional and free.</p>
+            <div class="apps-bulk-btns">
+              <button class="btn btn-sm btn-ghost" id="btn-apps-all-on">Enable All</button>
+              <button class="btn btn-sm btn-ghost" id="btn-apps-all-off">Disable All</button>
+            </div>
+          </div>
+          <div class="apps-grid" id="apps-list">
+            <!-- Dynamically populated via JS -->
+          </div>
+        </section>
+
+        <!-- 5. Robo Character Tab (Screenshot 05) -->
+        <section class="tab-pane" id="pane-karakter">
+          <p class="tab-lead">His name, eyes, behaviour and badges.</p>
+
+          <!-- Top Mascot Badge Hero Card -->
+          <div class="card robo-hero-card">
+            <div class="robo-hero-avatar">
+              <span class="robo-avatar-crown"><svg class="i" viewBox="0 0 24 24"><use href="#i-crown"/></svg></span>
+              <div class="robo-face-preview">
+                <div class="face-eye left"></div>
+                <div class="face-eye right"></div>
+              </div>
+            </div>
+            <div class="robo-hero-meta">
+              <h2 id="robo-display-name">Robo</h2>
+              <p>0 tasks done · 0 of 12 badges</p>
+              <div class="badge-prog-bar"><div class="prog-fill" style="width: 12%"></div></div>
+            </div>
+          </div>
+
+          <!-- Name Section -->
+          <div class="section-title">Name</div>
+          <div class="card form-card">
+            <div class="form-row-split">
+              <div>
+                <b>What's his name?</b>
+                <small>He says it when he says hi</small>
+              </div>
+              <div class="name-input-group">
+                <input type="text" id="input-robo-name" value="Robo" class="name-input">
+                <button class="btn btn-save-name" id="btn-save-name">Save</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Look / Traffic Light Eyes Section (Screenshot 05) -->
+          <div class="section-title">Look</div>
+          <div class="card form-card">
+            <div class="traffic-eyes-head">
+              <div>
+                <b>Traffic-light eyes</b>
+                <small>Pick the colour for each state. Click a button below for a live test.</small>
+              </div>
+              <div class="preset-pills">
+                <button class="preset-btn active" data-preset="classic"><span class="preset-dots"><span style="background:#34c759"></span><span style="background:#ff9500"></span><span style="background:#ff3b30"></span></span>Classic</button>
+                <button class="preset-btn" data-preset="soft"><span class="preset-dots"><span style="background:#af52de"></span><span style="background:#ff9500"></span><span style="background:#5ac8fa"></span></span>Soft</button>
+                <button class="preset-btn" data-preset="colorblind"><span class="preset-dots"><span style="background:#ffcc00"></span><span style="background:#00e5ff"></span><span style="background:#ffffff"></span></span>Colour-blind</button>
+              </div>
+            </div>
+
+            <div class="traffic-test-bar">
+              <button class="btn btn-sm btn-ghost" id="btn-test-working"><span class="traffic-dot dot-working"></span>Test Working</button>
+              <button class="btn btn-sm btn-ghost" id="btn-test-done"><span class="traffic-dot dot-done"></span>Test Done</button>
+              <button class="btn btn-sm btn-ghost" id="btn-test-error"><span class="traffic-dot dot-error"></span>Test Error</button>
+            </div>
+
+            <!-- State 1: Working -->
+            <div class="traffic-row">
+              <div class="traffic-state-label">
+                <span class="traffic-dot dot-working"></span>
+                <span>Working or a question</span>
+              </div>
+              <div class="swatches-row" data-target="working">
+                <span class="swatch active" style="background:#ff9500" data-color="#ff9500"></span>
+                <span class="swatch" style="background:#ffcc00" data-color="#ffcc00"></span>
+                <span class="swatch" style="background:#ff2d55" data-color="#ff2d55"></span>
+                <span class="swatch" style="background:#af52de" data-color="#af52de"></span>
+                <span class="swatch" style="background:#5856d6" data-color="#5856d6"></span>
+                <span class="swatch" style="background:#5ac8fa" data-color="#5ac8fa"></span>
+              </div>
+            </div>
+
+            <!-- State 2: Done -->
+            <div class="traffic-row">
+              <div class="traffic-state-label">
+                <span class="traffic-dot dot-done"></span>
+                <span>Done</span>
+              </div>
+              <div class="swatches-row" data-target="done">
+                <span class="swatch active" style="background:#34c759" data-color="#34c759"></span>
+                <span class="swatch" style="background:#30d158" data-color="#30d158"></span>
+                <span class="swatch" style="background:#63e6e2" data-color="#63e6e2"></span>
+                <span class="swatch" style="background:#00e5ff" data-color="#00e5ff"></span>
+                <span class="swatch" style="background:#0a84ff" data-color="#0a84ff"></span>
+                <span class="swatch" style="background:#ffffff" data-color="#ffffff"></span>
+              </div>
+            </div>
+
+            <!-- State 3: Error -->
+            <div class="traffic-row">
+              <div class="traffic-state-label">
+                <span class="traffic-dot dot-error"></span>
+                <span>Error</span>
+              </div>
+              <div class="swatches-row" data-target="error">
+                <span class="swatch active" style="background:#ff3b30" data-color="#ff3b30"></span>
+                <span class="swatch" style="background:#ff453a" data-color="#ff453a"></span>
+                <span class="swatch" style="background:#ff2d55" data-color="#ff2d55"></span>
+                <span class="swatch" style="background:#ff9500" data-color="#ff9500"></span>
+                <span class="swatch" style="background:#af52de" data-color="#af52de"></span>
+                <span class="swatch" style="background:#5856d6" data-color="#5856d6"></span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 6. Wardrobe Tab (Screenshot 06) -->
+        <section class="tab-pane" id="pane-wardrobe">
+          <p class="tab-lead">Pick what Robo wears. He tries it on right away.</p>
+
+          <div class="wardrobe-layout">
+            <!-- Left: Big Mascot Avatar -->
+            <div class="wardrobe-preview-box">
+              <div class="wardrobe-spotlight">
+                <span class="wardrobe-outfit-hat" id="wardrobe-hat-display"><svg class="i" viewBox="0 0 24 24"><use href="#i-sparkles"/></svg></span>
+                <div class="wardrobe-mascot-head" id="wardrobe-head-body">
+                  <div class="wardrobe-eye left" id="wardrobe-eye-left"></div>
+                  <div class="wardrobe-eye right" id="wardrobe-eye-right"></div>
+                </div>
+              </div>
+              <h3 id="wardrobe-name-caption">Robo</h3>
+              <p id="wardrobe-wearing-caption">Wearing: Best</p>
+              <div class="wardrobe-head-actions">
+                <button class="btn btn-sm btn-ghost" id="btn-random-outfit">Surprise Outfit</button>
+              </div>
+            </div>
+
+            <!-- Right: Outfits, Body, Eyes -->
+            <div class="wardrobe-controls">
+              <!-- Outfit Section -->
+              <div class="section-title">Outfit <small class="sec-hint">Earn more by finishing tasks</small></div>
+              <div class="outfit-grid" id="outfit-selector">
+                <div class="outfit-card active" data-outfit="best">
+                  <span class="outfit-badge-check"><svg class="i" viewBox="0 0 24 24" style="width:12px;height:12px"><polyline points="20 6 9 17 4 12"/></svg></span>
+                  <div class="outfit-icon"><svg class="i" viewBox="0 0 24 24"><use href="#i-sparkles"/></svg></div>
+                  <b>Best</b>
+                </div>
+                <div class="outfit-card" data-outfit="none">
+                  <div class="outfit-icon"><svg class="i" viewBox="0 0 24 24"><use href="#i-ban"/></svg></div>
+                  <b>None</b>
+                </div>
+                <div class="outfit-card" data-outfit="party">
+                  <div class="outfit-icon"><svg class="i" viewBox="0 0 24 24"><use href="#i-party"/></svg></div>
+                  <b>Party hat</b>
+                  <small>Earned at 5 tasks</small>
+                </div>
+                <div class="outfit-card" data-outfit="sunglasses">
+                  <div class="outfit-icon"><svg class="i" viewBox="0 0 24 24"><use href="#i-sunglasses"/></svg></div>
+                  <b>Sunglasses</b>
+                  <small>Earned at 15 tasks</small>
+                </div>
+                <div class="outfit-card" data-outfit="crown">
+                  <div class="outfit-icon"><svg class="i" viewBox="0 0 24 24"><use href="#i-crown"/></svg></div>
+                  <b>Crown</b>
+                  <small>Earned at 30 tasks</small>
+                </div>
+              </div>
+
+              <!-- Body Color Swatches -->
+              <div class="section-title">Body</div>
+              <div class="color-palette" id="body-color-selector">
+                <div class="color-circle active" style="--c:#ffffff" data-body="cloud" title="Cloud"><span>Cloud</span></div>
+                <div class="color-circle" style="--c:#63e6e2" data-body="mint" title="Mint"><span>Mint</span></div>
+                <div class="color-circle" style="--c:#5ac8fa" data-body="sky" title="Sky"><span>Sky</span></div>
+                <div class="color-circle" style="--c:#ff2d55" data-body="rose" title="Rose"><span>Rose</span></div>
+                <div class="color-circle" style="--c:#2c2d35" data-body="classic" title="Classic"><span>Classic</span></div>
+                <div class="color-circle" style="--c:#121318" data-body="night" title="Night"><span>Night</span></div>
+                <div class="color-circle" style="--c:#0a84ff" data-body="blue" title="Blue"><span>Blue</span></div>
+                <div class="color-circle" style="--c:#af52de" data-body="purple" title="Purple"><span>Purple</span></div>
+                <div class="color-circle" style="--c:#ff375f" data-body="pink" title="Pink"><span>Pink</span></div>
+                <div class="color-circle" style="--c:#f5c518" data-body="gold" title="Gold"><span>Gold</span></div>
+              </div>
+
+              <!-- Eyes Color Swatches -->
+              <div class="section-title">Eyes</div>
+              <div class="color-palette" id="eye-color-selector">
+                <div class="color-circle active" style="--c:#63e6e2" data-eye="mint" title="Mint"><span>Mint</span></div>
+                <div class="color-circle" style="--c:#ffffff" data-eye="white" title="White"><span>White</span></div>
+                <div class="color-circle" style="--c:#00d2ff" data-eye="blue" title="Blue"><span>Blue</span></div>
+                <div class="color-circle" style="--c:#ff2d55" data-eye="pink" title="Pink"><span>Pink</span></div>
+                <div class="color-circle" style="--c:#af52de" data-eye="purple" title="Purple"><span>Purple</span></div>
+                <div class="color-circle" style="--c:#ffcc00" data-eye="yellow" title="Yellow"><span>Yellow</span></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 7. Account Tab -->
+        <section class="tab-pane" id="pane-account">
+          <p class="tab-lead">Local desktop profile and offline usage statistics.</p>
+          <div class="card form-card">
+            <div class="form-row">
+              <label>Profile Display Name</label>
+              <input type="text" class="form-control" id="profile-name-input" value="Robo Companion">
+            </div>
+            <div class="stats-row">
+              <div class="stat-box">
+                <b id="stat-sessions">12</b>
+                <small>Focus Sessions</small>
+              </div>
+              <div class="stat-box">
+                <b id="stat-clips">25</b>
+                <small>Clipboard Items</small>
+              </div>
+              <div class="stat-box">
+                <b>100%</b>
+                <small>Free Forever</small>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 8. General Tab -->
+        <section class="tab-pane" id="pane-general">
+          <p class="tab-lead">System integration and application preferences.</p>
+          <div class="card form-card">
+            <div class="form-row toggle-row">
+              <div>
+                <b>Start with Windows</b>
+                <small>Automatically launch RoboIsland on user login.</small>
+              </div>
+              <button class="switch" id="toggle-startup"></button>
+            </div>
+            <div class="form-row">
+              <label>Global Toggle Shortcut</label>
+              <div class="input-btn-group">
+                <input type="text" class="form-control" id="shortcut-input" value="Ctrl + Alt + T" readonly>
+                <button class="btn btn-ghost" id="btn-record-shortcut">Record Key</button>
+                <button class="btn btn-ghost" id="btn-reset-shortcut">Reset</button>
+              </div>
+            </div>
+            <div class="form-row">
+              <label>UI Theme</label>
+              <select class="form-control" id="theme-select">
+                <option value="dark" selected>Obsidian Dark (Recommended)</option>
+                <option value="frosted">Frosted Specular Glass</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <label id="label-language">Language / भाषा</label>
+              <select class="form-control" id="language-select">
+                <option value="en" selected>English (US)</option>
+                <option value="hi">हिन्दी (Hindi)</option>
+              </select>
+            </div>
+          </div>
+        </section>
+
+        <!-- 9. Island Tab -->
+        <section class="tab-pane" id="pane-island">
+          <p class="tab-lead">Configure Dynamic Island attachment mode, size scaling, and textures.</p>
+          <div class="card form-card">
+            <div class="form-row">
+              <label>Screen Attachment Mode</label>
+              <div class="radio-group">
+                <label class="radio-label">
+                  <input type="radio" name="islandStyle" value="floating" checked>
+                  <span>Floating Island (Floats 10px below top screen bezel)</span>
+                </label>
+                <label class="radio-label">
+                  <input type="radio" name="islandStyle" value="notch">
+                  <span>MacBook Notch (Flush against top screen edge)</span>
+                </label>
+              </div>
+            </div>
+            <div class="form-row">
+              <label>Island Scale Multiplier</label>
+              <div class="radio-group">
+                <label class="radio-label"><input type="radio" name="islandScale" value="0.85"><span>Compact (85%)</span></label>
+                <label class="radio-label"><input type="radio" name="islandScale" value="1.0" checked><span>Standard (100%)</span></label>
+                <label class="radio-label"><input type="radio" name="islandScale" value="1.15"><span>Large (115%)</span></label>
+              </div>
+            </div>
+            <div class="form-row">
+              <label>Visual Surface Texture</label>
+              <select class="form-control" id="texture-select">
+                <option value="obsidian" selected>Obsidian Ultra-Black (Glossy)</option>
+                <option value="carbon">Carbon Fiber Weave</option>
+                <option value="frosted">Frosted Glass Specular</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <label>Resting Left Telemetry Slot</label>
+              <select class="form-control" id="rest-left-select">
+                <option value="none" selected>None (Clean Eyes Only)</option>
+                <option value="time">Clock / Time</option>
+                <option value="battery">Battery Level (%)</option>
+                <option value="cpu">CPU Load (%)</option>
+                <option value="ram">RAM Usage (%)</option>
+                <option value="storage">Storage / SSD (%)</option>
+                <option value="wifi">Wi-Fi Signal</option>
+                <option value="bluetooth">Bluetooth Status</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <label>Resting Right Telemetry Slot</label>
+              <select class="form-control" id="rest-right-select">
+                <option value="none" selected>None (Clean Eyes Only)</option>
+                <option value="time">Clock / Time</option>
+                <option value="battery">Battery Level (%)</option>
+                <option value="cpu">CPU Load (%)</option>
+                <option value="ram">RAM Usage (%)</option>
+                <option value="storage">Storage / SSD (%)</option>
+                <option value="wifi">Wi-Fi Signal</option>
+                <option value="bluetooth">Bluetooth Status</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <label>Environmental Reactive Texture</label>
+              <select class="form-control" id="texture-skin-select">
+                <option value="none" selected>None (Clean Surface)</option>
+                <option value="fire">Fire &amp; Ice (Frost &lt;35%, Embers &gt;55%)</option>
+                <option value="web">Spider Web (Late Night 11 PM - 5 AM)</option>
+                <option value="grow">Overgrown Vines (Session Duration)</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <label>Procedural Sound Pack</label>
+              <div class="input-btn-group">
+                <select class="form-control" id="sound-pack-select">
+                  <option value="klassiek" selected>Klassiek (Classic Chimes)</option>
+                  <option value="zacht">Zacht (Soft Velvet Tones)</option>
+                  <option value="belletjes">Belletjes (Crystal Bubbles)</option>
+                </select>
+                <button class="btn btn-ghost" id="btn-preview-sound">Play Preview</button>
+              </div>
+            </div>
+            <div class="form-row toggle-row" style="margin-top: 14px;">
+              <div>
+                <b>Island Expansion Test</b>
+                <small>Trigger island expand and collapse animation directly from settings.</small>
+              </div>
+              <button class="btn btn-sm btn-ghost" id="btn-test-island-toggle">Toggle Island</button>
+            </div>
+            <div class="form-row toggle-row" style="margin-top: 14px;">
+              <div>
+                <b>Island Notification Preview</b>
+                <small>Test TwoCode notification melodies, jelly spring physics, rim glow, and Allow/Deny actions.</small>
+              </div>
+              <div style="display: flex; gap: 8px;">
+                <button class="btn btn-sm btn-primary" id="btn-test-notification">Test Done</button>
+                <button class="btn btn-sm btn-ghost" id="btn-test-question-notification">Test Question</button>
+              </div>
+            </div>
+            <div class="form-row toggle-row" style="margin-top: 14px;">
+              <div>
+                <b>Hardware HUD Simulation</b>
+                <small>Preview Apple-style Volume Pop HUD, Charger Plug-in Surge, and Speedometer HUD.</small>
+              </div>
+              <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <button class="btn btn-sm btn-ghost" id="btn-test-volume-hud">Test Volume HUD</button>
+                <button class="btn btn-sm btn-ghost" id="btn-test-charger-surge">Test Charger Surge</button>
+                <button class="btn btn-sm btn-ghost" id="btn-test-speedometer-hud">Test Speedometer HUD</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 10. Focus Guard Tab -->
+        <section class="tab-pane" id="pane-guard">
+          <p class="tab-lead">Block distracting websites and apps during your deep work sessions.</p>
+          <div class="card form-card">
+            <div class="form-row toggle-row">
+              <div>
+                <b>Enable Focus Guard</b>
+                <small>Monitors foreground windows and gently intervenes when opening distracting apps.</small>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;">
+                <button class="btn btn-sm btn-ghost" id="btn-test-guard">Test Mindful Pause</button>
+                <button class="switch on" id="toggle-focus-guard"></button>
+              </div>
+            </div>
+            <div class="form-row">
+              <label>Quick Preset Chips (Click to add)</label>
+              <div class="guard-chips-row">
+                <button type="button" class="guard-chip" data-app="youtube.com">+ YouTube</button>
+                <button type="button" class="guard-chip" data-app="reddit.com">+ Reddit</button>
+                <button type="button" class="guard-chip" data-app="twitter.com">+ X (Twitter)</button>
+                <button type="button" class="guard-chip" data-app="tiktok.com">+ TikTok</button>
+                <button type="button" class="guard-chip" data-app="instagram.com">+ Instagram</button>
+                <button type="button" class="guard-chip" data-app="netflix.com">+ Netflix</button>
+                <button type="button" class="guard-chip" data-app="discord.exe">+ Discord</button>
+                <button type="button" class="guard-chip" data-app="steam.exe">+ Steam</button>
+              </div>
+            </div>
+            <div class="form-row">
+              <label>Distracting Sites / Applications (Comma-separated)</label>
+              <textarea class="form-control" id="guard-blocked-list" rows="4">youtube.com, twitter.com, x.com, reddit.com, tiktok.com, instagram.com, discord.exe</textarea>
+            </div>
+          </div>
+        </section>
+
+        <!-- 11. News Tab -->
+        <section class="tab-pane" id="pane-news">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+            <div class="section-title" style="margin:0;">Release Notes — Version 1.1.0</div>
+            <button class="btn btn-sm btn-ghost" id="btn-check-updates">Check for Updates</button>
+          </div>
+          <div class="card news-card">
+            <b>TwoCode Parity &amp; Media Engine Overhaul</b>
+            <ul>
+              <li><b>116x32px Resting Island</b>: Restored exact compact pill size with two glowing capsule eyes and natural blinking physics.</li>
+              <li><b>YouTube &amp; Browser Detection</b>: Multi-session SMTC scanner captures YouTube videos playing in Google Chrome and Microsoft Edge.</li>
+              <li><b>60 FPS Smooth Progress</b>: Fixed 0:00 progress bar freeze with continuous timeline interpolation.</li>
+              <li><b>12-Page Settings Dashboard</b>: Full sidebar navigation with real toggles for all 13 desktop applications.</li>
+              <li><b>Open-Meteo Weather</b>: Live weather and temperature without API key requirements.</li>
+            </ul>
+          </div>
+        </section>
+
+        <!-- 12. Support Tab -->
+        <section class="tab-pane" id="pane-support">
+          <div class="card about-card">
+            <div class="about-icon"><svg class="i" viewBox="0 0 24 24"><use href="#i-bot"/></svg></div>
+            <h2>RoboIsland</h2>
+            <p>Desktop Dynamic Island Companion for Windows.</p>
+            <div class="free-badge">Base Version · Free &amp; Unlocked</div>
+            <small>Copyright &copy; 2026 RoboIsland. All Rights Reserved.</small>
+            <div class="support-actions-row" style="margin-top:16px;display:flex;gap:10px;justify-content:center;">
+              <button class="btn btn-sm btn-ghost" id="btn-open-github">Open GitHub</button>
+              <button class="btn btn-sm btn-ghost" id="btn-copy-support-link">Copy Project Link</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- 13. License & Creator Hub Tab -->
+        <section class="tab-pane" id="pane-license">
+          <!-- Dynamically rendered based on owner vs pro vs free -->
+          <div id="license-owner-view" class="hidden">
+            <div class="card owner-hero-card">
+              <div class="owner-crown-icon">
+                <svg class="i" viewBox="0 0 24 24" width="30" height="30"><use href="#i-crown"/></svg>
+              </div>
+              <div class="owner-hero-text">
+                <h2>RoboIsland Owner Edition</h2>
+                <p>Creator profile detected. Lifetime Pro access is permanently active on this system. You have full commercial ownership.</p>
+              </div>
+              <span class="owner-tag">CREATOR / OWNER</span>
+            </div>
+
+            <!-- Customer License Generator for Owner -->
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <h3>Customer License Key Generator</h3>
+                  <p>Generate genuine Pro license keys to sell to users on Gumroad, LemonSqueezy, Discord, or WhatsApp ($9.99).</p>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="field-row">
+                  <div class="field-info">
+                    <label>Customer Name or Email</label>
+                    <p>Enter the buyer's name, email, or order ID to generate a cryptographically bound key.</p>
+                  </div>
+                  <input type="text" id="input-customer-id" class="input-text" placeholder="e.g., buyer@gmail.com" />
+                </div>
+                <div class="field-row" style="margin-top: 14px;">
+                  <button type="button" id="btn-generate-customer-key" class="btn btn-primary">Generate Pro License Key</button>
+                </div>
+                <div id="license-gen-result" class="key-display-box hidden" style="margin-top: 16px;">
+                  <span style="font-size: 11px; color: rgba(255,255,255,0.6);">Generated Pro License Key (Share with buyer):</span>
+                  <div style="display: flex; align-items: center; gap: 10px; margin-top: 6px;">
+                    <code id="gen-key-output" class="key-code">ROBO-PRO-XXXX-YYYY-ZZZZ</code>
+                    <button type="button" id="btn-copy-gen-key" class="btn btn-sm btn-ghost">Copy Key</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Customer / Public View -->
+          <div id="license-customer-view">
+            <div id="license-pro-active-card" class="card owner-hero-card hidden" style="border-color: rgba(48, 209, 88, 0.4); background: linear-gradient(135deg, rgba(48, 209, 88, 0.12), rgba(48, 209, 88, 0.04));">
+              <div class="owner-crown-icon" style="background: rgba(48, 209, 88, 0.2); color: #30d158;">
+                <svg class="i" viewBox="0 0 24 24" width="28" height="28"><use href="#i-sparkles"/></svg>
+              </div>
+              <div class="owner-hero-text">
+                <h2>RoboIsland Pro Activated</h2>
+                <p id="pro-active-details">Thank you for supporting RoboIsland development. All premium features are unlocked.</p>
+              </div>
+              <span class="owner-tag" style="background: #30d158; color: #000;">PRO ACTIVE</span>
+            </div>
+
+            <div id="license-free-card" class="card">
+              <div class="card-header">
+                <div>
+                  <h3>Activate RoboIsland Pro</h3>
+                  <p>Enter your license key to unlock Speedometer HUD, unlimited LAN AirDrop, AI Agent diff monitors, and distraction shields.</p>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="field-row">
+                  <div class="field-info">
+                    <label>Pro License Key</label>
+                    <p>Format: ROBO-PRO-XXXX-YYYY-ZZZZ</p>
+                  </div>
+                  <input type="text" id="input-license-key" class="input-text" placeholder="ROBO-PRO-XXXX-YYYY-ZZZZ" />
+                </div>
+                <div class="field-row" style="margin-top: 14px; display: flex; gap: 10px;">
+                  <button type="button" id="btn-activate-key" class="btn btn-primary">Activate License</button>
+                  <button type="button" id="btn-buy-license" class="btn btn-ghost">Buy Pro License ($9.99)</button>
+                </div>
+                <div id="license-activation-status" class="hidden" style="margin-top: 12px; font-size: 12px; padding: 10px; border-radius: 8px;"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- Lucide Line Icons Symbol Definitions -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></symbol>
+    <symbol id="i-plug" viewBox="0 0 24 24"><path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/></symbol>
+    <symbol id="i-chat" viewBox="0 0 24 24"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect width="7" height="7" x="3" y="3" rx="1.5"/><rect width="7" height="7" x="14" y="3" rx="1.5"/><rect width="7" height="7" x="14" y="14" rx="1.5"/><rect width="7" height="7" x="3" y="14" rx="1.5"/></symbol>
+    <symbol id="i-bot" viewBox="0 0 24 24"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></symbol>
+    <symbol id="i-shirt" viewBox="0 0 24 24"><path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M21 4h-7"/><path d="M10 4H3"/><path d="M21 12h-9"/><path d="M8 12H3"/><path d="M21 20h-5"/><path d="M12 20H3"/><path d="M14 2v4"/><path d="M8 10v4"/><path d="M16 18v4"/></symbol>
+    <symbol id="i-island" viewBox="0 0 24 24"><path d="M3 4h18"/><rect x="6" y="4" width="12" height="7" rx="3.5"/><path d="M5 19h14"/><path d="M8 15h8"/></symbol>
+    <symbol id="i-guard" viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.5 3 8 7 10 4-2 7-5.5 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="i-news" viewBox="0 0 24 24"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6Z"/></symbol>
+    <symbol id="i-heart" viewBox="0 0 24 24"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></symbol>
+    <symbol id="i-sun-cloud" viewBox="0 0 24 24"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/><path d="M12 2v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="M20 12h2"/></symbol>
+    <symbol id="i-battery" viewBox="0 0 24 24"><rect width="16" height="10" x="2" y="7" rx="2" ry="2"/><line x1="22" x2="22" y1="11" y2="13"/></symbol>
+    <symbol id="i-battery-charging" viewBox="0 0 24 24"><path d="M15 7h1a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2"/><path d="M6 7H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h1"/><path d="m11 7-3 5h4l-3 5"/><line x1="22" x2="22" y1="11" y2="13"/></symbol>
+    <symbol id="i-wifi" viewBox="0 0 24 24"><path d="M12 20h.01"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/><path d="M5 12.859a10 10 0 0 1 14 0"/><path d="M1.5 9.288a15 15 0 0 1 21 0"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
+    <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></symbol>
+    <symbol id="i-skip-back" viewBox="0 0 24 24"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" x2="5" y1="19" y2="5"/></symbol>
+    <symbol id="i-skip-forward" viewBox="0 0 24 24"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" x2="19" y1="5" y2="19"/></symbol>
+    <symbol id="i-volume" viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></symbol>
+    <symbol id="i-volume-mute" viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="22" x2="16" y1="9" y2="15"/><line x1="16" x2="22" y1="9" y2="15"/></symbol>
+    <symbol id="i-zap" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></symbol>
+    <symbol id="i-brain" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"/></symbol>
+    <symbol id="i-crown" viewBox="0 0 24 24"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></symbol>
+    <symbol id="i-sparkles" viewBox="0 0 24 24"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/></symbol>
+    <symbol id="i-ban" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></symbol>
+    <symbol id="i-party" viewBox="0 0 24 24"><path d="M5.8 11.3 2 22l10.7-3.79"/><path d="M4 3h.01"/><path d="M22 8h.01"/><path d="M15 2h.01"/><path d="M22 20h.01"/><path d="m22 2-2.24.75a2.9 2.9 0 0 0-1.96 3.12v0c.1.86-.57 1.63-1.45 1.63h-.38c-.86 0-1.6.6-1.76 1.44L14 12"/></symbol>
+    <symbol id="i-sunglasses" viewBox="0 0 24 24"><circle cx="6" cy="12" r="4"/><circle cx="18" cy="12" r="4"/><path d="M10 12h4"/><path d="M2 10l2 2"/><path d="M22 10l-2 2"/></symbol>
+  </svg>
+
+  <script src="settings-ui.js"></script>
+</body>
+</html>

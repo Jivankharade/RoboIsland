@@ -1,0 +1,149 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  user-select: none;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+#buddy-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  transition: transform 0.08s ease-out;
+}
+
+#robo-avatar {
+  width: 56px;
+  height: 56px;
+  position: relative;
+  filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.6));
+  pointer-events: auto;
+  cursor: grab;
+}
+
+.helmet {
+  width: 52px;
+  height: 42px;
+  background: #14161d;
+  border: 1.6px solid rgba(255, 255, 255, 0.2);
+  border-radius: 18px;
+  position: absolute;
+  bottom: 0;
+  left: 2px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.antenna {
+  position: absolute;
+  top: -8px;
+  left: 24px;
+  width: 2px;
+  height: 8px;
+  background: #00d2ff;
+}
+
+.antenna .tip {
+  position: absolute;
+  top: -3px;
+  left: -2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #00d2ff;
+  box-shadow: 0 0 8px #00d2ff;
+}
+
+.eyes {
+  display: flex;
+  gap: 12px;
+}
+
+.eye {
+  width: 7px;
+  height: 10px;
+  background: #00ffff;
+  border-radius: 4px;
+  box-shadow: 0 0 10px #00ffff;
+}
+
+#buddy-card {
+  display: none;
+  pointer-events: auto;
+  position: absolute;
+  top: 64px;
+  left: -140px;
+  width: 340px;
+  background: rgba(14, 16, 22, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  padding: 16px;
+  color: #f0f4fc;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #00d2ff;
+}
+
+.btn-close {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.btn-close:hover {
+  color: #ffffff;
+}
+
+.card-body p {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.85);
+  margin-bottom: 14px;
+}
+
+.action-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pill {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #e2e8f0;
+  border-radius: 12px;
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.pill:hover {
+  background: #00d2ff;
+  color: #0a0b0e;
+  border-color: #00d2ff;
+}

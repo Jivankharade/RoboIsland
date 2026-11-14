@@ -1,0 +1,64 @@
+{
+  "appName": "RoboIsland",
+  "statusReady": "Ready",
+  "focusSession": "Focus Session",
+  "weatherClear": "Clear",
+
+  "nav": {
+    "home": "Home",
+    "chat": "Chat",
+    "monitor": "Monitor",
+    "music": "Music",
+    "focus": "Focus",
+    "files": "Files",
+    "system": "System",
+    "settings": "Settings",
+    "tray": "File Tray",
+    "clipboard": "Clipboard",
+    "notes": "Notes"
+  },
+
+  "actions": {
+    "search": "Search",
+    "send": "Send",
+    "clear": "Clear",
+    "save": "Save",
+    "refresh": "Refresh",
+    "connect": "Connect",
+    "disconnect": "Disconnect",
+    "override": "Override",
+    "allow": "Allow",
+    "deny": "Deny",
+    "copy": "Copy",
+    "copied": "Copied!",
+    "pause": "Pause",
+    "resume": "Resume",
+    "stop": "Stop"
+  },
+
+  "settings": {
+    "language": "Language",
+    "theme": "Theme",
+    "sound": "Sound",
+    "restMode": "Rest Mode",
+    "gameMode": "Game Mode",
+    "about": "About",
+    "general": "General",
+    "connections": "Connections",
+    "dynamicIsland": "Dynamic Island",
+    "focusGuard": "Focus Guard",
+    "wardrobe": "Wardrobe & Skins",
+    "account": "Account & Profile",
+    "support": "Support & About",
+    "news": "News & Updates"
+  },
+
+  "status": {
+    "cpuUsage": "CPU Usage",
+    "ramUsage": "RAM Usage",
+    "batteryCharging": "Charging",
+    "batteryDischarging": "Battery",
+    "wifiConnected": "Connected",
+    "bluetoothActive": "Active"
+  }
+}

@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RoboIsland</title>
+  <link rel="stylesheet" href="island.css">
+</head>
+<body>
+  <!-- Existing Canvas remains 100% intact for resting capsule eyes, physics, and compact state -->
+  <canvas id="island-canvas"></canvas>
+
+  <!-- Hybrid HTML/CSS Expanded Island Overlay (Screenshots 01, 03, 04, 07, 08) -->
+  <div id="expanded-island-overlay" class="hidden">
+    <!-- Apple AirDrop Transfer Notification Toast -->
+    <div id="airdrop-toast" class="airdrop-toast hidden">
+      <div class="airdrop-radar-wrap">
+        <div class="airdrop-radar-ring ring-1"></div>
+        <div class="airdrop-radar-ring ring-2"></div>
+        <div class="airdrop-radar-ring ring-3"></div>
+        <div class="airdrop-radar-icon">
+          <svg id="airdrop-toast-icon-svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#00d2ff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="12 5 12 19"></polyline>
+            <polyline points="19 12 12 19 5 12"></polyline>
+          </svg>
+        </div>
+      </div>
+      <div class="airdrop-toast-info">
+        <b id="airdrop-toast-title">AirDrop Received</b>
+        <span id="airdrop-toast-name">File</span>
+      </div>
+      <div class="airdrop-toast-badge">
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="#30d158" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+        <span>AirDrop</span>
+      </div>
+    </div>
+
+    <!-- Apple Quick Look File Preview Modal (Spacebar / Eye click) -->
+    <div id="quicklook-modal" class="quicklook-modal hidden" aria-modal="true" role="dialog">
+      <div class="quicklook-dialog">
+        <div class="quicklook-header">
+          <div class="quicklook-header-left">
+            <span id="quicklook-file-badge" class="quicklook-file-badge">FILE</span>
+            <div class="quicklook-title-wrap">
+              <h3 id="quicklook-title" class="quicklook-title">File Name</h3>
+              <span id="quicklook-meta" class="quicklook-meta">0 KB • Modified</span>
+            </div>
+          </div>
+          <div class="quicklook-actions">
+            <button id="quicklook-btn-reveal" class="quicklook-action-btn" title="Show in Folder" type="button">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+              </svg>
+            </button>
+            <button id="quicklook-btn-open" class="quicklook-action-btn" title="Open with Default App" type="button">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                <polyline points="15 3 21 3 21 9"></polyline>
+                <line x1="10" y1="14" x2="21" y2="3"></line>
+              </svg>
+            </button>
+            <button id="quicklook-btn-close" class="quicklook-action-btn close-btn" title="Close (Esc)" type="button">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div id="quicklook-body" class="quicklook-body">
+          <!-- Dynamic: Image, Syntax viewer, or Apple Vector file card -->
+        </div>
+        <div class="quicklook-footer">
+          <span class="quicklook-hint">Press <b>Space</b> or <b>Esc</b> to close • Drag chip to export</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Top Status Bar: Wi-Fi/BT, Mascot Eye Slot, Datetime, Battery pill, 3-dots -->
+    <header id="island-status-bar">
+      <div id="status-left">
+        <div id="btn-system-popover" class="status-pills-group" title="Wi-Fi &amp; Bluetooth">
+          <button id="btn-status-wifi" class="status-btn status-icon-btn" title="Wi-Fi">
+            <svg class="icon-svg icon-wifi" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 12.55a11 11 0 0 1 14.08 0"/>
+              <path d="M1.42 9a16 16 0 0 1 21.16 0"/>
+              <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+              <line x1="12" y1="20" x2="12.01" y2="20"/>
+            </svg>
+          </button>
+          <button id="btn-status-bt" class="status-btn status-icon-btn" title="Bluetooth">
+            <svg class="icon-svg icon-bt" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6.5 6.5 17.5 17.5 12 23 12 1 17.5 6.5 6.5 17.5"/>
+            </svg>
+          </button>
+        </div>
+        <span id="status-title" class="status-tab-title"></span>
+      </div>
+
+      <div id="status-center">
+        <!-- Dedicated mascot eye slot: Canvas draws capsule eyes inside this exact slot -->
+        <div id="mascot-eye-slot" title="Robo"></div>
+        <span id="status-datetime">Wed, Nov 4 12:30 AM</span>
+        <div id="weather-widget" class="weather-pill" title="Live Weather">
+          <svg class="icon-svg icon-weather" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2v2"/>
+            <path d="m4.93 4.93 1.41 1.41"/>
+            <path d="M20 12h2"/>
+            <path d="m19.07 4.93-1.41 1.41"/>
+            <path d="M15.947 12.65a4 4 0 0 0-5.925-4.128A4 4 0 0 0 8 12c-2.21 0-4 1.79-4 4 0 2.21 1.79 4 4 4h10a4 4 0 0 0 4-4c0-1.85-1.28-3.41-3.053-3.85z"/>
+          </svg>
+          <span id="weather-temp">--°C</span>
+          <span id="weather-cond" class="weather-cond-text">Clear</span>
+        </div>
+      </div>
+
+      <div id="status-right">
+        <button id="btn-header-music" class="header-music-btn hidden" title="Now Playing">
+          <span class="header-eq-bars">
+            <span></span><span></span><span></span><span></span>
+          </span>
+        </button>
+        <button id="btn-phone-quick" class="phone-pill-btn hidden" title="Transfer Files with Phone">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect width="14" height="20" x="5" y="2" rx="2" ry="2"/>
+            <line x1="12" y1="18" x2="12.01" y2="18"/>
+          </svg>
+          <span>Phone</span>
+        </button>
+        <button id="btn-island-menu" class="status-btn" title="Open Settings">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="1"/>
+            <circle cx="19" cy="12" r="1"/>
+            <circle cx="5" cy="12" r="1"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content Panels Container -->
+    <main id="island-panel-container">
+      <!-- 1. Home Dashboard View (Screenshot 01) -->
+      <section id="panel-home" class="island-panel active">
+        <div class="cards-grid">
+          <!-- Card 1: Claude Code / AI -->
+          <div class="dash-card ai-card" id="card-claude" title="Claude Code">
+            <div class="card-header">
+              <span class="card-title">Claude Code</span>
+              <div class="card-ai-gauge-wrap" id="card-ai-gauge-wrap">
+                <svg class="card-gauge-svg" viewBox="0 0 36 36" width="36" height="36">
+                  <circle class="gauge-track" cx="18" cy="18" r="15" fill="none" stroke="rgba(255,255,255,0.14)" stroke-width="3"/>
+                  <circle class="gauge-bar" id="card-ai-gauge-bar" cx="18" cy="18" r="15" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-dasharray="94.2" stroke-dashoffset="94.2" transform="rotate(-90 18 18)"/>
+                </svg>
+                <div class="claude-mark-icon" id="card-ai-mark">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round">
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                    <line x1="12" y1="5" x2="12" y2="19"/>
+                    <line x1="7.05" y1="7.05" x2="16.95" y2="16.95"/>
+                    <line x1="16.95" y1="7.05" x2="7.05" y2="16.95"/>
+                  </svg>
+                </div>
+              </div>
+            </div>
+            <div class="card-body">
+              <h3 id="card-ai-status">Connect</h3>
+              <p id="card-ai-sub">in Settings</p>
+            </div>
+          </div>
+
+          <!-- Card 2: Music -->
+          <div class="dash-card music-card" id="card-music" title="Music Player">
+            <div class="card-header">
+              <div class="card-title-wrap">
+                <span class="card-title">Music</span>
+                <div id="card-music-viz" class="card-mini-viz hidden" title="Playing">
+                  <span></span><span></span><span></span><span></span>
+                </div>
+              </div>
+              <div class="card-music-art-wrap">
+                <img id="card-music-cover" class="card-music-cover hidden" alt="Artwork" />
+                <div id="card-music-fallback" class="card-icon-badge music-badge">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 18V5l12-2v13"/>
+                    <circle cx="6" cy="18" r="3"/>
+                    <circle cx="18" cy="16" r="3"/>
+                  </svg>
+                </div>
+              </div>
+            </div>
+            <div class="card-body card-music-body">
+              <div class="card-music-meta">
+                <h3 id="card-music-title">Quiet</h3>
+                <p id="card-music-sub">Nothing playing</p>
+              </div>
+              <button class="home-play-btn" id="btn-home-music-play" title="Play / Pause">
+                <svg id="home-music-play-icon" viewBox="0 0 24 24" width="12" height="12" fill="#000000">
+                  <polygon points="6 3 20 12 6 21 6 3"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Card 3: Focus -->
+          <div class="dash-card focus-card" id="card-focus" title="Focus Timer">
+            <div class="card-header">
+              <span class="card-title">Focus</span>
+              <div class="focus-btn-slot">
+                <button class="focus-action-btn" id="btn-focus-toggle" title="Start / Stop Focus">
+                  <svg id="focus-btn-svg" viewBox="0 0 36 36" width="36" height="36">
+                    <circle cx="18" cy="18" r="18" fill="#ffffff"/>
+                    <polygon points="14 11 26 18 14 25" fill="#bf5af2"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div class="card-body">
+              <h3 id="card-focus-time">25:00</h3>
+              <p id="card-focus-sub">Ready to start</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- AI Monitor Panel (Real-time task feed, diff viewer, controls) -->
+      <section id="panel-ai" class="island-panel">
+        <div class="ai-monitor-container">
+          <!-- Header Bar -->
+          <div class="ai-monitor-header">
+            <div class="ai-header-left">
+              <span class="ai-brand-badge">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
+                </svg>
+                <b>AI Monitor</b>
+              </span>
+              <span id="ai-status-pill" class="ai-status-pill status-ready">
+                <span class="ai-status-dot"></span>
+                <span id="ai-status-text">Ready</span>
+              </span>
+            </div>
+
+            <div class="ai-header-actions">
+              <button id="btn-ai-pause" class="ai-action-btn" title="Pause / Resume Agent">
+                <svg id="svg-ai-pause" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="6" y="4" width="4" height="16"/>
+                  <rect x="14" y="4" width="4" height="16"/>
+                </svg>
+              </button>
+              <button id="btn-ai-stop" class="ai-action-btn btn-danger" title="Stop Agent Process">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="5" y="5" width="14" height="14" rx="2" ry="2"/>
+                </svg>
+              </button>
+              <button id="btn-ai-clear" class="ai-action-btn" title="Clear Feed">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="3 6 5 6 21 6"/>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Permission Request Alert Bar -->
+          <div id="ai-permission-bar" class="ai-permission-bar hidden">
+            <div class="ai-perm-info">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#f5c518" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              <span id="ai-permission-desc">Claude requests permission to execute action</span>
+            </div>
+            <div class="ai-perm-buttons">
+              <button id="btn-ai-allow" class="perm-btn btn-allow" title="Allow Action">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+                Allow
+              </button>
+              <button id="btn-ai-deny" class="perm-btn btn-deny" title="Deny Action">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"/>
+                  <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+                Deny
+              </button>
+            </div>
+          </div>
+
+          <!-- Main Layout: Task Feed & Unified Diff Viewer -->
+          <div class="ai-split-view">
+            <!-- Feed Column -->
+            <div class="ai-feed-column">
+              <div class="ai-section-title">
+                <span>Task Activity Feed</span>
+                <span id="ai-feed-count" class="ai-feed-count">0 events</span>
+              </div>
+              <div id="ai-task-feed" class="ai-task-feed">
+                <div class="ai-feed-empty" id="ai-feed-empty">
+                  <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polyline points="12 6 12 12 14 14"/>
+                  </svg>
+                  <p>Awaiting agent webhook events on port 47823</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Diff Viewer Column -->
+            <div class="ai-diff-column">
+              <div class="ai-diff-header">
+                <div class="ai-diff-meta">
+                  <span class="ai-section-title">Unified Diff</span>
+                  <span id="ai-diff-file" class="ai-diff-file-tag hidden">file</span>
+                  <span id="ai-diff-op" class="ai-diff-op-badge hidden">MODIFIED</span>
+                </div>
+                <button id="btn-ai-diff-toggle" class="ai-mini-btn" title="Toggle Diff Height">
+                  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="15 3 21 3 21 9"/>
+                    <polyline points="9 21 3 21 3 15"/>
+                    <line x1="21" y1="3" x2="14" y2="10"/>
+                    <line x1="3" y1="21" x2="10" y2="14"/>
+                  </svg>
+                </button>
+              </div>
+              <div id="ai-diff-viewer" class="ai-diff-viewer">
+                <div id="ai-diff-empty" class="ai-diff-empty">
+                  <span>No file mutations to inspect</span>
+                </div>
+                <pre id="ai-diff-content" class="ai-diff-content hidden"></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Music Player Panel (#panel-music) -->
+      <section id="panel-music" class="island-panel">
+        <div class="media-panel-container">
+          <div id="media-backdrop-blur" class="media-backdrop-blur"></div>
+          <div class="media-header">
+            <div class="media-source-pill" id="media-source-badge">
+              <span class="source-dot"></span>
+              <span id="media-source-label">Windows SMTC</span>
+            </div>
+            <button id="btn-spotify-toggle" class="spotify-auth-btn" title="Spotify Account">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M8 14.5c2.5-1 5.5-1 8 0"/>
+                <path d="M7 11.5c3.2-1.2 6.8-1.2 10 0"/>
+                <path d="M6 8.5c4-1.5 8-1.5 12 0"/>
+              </svg>
+              <span id="spotify-btn-label">Connect</span>
+            </button>
+          </div>
+          <div class="media-body">
+            <div class="media-art-wrapper" id="media-art-box">
+              <img id="media-art-img" class="media-art-img hidden" alt="Artwork" />
+              <div id="media-art-fallback" class="media-art-fallback">
+                <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M9 18V5l12-2v13"/>
+                  <circle cx="6" cy="18" r="3"/>
+                  <circle cx="18" cy="16" r="3"/>
+                </svg>
+              </div>
+            </div>
+            <div class="media-meta">
+              <h2 id="media-title" class="media-title">No Media Active</h2>
+              <p id="media-artist" class="media-artist">Play music on Spotify or Windows</p>
+              <p id="media-album" class="media-album"></p>
+            </div>
+          </div>
+          <div class="media-scrub-container">
+            <div id="media-scrub-bar" class="media-scrub-bar" role="slider" aria-label="Playback scrub bar">
+              <div id="media-scrub-track" class="media-scrub-track">
+                <div id="media-scrub-fill" class="media-scrub-fill"></div>
+                <div id="media-scrub-handle" class="media-scrub-handle"></div>
+              </div>
+            </div>
+            <div class="media-time-row">
+              <span id="media-time-current">0:00</span>
+              <span id="media-time-total">0:00</span>
+            </div>
+          </div>
+          <div class="media-controls-row">
+            <button id="btn-media-prev" class="media-ctrl-btn" title="Previous Track">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="19 20 9 12 19 4 19 20"/>
+                <line x1="5" y1="19" x2="5" y2="5"/>
+              </svg>
+            </button>
+            <button id="btn-media-play" class="media-play-btn" title="Play / Pause">
+              <svg id="media-play-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                <polygon points="5 3 19 12 5 21 5 3"/>
+              </svg>
+            </button>
+            <button id="btn-media-next" class="media-ctrl-btn" title="Next Track">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="5 4 15 12 5 20 5 4"/>
+                <line x1="19" y1="5" x2="19" y2="19"/>
+              </svg>
+            </button>
+            <div class="media-volume-wrap">
+              <button id="btn-media-mute" class="media-ctrl-btn" title="Mute">
+                <svg id="media-vol-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                </svg>
+              </button>
+              <input type="range" id="media-vol-slider" min="0" max="100" value="50" class="media-vol-slider" title="Volume">
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. Embedded Chat Panel (Fix for Screenshot 02) -->
+      <section id="panel-chat" class="island-panel">
+        <div class="chat-container">
+          <div class="chat-header">
+            <div class="chat-robo-badge">
+              <span class="status-dot"></span>
+              <b>Robo Companion</b>
+            </div>
+            <button id="btn-chat-clear" class="chat-tool-btn" title="Clear Chat">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+              </svg>
+            </button>
+          </div>
+          <div id="chat-messages" class="chat-messages">
+            <div class="chat-msg robo">
+              <div class="msg-bubble">
+                Hi! I'm Robo, your intelligent companion. Ask me anything, or drag files to the tray to send them to your phone!
+              </div>
+            </div>
+          </div>
+          <form id="chat-input-form" class="chat-input-bar">
+            <input type="text" id="chat-input" placeholder="Ask Robo or type a task..." autocomplete="off">
+            <button type="submit" id="btn-chat-send" title="Send">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13"/>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+              </svg>
+            </button>
+          </form>
+        </div>
+      </section>
+
+      <!-- Focus Guard & Pomodoro Panel (#panel-focus) -->
+      <section id="panel-focus" class="island-panel"></section>
+
+      <!-- 3. File Tray View & PC-to-Phone QR Transfer (Screenshot 03) -->
+      <section id="panel-tray" class="island-panel">
+        <div class="tray-content">
+          <div id="tray-empty-hero" class="tray-empty-hero">
+            <div class="tray-big-icon">
+              <svg viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="#f5c518" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/>
+                <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>
+              </svg>
+            </div>
+            <div class="tray-empty-text">
+              <h2>Drop files here</h2>
+              <p>Drag from Explorer (non-Admin) or pick a file below</p>
+              <div class="tray-empty-actions">
+                <button id="btn-tray-browse" class="tray-browse-btn" type="button">
+                  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="17 8 12 3 7 8"/>
+                    <line x1="12" y1="3" x2="12" y2="15"/>
+                  </svg>
+                  Choose File
+                </button>
+                <button id="btn-tray-phone" class="phone-drop-btn" type="button">
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect width="14" height="20" x="5" y="2" rx="2" ry="2"/>
+                    <line x1="12" y1="18" x2="12.01" y2="18"/>
+                  </svg>
+                  Or get them from your phone
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Staged Files & Real Phone QR Transfer Area -->
+          <div id="tray-active-view" class="tray-active-view hidden">
+            <div class="tray-split-layout">
+              <!-- Left: Staged Files Shelf -->
+              <div class="tray-files-column">
+                <div class="column-header">
+                  <span id="tray-count-label">Staged Files (0)</span>
+                  <div class="column-header-actions">
+                    <button id="btn-tray-add-more" class="tray-link-btn tray-add-link" type="button">+ Add File</button>
+                    <button id="btn-tray-clear" class="tray-link-btn" type="button">Clear All</button>
+                  </div>
+                </div>
+                <div id="tray-files-shelf" class="tray-shelf"></div>
+              </div>
+
+              <!-- Right: Real Reachable Phone QR Transfer Box -->
+              <div class="tray-qr-column">
+                <div class="qr-card">
+                  <div id="tray-qr-container" class="qr-image-wrap">
+                    <!-- High-contrast SVG QR Code will be injected here -->
+                  </div>
+                  <div class="qr-meta">
+                    <b>Scan to Download</b>
+                    <span id="tray-qr-target" class="qr-target-name">Ready</span>
+                    <span id="tray-qr-status" class="qr-status-badge">Waiting for phone...</span>
+                    <p id="tray-qr-url" class="qr-url-text">http://192.168.1.44:48912/</p>
+                    <button id="btn-copy-qr-url" class="copy-url-btn" type="button">
+                      <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+                        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+                      </svg>
+                      Copy Link
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. Clipboard View (Screenshot 07) -->
+      <section id="panel-clipboard" class="island-panel">
+        <div class="clipboard-content">
+          <div class="clipboard-empty" id="clipboard-empty">
+            <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <rect width="8" height="4" x="8" y="2" rx="1" ry="1"/>
+              <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+            </svg>
+            <h2>Nothing copied yet</h2>
+            <p>Copy something (Ctrl + C) and it shows up here.</p>
+          </div>
+          <div id="clipboard-list" class="clipboard-list"></div>
+        </div>
+      </section>
+    </main>
+
+    <!-- 6. Windows Drag-and-Drop Overlay Target (Screenshot 08) -->
+    <div id="drag-drop-overlay" class="drag-drop-overlay hidden">
+      <div class="drop-zone-border">
+        <div class="drop-zone-content">
+          <div class="drop-icon">
+            <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="#f5c518" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+          </div>
+          <h2>Let go, I'll catch it!</h2>
+          <p>The file goes into your tray</p>
+          <div class="drop-mascot-basket">
+            <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="rgba(245,197,24,0.8)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <rect width="18" height="12" x="3" y="9" rx="2" ry="2"/>
+              <path d="M9 9V5a3 3 0 0 1 6 0v4"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Navigation Bar (Screenshots 01, 03, 07) — 100% SVG Icons -->
+    <nav id="island-bottom-nav">
+      <button class="nav-item active" data-tab="home" title="Home">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+            <polyline points="9 22 9 12 15 12 15 22"/>
+          </svg>
+        </span>
+        <span class="nav-label">Home</span>
+      </button>
+      <button class="nav-item" data-tab="ai" title="AI / Claude Code">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
+          </svg>
+        </span>
+        <span class="nav-label">AI</span>
+      </button>
+      <button class="nav-item" data-tab="music" title="Music">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 18V5l12-2v13"/>
+            <circle cx="6" cy="18" r="3"/>
+            <circle cx="18" cy="16" r="3"/>
+          </svg>
+        </span>
+        <span class="nav-label">Music</span>
+      </button>
+      <button class="nav-item" data-tab="chat" title="Chat">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+        </span>
+        <span class="nav-label">Chat</span>
+      </button>
+      <button class="nav-item" data-tab="focus" title="Focus Timer">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12 6 12 12 16 14"/>
+          </svg>
+        </span>
+        <span class="nav-label">Focus</span>
+      </button>
+      <button class="nav-item" data-tab="tray" title="File Tray">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/>
+            <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>
+          </svg>
+        </span>
+        <span class="nav-label">Tray</span>
+      </button>
+      <button class="nav-item" data-tab="clipboard" title="Clipboard">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect width="8" height="4" x="8" y="2" rx="1" ry="1"/>
+            <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+          </svg>
+        </span>
+        <span class="nav-label">Clipboard</span>
+      </button>
+      <button class="nav-item" data-tab="notes" title="Notes">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 20h9"/>
+            <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+          </svg>
+        </span>
+        <span class="nav-label">Notes</span>
+      </button>
+      <button class="nav-item" data-tab="settings" title="Settings">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+        </span>
+        <span class="nav-label">Settings</span>
+      </button>
+      <div class="nav-spacer"></div>
+      <div id="nav-vol-container" class="nav-vol-container">
+        <div id="nav-vol-slider-wrap" class="nav-vol-slider-wrap">
+          <div id="nav-vol-track" class="nav-vol-track" role="slider" aria-label="System Volume" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50">
+            <div id="nav-vol-bar" class="nav-vol-bar"></div>
+            <div id="nav-vol-thumb" class="nav-vol-thumb"></div>
+          </div>
+        </div>
+        <button class="nav-item nav-vol" id="btn-quick-mute" title="Volume">
+          <span class="nav-icon">
+            <svg class="nav-svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+              <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+              <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+            </svg>
+          </span>
+        </button>
+      </div>
+    </nav>
+
+    <!-- 5. System Popover Overlay (Separate Wi-Fi & Bluetooth Panels, Closed by Default) -->
+    <div id="system-popover" class="system-popover hidden">
+      <!-- Wi-Fi Panel View -->
+      <div id="popover-panel-wifi" class="popover-panel-content hidden">
+        <div class="popover-tile active" id="tile-wifi" title="Toggle Wi-Fi">
+          <div class="tile-icon">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 12.55a11 11 0 0 1 14.08 0"/>
+              <path d="M1.42 9a16 16 0 0 1 21.16 0"/>
+              <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+              <line x1="12" y1="20" x2="12.01" y2="20"/>
+            </svg>
+          </div>
+          <div class="tile-info">
+            <b>Wi-Fi</b>
+            <span id="popover-wifi-ssid">Connected</span>
+          </div>
+        </div>
+        <div class="popover-menu-item" id="row-wifi-list" title="Open Wi-Fi Settings">
+          <div class="menu-item-left">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 12.55a11 11 0 0 1 14.08 0"/>
+              <path d="M1.42 9a16 16 0 0 1 21.16 0"/>
+            </svg>
+            <span>Wi-Fi networks</span>
+          </div>
+          <span class="chevron">›</span>
+        </div>
+      </div>
+
+      <!-- Bluetooth Panel View -->
+      <div id="popover-panel-bt" class="popover-panel-content hidden">
+        <div class="popover-tile" id="tile-bt" title="Toggle Bluetooth">
+          <div class="tile-icon">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6.5 6.5 17.5 17.5 12 23 12 1 17.5 6.5 6.5 17.5"/>
+            </svg>
+          </div>
+          <div class="tile-info">
+            <b>Bluetooth</b>
+            <span id="popover-bt-status">Off</span>
+          </div>
+        </div>
+        <div class="popover-menu-item" id="row-bt-list" title="Open Bluetooth Settings">
+          <div class="menu-item-left">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6.5 6.5 17.5 17.5 12 23 12 1 17.5 6.5 6.5 17.5"/>
+            </svg>
+            <span>Bluetooth devices</span>
+          </div>
+          <span class="chevron">›</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Focus Guard Mindful Distraction Pause Modal -->
+    <div id="focus-guard-modal" class="focus-guard-modal hidden">
+      <div class="guard-card">
+        <div class="guard-mascot-face" id="guard-face">
+          <div class="guard-eye left"></div>
+          <div class="guard-eye right"></div>
+        </div>
+        <h2 id="guard-title">You are opening YouTube</h2>
+        <p id="guard-sub">Take one breath first. Do you really want this right now?</p>
+        <div class="guard-breath-circle">
+          <div class="guard-breath-ring" id="guard-breath-ring"></div>
+          <span id="guard-breath-word">Breathe in</span>
+        </div>
+        <div class="guard-actions">
+          <button id="btn-guard-back" class="btn-guard-back">Go back</button>
+          <button id="btn-guard-anyway" class="btn-guard-anyway" disabled>Open anyway (5)</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Custom Right-Click Context Menu -->
+  <div id="island-context-menu" class="island-context-menu hidden">
+    <div class="ctx-item" id="ctx-hide">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/>
+        <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/>
+        <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/>
+        <line x1="2" y1="2" x2="22" y2="22"/>
+      </svg>
+      <span>Hide RoboIsland</span>
+    </div>
+    <div class="ctx-item" id="ctx-toggle">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="15 3 21 3 21 9"/>
+        <polyline points="9 21 3 21 3 15"/>
+        <line x1="21" y1="3" x2="14" y2="10"/>
+        <line x1="3" y1="21" x2="10" y2="14"/>
+      </svg>
+      <span>Expand / Collapse</span>
+    </div>
+    <div class="ctx-item" id="ctx-settings">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+      <span>Settings</span>
+    </div>
+    <div class="ctx-divider"></div>
+    <div class="ctx-item ctx-danger" id="ctx-quit">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/>
+        <line x1="12" y1="2" x2="12" y2="12"/>
+      </svg>
+      <span>Quit RoboIsland</span>
+    </div>
+  </div>
+
+  <script src="i18n.bundle.js"></script>
+  <script src="bundle.js"></script>
+  <script src="chat-ui.bundle.js"></script>
+  <script src="ai-monitor-ui.js"></script>
+  <script src="media-ui.js"></script>
+  <script src="focus-ui.bundle.js"></script>
+</body>
+</html>

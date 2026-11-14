@@ -1,0 +1,13 @@
+
+[13956:1103/213646.576:WARNING:electron\shell\browser\ui\win\notify_icon.cc:63] Unable to create status tray icon.
+[13956:1103/213646.579:WARNING:electron\shell\browser\ui\win\notify_icon.cc:142] Error setting status tray icon image
+[13956:1103/213646.579:WARNING:electron\shell\browser\ui\win\notify_icon.cc:170] Unable to set tooltip for status tray icon
+[AiMonitorHub] Listening on 127.0.0.1:47823
+[13956:1103/213646.661:INFO:CONSOLE:0] "Electron Security Warning (Insecure Content-Security-Policy) This renderer process has either no Content Security
+  Policy set or a policy with "unsafe-eval" enabled. This exposes users of
+  this app to unnecessary security risks.
+
+For more information and help, consult
+https://electronjs.org/docs/tutorial/security.
+This warning will not show up
+once the app is packaged.", source: file:///C:/Users/hp218/.gemini/antigravity/scratch/RoboIsland/dist/renderer/island/index.html (0)
