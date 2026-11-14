@@ -73,7 +73,7 @@ const api = {
     },
     getAIMonitorHistory: () => electron_1.ipcRenderer.invoke('ai-monitor:get-history'),
     controlAIAgent: (action) => electron_1.ipcRenderer.invoke('ai-monitor:control', action),
-    // AI Chat API (OpenAI, Claude, Custom)
+    // AI Chat API (OpenAI, Claude, Custom, Ollama)
     sendAIChatPrompt: (provider, prompt, model) => electron_1.ipcRenderer.invoke('ai-chat:send-prompt', { provider, prompt, model }),
     onAIChatChunk: (callback) => {
         const handler = (_event, chunk) => callback(chunk);
@@ -87,6 +87,7 @@ const api = {
     },
     saveAICredentials: (provider, apiKey, baseUrl, model) => electron_1.ipcRenderer.invoke('ai-chat:save-credentials', { provider, apiKey, baseUrl, model }),
     getAICredentialStatus: () => electron_1.ipcRenderer.invoke('ai-chat:get-credential-status'),
+    getOllamaModels: () => electron_1.ipcRenderer.invoke('ai-chat:get-ollama-models'),
     triggerVoiceTyping: () => electron_1.ipcRenderer.invoke('ai-chat:voice-typing'),
     speakTTS: (text) => electron_1.ipcRenderer.invoke('ai-chat:speak-tts', text),
     // Buddy & Productivity API
@@ -109,6 +110,15 @@ const api = {
     showItemInFolder: (filePath) => electron_1.ipcRenderer.invoke('tools:show-item-in-folder', filePath),
     openPath: (filePath) => electron_1.ipcRenderer.invoke('tools:open-path', filePath),
     getClipboardHistory: () => electron_1.ipcRenderer.invoke('tools:clipboard-get'),
+    copyClipboardItem: (item) => electron_1.ipcRenderer.invoke('tools:clipboard-copy', item),
+    deleteClipboardItem: (id) => electron_1.ipcRenderer.invoke('tools:clipboard-delete', id),
+    clearClipboardHistory: () => electron_1.ipcRenderer.invoke('tools:clipboard-clear'),
+    startClipboardDragOut: (filePath) => electron_1.ipcRenderer.send('tools:clipboard-drag-out', filePath),
+    onClipboardUpdated: (callback) => {
+        const handler = (_event, history) => callback(history);
+        electron_1.ipcRenderer.on('tools:clipboard-updated', handler);
+        return () => electron_1.ipcRenderer.removeListener('tools:clipboard-updated', handler);
+    },
     saveNote: (text) => electron_1.ipcRenderer.invoke('tools:note-save', text),
     getNote: () => electron_1.ipcRenderer.invoke('tools:note-get'),
     getDropInfo: () => electron_1.ipcRenderer.invoke('tools:drop-info'),

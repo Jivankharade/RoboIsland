@@ -3633,5 +3633,298 @@ html, body {
   animation: airdropRadarPulse 2s infinite;
 }
 
+/* ==========================================================================
+   CLIPBOARD HISTORY & SCREENSHOT DRAG-AND-DROP CARDS
+   ========================================================================== */
+.clipboard-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  padding: 4px 6px;
+  overflow: hidden;
+}
+
+.clipboard-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 4px 8px 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: 8px;
+  flex-shrink: 0;
+}
+
+.clipboard-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.clipboard-header-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffffff;
+  letter-spacing: -0.2px;
+}
+
+.clipboard-count-badge {
+  font-size: 10px;
+  font-weight: 600;
+  color: #64d2ff;
+  background: rgba(100, 210, 255, 0.16);
+  border: 1px solid rgba(100, 210, 255, 0.3);
+  border-radius: 10px;
+  padding: 1px 7px;
+}
+
+.clipboard-clear-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #a0a0a8;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.clipboard-clear-btn:hover {
+  background: rgba(255, 69, 58, 0.18);
+  color: #ff453a;
+  border-color: rgba(255, 69, 58, 0.3);
+}
+
+.clipboard-list {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  overflow-y: auto;
+  max-height: 195px;
+  padding-right: 4px;
+}
+
+.clipboard-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.clipboard-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 2px;
+}
+
+.clip-card {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 9px;
+  padding: 6px 8px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  transition: all 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.clip-card:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.22);
+  transform: translateY(-1px);
+}
+
+.clip-card.copied {
+  border-color: #30d158 !important;
+  background: rgba(48, 209, 88, 0.18) !important;
+}
+
+/* Image / Screenshot card */
+.clip-card-image {
+  grid-column: span 1;
+  padding: 6px;
+}
+
+.clip-card-image[draggable="true"] {
+  cursor: grab;
+}
+
+.clip-card-image[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.clip-thumb-wrap {
+  width: 100%;
+  height: 64px;
+  background: #000000;
+  border-radius: 6px;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.clip-thumb-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.clip-badge-drag {
+  position: absolute;
+  bottom: 3px;
+  right: 3px;
+  background: rgba(0, 0, 0, 0.78);
+  border: 1px solid rgba(100, 210, 255, 0.4);
+  color: #64d2ff;
+  font-size: 9px;
+  font-weight: 600;
+  border-radius: 4px;
+  padding: 1px 5px;
+  pointer-events: none;
+  transition: all 0.14s ease;
+}
+
+.clip-card-image:hover .clip-badge-drag {
+  background: #64d2ff;
+  color: #000000;
+}
+
+.clip-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 5px;
+}
+
+.clip-title-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.clip-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  border-radius: 3px;
+  padding: 1px 5px;
+  flex-shrink: 0;
+}
+
+.clip-tag.image-tag {
+  background: rgba(100, 210, 255, 0.2);
+  color: #64d2ff;
+}
+
+.clip-tag.color-tag {
+  background: rgba(255, 214, 10, 0.2);
+  color: #ffd60a;
+}
+
+.clip-tag.url-tag {
+  background: rgba(48, 209, 88, 0.2);
+  color: #30d158;
+}
+
+.clip-tag.text-tag {
+  background: rgba(255, 255, 255, 0.12);
+  color: #cccccc;
+}
+
+.clip-color-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  display: inline-block;
+}
+
+.clip-res {
+  font-size: 10px;
+  color: #8e8e93;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.clip-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.clip-action-btn {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.clip-action-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.clip-action-btn.btn-del {
+  padding: 1px 5px;
+  color: #8e8e93;
+}
+
+.clip-action-btn.btn-del:hover {
+  color: #ff453a;
+  background: rgba(255, 69, 58, 0.16);
+}
+
+/* Text and Code Clips */
+.clip-header-mini {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.clip-del-mini {
+  background: transparent;
+  border: none;
+  color: #666666;
+  font-size: 13px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+.clip-del-mini:hover {
+  color: #ff453a;
+}
+
+.clip-text-body {
+  font-size: 11px;
+  color: #e5e5ea;
+  line-height: 1.35;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  max-height: 38px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  word-break: break-all;
+}
+
 
 

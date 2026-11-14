@@ -7,7 +7,7 @@ import * as child_process from 'child_process';
 import * as http from 'http';
 import * as https from 'https';
 
-export type AIProvider = 'openai' | 'anthropic' | 'custom';
+export type AIProvider = 'openai' | 'anthropic' | 'custom' | 'ollama';
 
 export interface AICredential {
   apiKey: string;
@@ -252,8 +252,22 @@ export class AIProviderManager {
     return {
       openai: Boolean(creds.openai && creds.openai.apiKey && creds.openai.apiKey.length > 0),
       anthropic: Boolean(creds.anthropic && creds.anthropic.apiKey && creds.anthropic.apiKey.length > 0),
-      custom: Boolean(creds.custom && (creds.custom.baseUrl || creds.custom.apiKey))
+      custom: Boolean(creds.custom && (creds.custom.baseUrl || creds.custom.apiKey)),
+      ollama: true
     };
+  }
+
+  public async getOllamaModels(): Promise<string[]> {
+    try {
+      const res = await fetch('http://127.0.0.1:11434/api/tags');
+      if (res.ok) {
+        const json = (await res.json()) as any;
+        if (Array.isArray(json?.models) && json.models.length > 0) {
+          return json.models.map((m: any) => m.name || m.model);
+        }
+      }
+    } catch {}
+    return ['llama3:latest', 'mistral:latest', 'qwen2.5:latest', 'deepseek-coder:latest'];
   }
 
   public getCredential(provider: string): AICredential | null {
@@ -297,7 +311,7 @@ export class AIProviderManager {
     try {
       if (provider === 'anthropic') {
         await this.streamAnthropic(cred, prompt, model, chunkEmitter, controller.signal);
-      } else if (provider === 'openai' || provider === 'custom') {
+      } else if (provider === 'openai' || provider === 'custom' || provider === 'ollama') {
         await this.streamOpenAICompatible(provider, cred, prompt, model, chunkEmitter, controller.signal);
       } else {
         throw new Error(`Unsupported AI provider: ${provider}`);
@@ -307,7 +321,11 @@ export class AIProviderManager {
         chunkEmitter('\n[Request canceled]');
       } else {
         const msg = err.message || 'Unknown network error';
-        chunkEmitter(`\n[AI Error: ${msg}]`);
+        if (provider === 'ollama' && (msg.includes('fetch failed') || msg.includes('ECONNREFUSED'))) {
+          chunkEmitter('\n[Ollama is not running. Please start Ollama (`ollama serve`) to chat offline with local models.]');
+        } else {
+          chunkEmitter(`\n[AI Error: ${msg}]`);
+        }
       }
     } finally {
       this.abortControllers.delete(sessionId);
@@ -331,6 +349,8 @@ export class AIProviderManager {
     if (!baseUrl) {
       if (provider === 'openai') {
         baseUrl = 'https://api.openai.com/v1';
+      } else if (provider === 'ollama') {
+        baseUrl = 'http://127.0.0.1:11434/v1';
       } else {
         baseUrl = 'http://localhost:11434/v1'; // Default Ollama endpoint
       }
@@ -343,7 +363,7 @@ export class AIProviderManager {
     }
 
     const endpoint = `${baseUrl}/chat/completions`;
-    const model = requestedModel || cred?.model || (provider === 'openai' ? 'gpt-4o' : 'llama3');
+    const model = requestedModel || cred?.model || (provider === 'openai' ? 'gpt-4o' : (provider === 'ollama' ? 'llama3:latest' : 'llama3'));
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json'
@@ -612,6 +632,10 @@ export function registerAIProviderIPC(manager: AIProviderManager): void {
 
   ipcMain.handle('ai-chat:get-credential-status', async () => {
     return manager.getCredentialStatus();
+  });
+
+  ipcMain.handle('ai-chat:get-ollama-models', async () => {
+    return manager.getOllamaModels();
   });
 
   ipcMain.handle('ai-chat:voice-typing', async () => {

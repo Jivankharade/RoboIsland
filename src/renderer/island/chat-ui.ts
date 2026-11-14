@@ -206,7 +206,8 @@ function injectChatStyles(): void {
       align-items: center;
       gap: 6px;
     }
-    .chat-provider-select {
+    .chat-provider-select,
+    .chat-model-select {
       background: rgba(255, 255, 255, 0.08);
       border: 1px solid rgba(255, 255, 255, 0.14);
       color: #e2e8f0;
@@ -215,8 +216,17 @@ function injectChatStyles(): void {
       padding: 2px 6px;
       outline: none;
       cursor: pointer;
+      max-width: 130px;
     }
-    .chat-provider-select option {
+    .chat-model-select {
+      color: #38bdf8;
+      border-color: rgba(56, 189, 248, 0.3);
+    }
+    .chat-model-select.hidden {
+      display: none !important;
+    }
+    .chat-provider-select option,
+    .chat-model-select option {
       background: #16181f;
       color: #fff;
     }
@@ -353,7 +363,8 @@ function injectChatStyles(): void {
 export class ChatUI {
   private static instance: ChatUI | null = null;
   private messages: ChatMessage[] = [];
-  private currentProvider: 'openai' | 'anthropic' | 'custom' = 'openai';
+  private currentProvider: 'openai' | 'anthropic' | 'custom' | 'ollama' = 'openai';
+  private currentModel = '';
   private ttsEnabled = false;
   private isStreaming = false;
   private activeAssistantBubble: HTMLElement | null = null;
@@ -364,6 +375,9 @@ export class ChatUI {
     this.enhanceUI();
     this.attachEvents();
     this.restoreMessages();
+    if (this.currentProvider === 'ollama') {
+      this.refreshOllamaModels();
+    }
   }
 
   public static init(): ChatUI {
@@ -380,9 +394,10 @@ export class ChatUI {
   private loadState(): void {
     try {
       const savedProvider = localStorage.getItem('roboisland_chat_provider') as any;
-      if (savedProvider && ['openai', 'anthropic', 'custom'].includes(savedProvider)) {
+      if (savedProvider && ['openai', 'anthropic', 'custom', 'ollama'].includes(savedProvider)) {
         this.currentProvider = savedProvider;
       }
+      this.currentModel = localStorage.getItem('roboisland_chat_model') || '';
       this.ttsEnabled = localStorage.getItem('roboisland_chat_tts') === 'true';
       const historyRaw = localStorage.getItem('roboisland_chat_history');
       if (historyRaw) {
@@ -396,6 +411,7 @@ export class ChatUI {
   private saveState(): void {
     try {
       localStorage.setItem('roboisland_chat_provider', this.currentProvider);
+      localStorage.setItem('roboisland_chat_model', this.currentModel);
       localStorage.setItem('roboisland_chat_tts', String(this.ttsEnabled));
       localStorage.setItem('roboisland_chat_history', JSON.stringify(this.messages.slice(-50)));
     } catch (e) {
@@ -409,7 +425,7 @@ export class ChatUI {
     const panel = document.getElementById('panel-chat');
     if (!panel) return;
 
-    // 1. Enhance Header with Provider Selector, Export, and TTS controls
+    // 1. Enhance Header with Provider Selector, Model Selector, Export, and TTS controls
     const header = panel.querySelector('.chat-header');
     if (header && !header.querySelector('.chat-header-actions')) {
       const actionsWrapper = document.createElement('div');
@@ -418,7 +434,11 @@ export class ChatUI {
         <select id="chat-provider-select" class="chat-provider-select" title="AI Provider">
           <option value="openai" ${this.currentProvider === 'openai' ? 'selected' : ''}>OpenAI (GPT-4o)</option>
           <option value="anthropic" ${this.currentProvider === 'anthropic' ? 'selected' : ''}>Claude (3.5 Sonnet)</option>
-          <option value="custom" ${this.currentProvider === 'custom' ? 'selected' : ''}>Custom / Ollama</option>
+          <option value="ollama" ${this.currentProvider === 'ollama' ? 'selected' : ''}>Ollama (Local Offline)</option>
+          <option value="custom" ${this.currentProvider === 'custom' ? 'selected' : ''}>Custom API</option>
+        </select>
+        <select id="chat-model-select" class="chat-model-select ${this.currentProvider === 'ollama' ? '' : 'hidden'}" title="Model Select">
+          <option value="">Default</option>
         </select>
         <button id="btn-chat-tts" class="chat-tool-btn ${this.ttsEnabled ? 'active' : ''}" title="Text-to-Speech Toggle">
           ${this.ttsEnabled ? SVG_ICONS.speaker : SVG_ICONS.speakerMuted}
@@ -456,6 +476,31 @@ export class ChatUI {
     }
   }
 
+  private async refreshOllamaModels(): Promise<void> {
+    const modelSelect = document.getElementById('chat-model-select') as HTMLSelectElement;
+    if (!modelSelect) return;
+
+    try {
+      const api = (window as any).roboIsland;
+      if (api && typeof api.getOllamaModels === 'function') {
+        const models: string[] = await api.getOllamaModels();
+        if (Array.isArray(models) && models.length > 0) {
+          modelSelect.innerHTML = models.map((m) => `<option value="${m}" ${m === this.currentModel ? 'selected' : ''}>${m}</option>`).join('');
+          if (!this.currentModel || !models.includes(this.currentModel)) {
+            this.currentModel = models[0];
+            this.saveState();
+          }
+          modelSelect.classList.remove('hidden');
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('[ChatUI] Failed to load Ollama models:', e);
+    }
+
+    modelSelect.innerHTML = '<option value="llama3:latest">llama3</option>';
+  }
+
   private attachEvents(): void {
     // 1. Intercept Chat Form Submit with capture phase to prevent mock duplicate
     const form = document.getElementById('chat-input-form');
@@ -490,13 +535,33 @@ export class ChatUI {
 
     // 2. Provider Select
     const providerSelect = document.getElementById('chat-provider-select') as HTMLSelectElement;
+    const modelSelect = document.getElementById('chat-model-select') as HTMLSelectElement;
+
     if (providerSelect) {
       providerSelect.addEventListener('change', (e) => {
         e.stopPropagation();
         this.currentProvider = providerSelect.value as any;
+        if (this.currentProvider === 'ollama') {
+          if (modelSelect) modelSelect.classList.remove('hidden');
+          this.refreshOllamaModels();
+        } else {
+          if (modelSelect) modelSelect.classList.add('hidden');
+          this.currentModel = '';
+        }
         this.saveState();
       });
       providerSelect.addEventListener('click', (e) => {
+        e.stopPropagation();
+      });
+    }
+
+    if (modelSelect) {
+      modelSelect.addEventListener('change', (e) => {
+        e.stopPropagation();
+        this.currentModel = modelSelect.value;
+        this.saveState();
+      });
+      modelSelect.addEventListener('click', (e) => {
         e.stopPropagation();
       });
     }
@@ -683,7 +748,7 @@ export class ChatUI {
     // 3. Send to AI Provider Manager
     const api = (window as any).roboIsland;
     if (api && typeof api.sendAIChatPrompt === 'function') {
-      api.sendAIChatPrompt(this.currentProvider, text).then((fullResponse: string) => {
+      api.sendAIChatPrompt(this.currentProvider, text, this.currentModel || undefined).then((fullResponse: string) => {
         // Fallback in case onAIChatDone wasn't triggered
         if (this.isStreaming && fullResponse) {
           this.activeAssistantText = fullResponse;

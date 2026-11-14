@@ -2565,6 +2565,13 @@
             }
           });
         }
+        if (window.roboIsland.onClipboardUpdated) {
+          window.roboIsland.onClipboardUpdated(() => {
+            if (this.currentDomTab === "clipboard") {
+              this.loadClipboardList();
+            }
+          });
+        }
       }
       if (typeof window !== "undefined") {
         window.__roboIslandSetMode = (mode) => this.setMode(mode);
@@ -6162,25 +6169,109 @@
     async loadClipboardList() {
       const list = document.getElementById("clipboard-list");
       const empty = document.getElementById("clipboard-empty");
+      const badge = document.getElementById("clipboard-badge");
+      const clearBtn = document.getElementById("btn-clipboard-clear");
       if (!list || !window.roboIsland) return;
+      if (clearBtn && !clearBtn.__bound) {
+        clearBtn.__bound = true;
+        clearBtn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          await window.roboIsland.clearClipboardHistory?.();
+          this.mascot.sounds.playChirp();
+          this.loadClipboardList();
+        });
+      }
       try {
         const history = await window.roboIsland.getClipboardHistory();
         list.innerHTML = "";
         if (history && history.length > 0) {
           if (empty) empty.style.display = "none";
-          history.slice(0, 5).forEach((text) => {
-            const chip = document.createElement("div");
-            chip.className = "clip-chip";
-            chip.textContent = text.length > 50 ? text.slice(0, 48) + "\u2026" : text;
-            chip.title = text;
-            chip.addEventListener("click", () => {
-              navigator.clipboard.writeText(text);
-              this.mascot.sounds.playSuccess();
-            });
-            list.appendChild(chip);
+          if (badge) badge.textContent = `${history.length} clip${history.length > 1 ? "s" : ""}`;
+          history.forEach((item) => {
+            const card = document.createElement("div");
+            const isImage = item.type === "image" && (item.thumbnail || item.filePath);
+            if (isImage) {
+              card.className = "clip-card clip-card-image";
+              card.draggable = true;
+              const resText = item.width && item.height ? `${item.width}\xD7${item.height}` : "Screenshot";
+              card.innerHTML = `
+              <div class="clip-thumb-wrap">
+                <img class="clip-thumb-img" src="${item.thumbnail || ""}" alt="Screenshot" draggable="false" />
+                <span class="clip-badge-drag">Drag Out</span>
+              </div>
+              <div class="clip-info">
+                <div class="clip-title-row">
+                  <span class="clip-tag image-tag">
+                    <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+                    Screenshot
+                  </span>
+                  <span class="clip-res">${resText}</span>
+                </div>
+                <div class="clip-actions">
+                  <button class="clip-action-btn btn-copy" title="Copy image to clipboard" type="button">Copy</button>
+                  <button class="clip-action-btn btn-del" title="Delete" type="button">\xD7</button>
+                </div>
+              </div>
+            `;
+              card.addEventListener("dragstart", (e) => {
+                e.preventDefault();
+                if (item.filePath) {
+                  window.roboIsland.startClipboardDragOut?.(item.filePath);
+                }
+              });
+              card.addEventListener("click", async (e) => {
+                const target = e.target;
+                if (target.closest(".btn-del")) {
+                  e.stopPropagation();
+                  await window.roboIsland.deleteClipboardItem?.(item.id);
+                  this.loadClipboardList();
+                  return;
+                }
+                await window.roboIsland.copyClipboardItem?.(item);
+                this.mascot.sounds.playSuccess();
+                card.classList.add("copied");
+                setTimeout(() => card.classList.remove("copied"), 1e3);
+              });
+            } else {
+              card.className = `clip-card clip-card-${item.type || "text"}`;
+              const text = item.text || "";
+              const preview = text.length > 120 ? text.slice(0, 118) + "\u2026" : text;
+              let typeIcon = '<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
+              let typeLabel = "Text";
+              let colorSwatch = "";
+              if (item.type === "color") {
+                typeLabel = "Color";
+                colorSwatch = `<span class="clip-color-swatch" style="background:${text}"></span>`;
+              } else if (item.type === "url") {
+                typeLabel = "Link";
+                typeIcon = '<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>';
+              }
+              card.innerHTML = `
+              <div class="clip-header-mini">
+                <span class="clip-tag ${item.type || "text"}-tag">${typeIcon}${colorSwatch}${typeLabel}</span>
+                <button class="clip-del-mini btn-del" title="Delete" type="button">\xD7</button>
+              </div>
+              <div class="clip-text-body">${this.escapeHtml(preview)}</div>
+            `;
+              card.addEventListener("click", async (e) => {
+                const target = e.target;
+                if (target.closest(".btn-del")) {
+                  e.stopPropagation();
+                  await window.roboIsland.deleteClipboardItem?.(item.id);
+                  this.loadClipboardList();
+                  return;
+                }
+                await window.roboIsland.copyClipboardItem?.(item);
+                this.mascot.sounds.playSuccess();
+                card.classList.add("copied");
+                setTimeout(() => card.classList.remove("copied"), 1e3);
+              });
+            }
+            list.appendChild(card);
           });
         } else {
           if (empty) empty.style.display = "block";
+          if (badge) badge.textContent = "0 clips";
         }
       } catch {
       }

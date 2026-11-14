@@ -77,8 +77,8 @@ const api = {
   getAIMonitorHistory: () => ipcRenderer.invoke('ai-monitor:get-history'),
   controlAIAgent: (action: 'stop' | 'pause' | 'allow' | 'deny') => ipcRenderer.invoke('ai-monitor:control', action),
 
-  // AI Chat API (OpenAI, Claude, Custom)
-  sendAIChatPrompt: (provider: 'openai' | 'anthropic' | 'custom', prompt: string, model?: string) =>
+  // AI Chat API (OpenAI, Claude, Custom, Ollama)
+  sendAIChatPrompt: (provider: 'openai' | 'anthropic' | 'custom' | 'ollama', prompt: string, model?: string) =>
     ipcRenderer.invoke('ai-chat:send-prompt', { provider, prompt, model }),
   onAIChatChunk: (callback: (chunk: string) => void) => {
     const handler = (_event: any, chunk: string) => callback(chunk);
@@ -93,6 +93,7 @@ const api = {
   saveAICredentials: (provider: string, apiKey: string, baseUrl?: string, model?: string) =>
     ipcRenderer.invoke('ai-chat:save-credentials', { provider, apiKey, baseUrl, model }),
   getAICredentialStatus: () => ipcRenderer.invoke('ai-chat:get-credential-status'),
+  getOllamaModels: () => ipcRenderer.invoke('ai-chat:get-ollama-models'),
   triggerVoiceTyping: () => ipcRenderer.invoke('ai-chat:voice-typing'),
   speakTTS: (text: string) => ipcRenderer.invoke('ai-chat:speak-tts', text),
 
@@ -116,6 +117,15 @@ const api = {
   showItemInFolder: (filePath: string) => ipcRenderer.invoke('tools:show-item-in-folder', filePath),
   openPath: (filePath: string) => ipcRenderer.invoke('tools:open-path', filePath),
   getClipboardHistory: () => ipcRenderer.invoke('tools:clipboard-get'),
+  copyClipboardItem: (item: any) => ipcRenderer.invoke('tools:clipboard-copy', item),
+  deleteClipboardItem: (id: string) => ipcRenderer.invoke('tools:clipboard-delete', id),
+  clearClipboardHistory: () => ipcRenderer.invoke('tools:clipboard-clear'),
+  startClipboardDragOut: (filePath: string) => ipcRenderer.send('tools:clipboard-drag-out', filePath),
+  onClipboardUpdated: (callback: (history: any[]) => void) => {
+    const handler = (_event: any, history: any[]) => callback(history);
+    ipcRenderer.on('tools:clipboard-updated', handler);
+    return () => ipcRenderer.removeListener('tools:clipboard-updated', handler);
+  },
   saveNote: (text: string) => ipcRenderer.invoke('tools:note-save', text),
   getNote: () => ipcRenderer.invoke('tools:note-get'),
   getDropInfo: () => ipcRenderer.invoke('tools:drop-info'),

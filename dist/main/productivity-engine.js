@@ -45,6 +45,9 @@ class ProductivityEngine {
     // Clipboard History
     clipboardHistory = [];
     lastClipboardText = '';
+    lastImageHash = '';
+    clipboardPath;
+    clipboardImagesDir;
     // File Tray
     trayFiles = [];
     activeFilePath = null;
@@ -61,6 +64,14 @@ class ProductivityEngine {
         const userData = electron_1.app.getPath('userData');
         this.trayPath = path.join(userData, 'tray-files.json');
         this.scratchpadPath = path.join(userData, 'scratchpad.txt');
+        this.clipboardPath = path.join(userData, 'clipboard-history.json');
+        this.clipboardImagesDir = path.join(userData, 'clipboard-images');
+        if (!fs.existsSync(this.clipboardImagesDir)) {
+            try {
+                fs.mkdirSync(this.clipboardImagesDir, { recursive: true });
+            }
+            catch { }
+        }
         this.loadPersistedData();
         this.startClipboardWatcher();
         this.startLocalDropServer();
@@ -73,19 +84,120 @@ class ProductivityEngine {
             }
         }
         catch { }
+        try {
+            if (fs.existsSync(this.clipboardPath)) {
+                const raw = fs.readFileSync(this.clipboardPath, 'utf8');
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) {
+                    this.clipboardHistory = parsed.map((item) => {
+                        if (typeof item === 'string') {
+                            return {
+                                id: crypto.createHash('sha1').update(item).digest('hex').slice(0, 10),
+                                type: 'text',
+                                text: item,
+                                timestamp: Date.now()
+                            };
+                        }
+                        return item;
+                    }).filter(item => {
+                        if (item.type === 'image') {
+                            return item.filePath && fs.existsSync(item.filePath);
+                        }
+                        return Boolean(item.text);
+                    }).slice(0, 30);
+                }
+            }
+        }
+        catch { }
+    }
+    savePersistedClipboard() {
+        try {
+            if (this.clipboardPath) {
+                fs.writeFileSync(this.clipboardPath, JSON.stringify(this.clipboardHistory, null, 2), 'utf8');
+            }
+        }
+        catch (err) {
+            console.error('[ProductivityEngine] Failed to save clipboard history:', err);
+        }
     }
     startClipboardWatcher() {
         setInterval(async () => {
             try {
-                const raw = electron_1.clipboard.readText();
-                const text = (typeof raw?.then === 'function' ? await raw : String(raw || '')).trim();
-                if (text && text !== this.lastClipboardText && text.length < 5000) {
+                // 1. Check Image / Screenshot in clipboard (Electron 45 W3C Clipboard API)
+                const hasPng = await electron_1.clipboard.has('image/png').catch(() => false);
+                const hasJpg = !hasPng && (await electron_1.clipboard.has('image/jpeg').catch(() => false));
+                if (hasPng || hasJpg) {
+                    const mime = hasPng ? 'image/png' : 'image/jpeg';
+                    const items = await electron_1.clipboard.read().catch(() => []);
+                    for (const item of items) {
+                        if (item.types && item.types.includes(mime)) {
+                            const blob = await item.getType(mime);
+                            const arrayBuffer = await blob.arrayBuffer();
+                            const buf = Buffer.from(arrayBuffer);
+                            if (buf.length > 0) {
+                                const hash = crypto.createHash('sha1').update(buf.slice(0, Math.min(buf.length, 65536))).digest('hex');
+                                if (hash !== this.lastImageHash) {
+                                    this.lastImageHash = hash;
+                                    const fileName = `screenshot_${Date.now()}.${hasPng ? 'png' : 'jpg'}`;
+                                    const filePath = path.join(this.clipboardImagesDir, fileName);
+                                    fs.writeFileSync(filePath, buf);
+                                    // Generate thumbnail data URL
+                                    const nativeImg = electron_1.nativeImage.createFromBuffer(buf);
+                                    const size = nativeImg.getSize();
+                                    const thumbImg = size.width > 300 ? nativeImg.resize({ width: 300 }) : nativeImg;
+                                    const thumbnail = thumbImg.toDataURL();
+                                    const clipItem = {
+                                        id: hash.slice(0, 10),
+                                        type: 'image',
+                                        filePath,
+                                        thumbnail,
+                                        width: size.width,
+                                        height: size.height,
+                                        timestamp: Date.now()
+                                    };
+                                    this.clipboardHistory = [clipItem, ...this.clipboardHistory.filter(c => c.id !== clipItem.id)].slice(0, 30);
+                                    this.savePersistedClipboard();
+                                    electron_1.BrowserWindow.getAllWindows().forEach(win => {
+                                        if (!win.isDestroyed()) {
+                                            win.webContents.send('tools:clipboard-updated', this.clipboardHistory);
+                                        }
+                                    });
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                }
+                // 2. Check Text in clipboard
+                const raw = await electron_1.clipboard.readText().catch(() => '');
+                const text = String(raw || '').trim();
+                if (text && text !== this.lastClipboardText && text.length < 10000) {
                     this.lastClipboardText = text;
-                    this.clipboardHistory = [text, ...this.clipboardHistory.filter(t => t !== text)].slice(0, 25);
+                    const hash = crypto.createHash('sha1').update(text).digest('hex').slice(0, 10);
+                    let type = 'text';
+                    if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(text) || /^rgba?\([\d\s,.]+\)$/.test(text)) {
+                        type = 'color';
+                    }
+                    else if (/^https?:\/\/[^\s]+$/.test(text)) {
+                        type = 'url';
+                    }
+                    const item = {
+                        id: hash,
+                        type,
+                        text,
+                        timestamp: Date.now()
+                    };
+                    this.clipboardHistory = [item, ...this.clipboardHistory.filter(c => c.id !== item.id)].slice(0, 30);
+                    this.savePersistedClipboard();
+                    electron_1.BrowserWindow.getAllWindows().forEach(win => {
+                        if (!win.isDestroyed()) {
+                            win.webContents.send('tools:clipboard-updated', this.clipboardHistory);
+                        }
+                    });
                 }
             }
             catch { }
-        }, 900);
+        }, 800);
     }
     getFileId(filePath) {
         return crypto.createHash('sha1').update(filePath).digest('hex').slice(0, 10);
@@ -710,6 +822,56 @@ class ProductivityEngine {
     setupIPC() {
         electron_1.ipcMain.handle('tools:clipboard-get', () => {
             return this.clipboardHistory;
+        });
+        electron_1.ipcMain.handle('tools:clipboard-copy', async (_event, item) => {
+            try {
+                if (item.type === 'image' && item.filePath && fs.existsSync(item.filePath)) {
+                    const buf = fs.readFileSync(item.filePath);
+                    const mime = item.filePath.endsWith('.jpg') || item.filePath.endsWith('.jpeg') ? 'image/jpeg' : 'image/png';
+                    const clipItem = new electron_1.ClipboardItem({
+                        [mime]: new Blob([buf], { type: mime })
+                    });
+                    await electron_1.clipboard.write([clipItem]);
+                    return { ok: true, type: 'image' };
+                }
+                else if (item.text) {
+                    await electron_1.clipboard.writeText(item.text);
+                    return { ok: true, type: 'text' };
+                }
+            }
+            catch (err) {
+                return { ok: false, error: String(err) };
+            }
+            return { ok: false };
+        });
+        electron_1.ipcMain.handle('tools:clipboard-delete', (_event, id) => {
+            this.clipboardHistory = this.clipboardHistory.filter(c => c.id !== id);
+            this.savePersistedClipboard();
+            return { ok: true };
+        });
+        electron_1.ipcMain.handle('tools:clipboard-clear', () => {
+            this.clipboardHistory = [];
+            this.savePersistedClipboard();
+            return { ok: true };
+        });
+        electron_1.ipcMain.on('tools:clipboard-drag-out', (event, filePath) => {
+            try {
+                if (filePath && typeof filePath === 'string' && fs.existsSync(filePath)) {
+                    let icon = electron_1.nativeImage.createEmpty();
+                    try {
+                        const img = electron_1.nativeImage.createFromPath(filePath);
+                        icon = img.resize({ width: 64, height: 64 });
+                    }
+                    catch { }
+                    event.sender.startDrag({
+                        file: filePath,
+                        icon
+                    });
+                }
+            }
+            catch (err) {
+                console.error('[ProductivityEngine] clipboard startDrag error:', err);
+            }
         });
         electron_1.ipcMain.handle('tools:note-save', (_event, text) => {
             try {
