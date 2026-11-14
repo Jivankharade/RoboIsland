@@ -1465,254 +1465,32 @@
     }
   };
 
-  // src/renderer/island/donut-converter.ts
-  var DonutConverter = class _DonutConverter {
-    static instance = null;
-    containerEl = null;
-    svgEl = null;
-    currentFile = null;
-    currentFormats = [];
-    hoveredIndex = -1;
-    // -1 = center / none
-    isCenterHovered = false;
-    isProgressActive = false;
-    cx = 0;
-    cy = 0;
-    innerRadius = 38;
-    outerRadius = 86;
-    centerRadius = 34;
-    constructor() {
-      this.createDom();
-    }
-    static getInstance() {
-      if (!_DonutConverter.instance) {
-        _DonutConverter.instance = new _DonutConverter();
-      }
-      return _DonutConverter.instance;
-    }
-    createDom() {
-      let wrap = document.getElementById("donut-converter-wrap");
-      if (!wrap) {
-        wrap = document.createElement("div");
-        wrap.id = "donut-converter-wrap";
-        wrap.className = "donut-converter-wrap hidden";
-        wrap.innerHTML = `
-        <div class="donut-backdrop"></div>
-        <div class="donut-interactive-stage">
-          <svg id="donut-svg" class="donut-svg" viewBox="0 0 240 240" width="240" height="240">
-            <defs>
-              <linearGradient id="donut-petal-glow" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stop-color="#00d2ff"/>
-                <stop offset="100%" stop-color="#7928ca"/>
-              </linearGradient>
-              <linearGradient id="donut-petal-normal" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stop-color="rgba(255, 255, 255, 0.12)"/>
-                <stop offset="100%" stop-color="rgba(255, 255, 255, 0.05)"/>
-              </linearGradient>
-              <filter id="donut-slice-shadow" x="-20%" y="-20%" width="140%" height="140%">
-                <feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="rgba(0, 210, 255, 0.4)"/>
-              </filter>
-            </defs>
-            <g id="donut-wedges-group"></g>
-            <g id="donut-center-group"></g>
-            <g id="donut-progress-group" class="hidden"></g>
-          </svg>
-          <div class="donut-guide-banner">
-            <span>Hover petal to <b>Convert</b> &bull; Drop in center to <b>Transfer to Phone</b></span>
-          </div>
-        </div>
-      `;
-        const overlay = document.getElementById("drag-drop-overlay");
-        if (overlay) {
-          overlay.appendChild(wrap);
-        } else {
-          document.body.appendChild(wrap);
-        }
-      }
-      this.containerEl = wrap;
-      this.svgEl = wrap.querySelector("#donut-svg");
-    }
-    /**
-     * Determine available conversion formats for file.
-     */
-    getFormatsForFile(fileName) {
-      const ext = (fileName.split(".").pop() || "").toLowerCase();
-      switch (ext) {
-        case "docx":
-        case "doc":
-          return ["PDF", "TXT", "HTML"];
-        case "pptx":
-        case "ppt":
-          return ["PDF"];
-        case "xlsx":
-        case "xls":
-          return ["PDF", "CSV"];
-        case "pdf":
-          return ["DOCX", "TXT", "PNG"];
-        case "png":
-        case "jpg":
-        case "jpeg":
-        case "webp":
-        case "bmp":
-        case "ico":
-          return ["PDF", "PNG", "JPG", "WEBP", "ICO"];
-        case "txt":
-        case "md":
-          return ["PDF", "HTML", "DOCX"];
-        default:
-          return ["ZIP"];
-      }
-    }
-    /**
-     * Show Donut when files are dragged into the island.
-     */
-    show(filePath, fileName) {
-      const ext = (fileName.split(".").pop() || "").toLowerCase();
-      this.currentFile = { path: filePath, name: fileName, ext };
-      this.currentFormats = this.getFormatsForFile(fileName);
-      this.hoveredIndex = -1;
-      this.isCenterHovered = true;
-      this.isProgressActive = false;
-      if (this.containerEl) {
-        this.containerEl.classList.remove("hidden");
-      }
-      this.render();
-    }
-    hide() {
-      if (this.containerEl) {
-        this.containerEl.classList.add("hidden");
-      }
-      this.currentFile = null;
-      this.hoveredIndex = -1;
-    }
-    isVisible() {
-      return Boolean(this.containerEl && !this.containerEl.classList.contains("hidden"));
-    }
-    /**
-     * Update mouse position during dragover for slice hit-testing.
-     */
-    onDragOver(clientX, clientY) {
-      if (!this.svgEl || !this.currentFile || this.isProgressActive) return;
-      const rect = this.svgEl.getBoundingClientRect();
-      const x = clientX - rect.left - rect.width / 2;
-      const y = clientY - rect.top - rect.height / 2;
-      const dist = Math.sqrt(x * x + y * y);
-      let newHovered = -1;
-      let newCenterHover = false;
-      if (dist <= this.innerRadius) {
-        newCenterHover = true;
-      } else if (dist <= this.outerRadius + 14 && this.currentFormats.length > 0) {
-        let angle = Math.atan2(x, -y);
-        if (angle < 0) angle += 2 * Math.PI;
-        const span = 2 * Math.PI / this.currentFormats.length;
-        newHovered = Math.floor(angle / span) % this.currentFormats.length;
-      } else {
-        newCenterHover = true;
-      }
-      if (newHovered !== this.hoveredIndex || newCenterHover !== this.isCenterHovered) {
-        this.hoveredIndex = newHovered;
-        this.isCenterHovered = newCenterHover;
-        this.render();
-      }
-    }
-    /**
-     * Check if a format petal was targeted on drop.
-     * Returns target format string, or null if center was targeted (Phone transfer).
-     */
-    getTargetOnDrop() {
-      if (this.hoveredIndex >= 0 && this.hoveredIndex < this.currentFormats.length) {
-        return this.currentFormats[this.hoveredIndex];
-      }
-      return null;
-    }
-    /**
-     * Switch Donut to animated progress sweep.
-     */
-    showProgress(format) {
-      this.isProgressActive = true;
-      const progressGroup = document.getElementById("donut-progress-group");
-      if (progressGroup) {
-        progressGroup.classList.remove("hidden");
-        progressGroup.innerHTML = `
-        <circle cx="120" cy="120" r="48" fill="rgba(10, 11, 16, 0.92)" stroke="rgba(255, 255, 255, 0.15)" stroke-width="4"/>
-        <circle class="donut-progress-arc" cx="120" cy="120" r="48" fill="none" stroke="#00d2ff" stroke-width="4" stroke-dasharray="301" stroke-dashoffset="301" stroke-linecap="round"/>
-        <text x="120" y="116" text-anchor="middle" font-size="11" font-weight="700" fill="#00d2ff">CONVERTING</text>
-        <text x="120" y="132" text-anchor="middle" font-size="10" font-weight="500" fill="#ffffff">To ${format}</text>
-      `;
-      }
-    }
-    /**
-     * Render SVG wedges and center hub.
-     */
-    render() {
-      const wedgesGroup = document.getElementById("donut-wedges-group");
-      const centerGroup = document.getElementById("donut-center-group");
-      if (!wedgesGroup || !centerGroup || !this.currentFile) return;
-      const count = this.currentFormats.length;
-      const span = count > 0 ? 2 * Math.PI / count : 2 * Math.PI;
-      const gap = 0.04;
-      const cx = 120;
-      const cy = 120;
-      let wedgesHtml = "";
-      for (let i = 0; i < count; i++) {
-        const format = this.currentFormats[i];
-        const isHovered = i === this.hoveredIndex;
-        const midAngle = (i + 0.5) * span;
-        const disp = isHovered ? 6 : 0;
-        const dx = disp * Math.sin(midAngle);
-        const dy = -disp * Math.cos(midAngle);
-        const r1 = this.innerRadius;
-        const r2 = isHovered ? this.outerRadius + 4 : this.outerRadius;
-        const a1 = i * span + gap / 2;
-        const a2 = (i + 1) * span - gap / 2;
-        const p1 = { x: cx + dx + r2 * Math.sin(a1), y: cy + dy - r2 * Math.cos(a1) };
-        const p2 = { x: cx + dx + r2 * Math.sin(a2), y: cy + dy - r2 * Math.cos(a2) };
-        const p3 = { x: cx + dx + r1 * Math.sin(a2), y: cy + dy - r1 * Math.cos(a2) };
-        const p4 = { x: cx + dx + r1 * Math.sin(a1), y: cy + dy - r1 * Math.cos(a1) };
-        const largeArc = a2 - a1 > Math.PI ? 1 : 0;
-        const pathD = `M ${p1.x} ${p1.y} A ${r2} ${r2} 0 ${largeArc} 1 ${p2.x} ${p2.y} L ${p3.x} ${p3.y} A ${r1} ${r1} 0 ${largeArc} 0 ${p4.x} ${p4.y} Z`;
-        const midR = (r1 + r2) / 2;
-        const labelX = cx + dx + midR * Math.sin(midAngle);
-        const labelY = cy + dy - midR * Math.cos(midAngle) + 3.5;
-        const fill = isHovered ? "url(#donut-petal-glow)" : "url(#donut-petal-normal)";
-        const stroke = isHovered ? "#00d2ff" : "rgba(255, 255, 255, 0.16)";
-        const strokeWidth = isHovered ? "1.8" : "1.0";
-        const textColor = isHovered ? "#ffffff" : "rgba(255, 255, 255, 0.85)";
-        const filter = isHovered ? 'filter="url(#donut-slice-shadow)"' : "";
-        wedgesHtml += `
-        <g class="donut-slice ${isHovered ? "hovered" : ""}" ${filter}>
-          <path d="${pathD}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}"/>
-          <text x="${labelX}" y="${labelY}" text-anchor="middle" font-size="10.5" font-weight="${isHovered ? "700" : "600"}" fill="${textColor}" letter-spacing="0.4">
-            ${format}
-          </text>
-        </g>
-      `;
-      }
-      wedgesGroup.innerHTML = wedgesHtml;
-      const isCenterActive = this.hoveredIndex === -1;
-      const centerStroke = isCenterActive ? "#f5c518" : "rgba(255, 255, 255, 0.2)";
-      const centerFill = isCenterActive ? "rgba(245, 197, 24, 0.14)" : "rgba(15, 17, 23, 0.94)";
-      let titleText = this.currentFile.ext ? `1 x ${this.currentFile.ext.toUpperCase()}` : "1 File";
-      let subtitleText = isCenterActive ? "Drop: Phone Transfer" : `Drop -> ${this.currentFormats[this.hoveredIndex]}`;
-      let subtitleColor = isCenterActive ? "#f5c518" : "#00d2ff";
-      centerGroup.innerHTML = `
-      <circle cx="${cx}" cy="${cy}" r="${this.centerRadius}" fill="${centerFill}" stroke="${centerStroke}" stroke-width="1.8"/>
-      <!-- Small Phone AirDrop Icon -->
-      <g transform="translate(112, 98) scale(0.65)" stroke="${isCenterActive ? "#f5c518" : "#ffffff"}" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
-        <line x1="12" y1="18" x2="12.01" y2="18"/>
-      </g>
-      <text x="${cx}" y="119" text-anchor="middle" font-size="9" font-weight="700" fill="#ffffff" letter-spacing="0.2">
-        ${titleText}
-      </text>
-      <text x="${cx}" y="129" text-anchor="middle" font-size="7.5" font-weight="600" fill="${subtitleColor}">
-        ${subtitleText}
-      </text>
-    `;
-    }
-  };
-
   // src/renderer/island/canvas-engine.ts
+  function getConvertibleTargetFormat(fileName) {
+    const ext = (fileName.split(".").pop() || "").toLowerCase();
+    switch (ext) {
+      case "docx":
+      case "doc":
+      case "pptx":
+      case "ppt":
+      case "xlsx":
+      case "xls":
+        return "PDF";
+      case "pdf":
+        return "DOCX";
+      case "png":
+      case "jpg":
+      case "jpeg":
+      case "webp":
+      case "bmp":
+        return "PDF";
+      case "txt":
+      case "md":
+        return "PDF";
+      default:
+        return null;
+    }
+  }
   var CanvasEngine = class {
     canvas;
     ctx;
@@ -5931,7 +5709,6 @@
         this.isDraggingOver = false;
         window.roboIsland?.setDragging?.(false);
         if (dropOverlay) dropOverlay.classList.add("hidden");
-        DonutConverter.getInstance().hide();
       };
       window.addEventListener("dragenter", (e) => {
         e.preventDefault();
@@ -5945,17 +5722,6 @@
           this.expand();
         }
         if (dropOverlay) dropOverlay.classList.remove("hidden");
-        let candidateName = "File";
-        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-          candidateName = e.dataTransfer.files[0].name;
-        } else if (e.dataTransfer && e.dataTransfer.items && e.dataTransfer.items.length > 0) {
-          const it = e.dataTransfer.items[0];
-          if (it.kind === "file") {
-            const f = it.getAsFile();
-            if (f) candidateName = f.name;
-          }
-        }
-        DonutConverter.getInstance().show("", candidateName);
       }, true);
       window.addEventListener("dragover", (e) => {
         e.preventDefault();
@@ -5964,7 +5730,6 @@
         window.roboIsland?.setDragging?.(true);
         window.roboIsland?.setInteractive(true);
         if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
-        DonutConverter.getInstance().onDragOver(e.clientX, e.clientY);
       }, true);
       window.addEventListener("dragleave", (e) => {
         dragDepth = Math.max(0, dragDepth - 1);
@@ -5978,7 +5743,6 @@
       window.addEventListener("drop", async (e) => {
         e.preventDefault();
         e.stopPropagation();
-        const targetFormat = DonutConverter.getInstance().getTargetOnDrop();
         resetDragState();
         const fileList = [];
         if (e.dataTransfer) {
@@ -6014,37 +5778,6 @@
             }
           }
           if (filePaths.length > 0 && window.roboIsland) {
-            if (targetFormat) {
-              const firstPath = filePaths[0];
-              DonutConverter.getInstance().showProgress(targetFormat);
-              try {
-                const res = await window.roboIsland.convertFile(firstPath, targetFormat);
-                DonutConverter.getInstance().hide();
-                if (res && res.success && res.outputPath) {
-                  this.triggerAirDropHud("received", res.fileName || "Converted File");
-                  this.activeTab = "tray";
-                  this.showDomTab("tray");
-                  await this.loadTrayShelf(true);
-                  this.triggerNotification({
-                    id: `conv-${Date.now()}`,
-                    title: "Document Converted",
-                    body: `${res.fileName} is ready in your tray`,
-                    kind: "done"
-                  });
-                  return;
-                } else {
-                  this.triggerNotification({
-                    id: `conv-err-${Date.now()}`,
-                    title: "Conversion Failed",
-                    body: res?.error || "Could not convert file",
-                    kind: "error"
-                  });
-                }
-              } catch (err) {
-                DonutConverter.getInstance().hide();
-                console.error("[CanvasEngine] Conversion error:", err);
-              }
-            }
             await window.roboIsland.trayAddFiles(filePaths);
             const firstFileName = filePaths[0].split(/[/\\]/).pop() || "File";
             const count = filePaths.length;
@@ -6288,18 +6021,18 @@
                 });
                 actionsDiv.appendChild(qlBtn);
                 actionsDiv.appendChild(revBtn);
-                const formats = DonutConverter.getInstance().getFormatsForFile(f.name);
-                if (formats.length > 0 && formats[0] !== "ZIP") {
+                const targetFmt = getConvertibleTargetFormat(f.name);
+                if (targetFmt) {
                   const convBtn = document.createElement("button");
                   convBtn.className = "tray-item-btn btn-conv";
-                  convBtn.title = `Convert to ${formats[0]}`;
+                  convBtn.title = `Convert to ${targetFmt}`;
                   convBtn.type = "button";
                   convBtn.innerHTML = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="#00d2ff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>';
                   convBtn.addEventListener("click", async (e) => {
                     e.stopPropagation();
                     convBtn.style.opacity = "0.5";
                     try {
-                      const res = await window.roboIsland?.convertFile?.(f.path, formats[0]);
+                      const res = await window.roboIsland?.convertFile?.(f.path, targetFmt);
                       if (res && res.success) {
                         await this.loadTrayShelf(true);
                         this.triggerAirDropHud("received", res.fileName || "Converted File");

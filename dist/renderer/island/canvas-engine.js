@@ -4,7 +4,31 @@ exports.CanvasEngine = void 0;
 const robo_mascot_1 = require("./robo-mascot");
 const texture_engine_1 = require("./texture-engine");
 const audio_synth_1 = require("./audio-synth");
-const donut_converter_1 = require("./donut-converter");
+function getConvertibleTargetFormat(fileName) {
+    const ext = (fileName.split('.').pop() || '').toLowerCase();
+    switch (ext) {
+        case 'docx':
+        case 'doc':
+        case 'pptx':
+        case 'ppt':
+        case 'xlsx':
+        case 'xls':
+            return 'PDF';
+        case 'pdf':
+            return 'DOCX';
+        case 'png':
+        case 'jpg':
+        case 'jpeg':
+        case 'webp':
+        case 'bmp':
+            return 'PDF';
+        case 'txt':
+        case 'md':
+            return 'PDF';
+        default:
+            return null;
+    }
+}
 class CanvasEngine {
     canvas;
     ctx;
@@ -4726,7 +4750,6 @@ class CanvasEngine {
             window.roboIsland?.setDragging?.(false);
             if (dropOverlay)
                 dropOverlay.classList.add('hidden');
-            donut_converter_1.DonutConverter.getInstance().hide();
         };
         // CRITICAL: When a file is dragged from Windows Explorer, the island window
         // is in setIgnoreMouseEvents(true) mode (compact/rest) which can cause Windows
@@ -4746,19 +4769,6 @@ class CanvasEngine {
             }
             if (dropOverlay)
                 dropOverlay.classList.remove('hidden');
-            let candidateName = 'File';
-            if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                candidateName = e.dataTransfer.files[0].name;
-            }
-            else if (e.dataTransfer && e.dataTransfer.items && e.dataTransfer.items.length > 0) {
-                const it = e.dataTransfer.items[0];
-                if (it.kind === 'file') {
-                    const f = it.getAsFile();
-                    if (f)
-                        candidateName = f.name;
-                }
-            }
-            donut_converter_1.DonutConverter.getInstance().show('', candidateName);
         }, true);
         window.addEventListener('dragover', (e) => {
             e.preventDefault();
@@ -4768,7 +4778,6 @@ class CanvasEngine {
             window.roboIsland?.setInteractive(true);
             if (e.dataTransfer)
                 e.dataTransfer.dropEffect = 'copy';
-            donut_converter_1.DonutConverter.getInstance().onDragOver(e.clientX, e.clientY);
         }, true);
         window.addEventListener('dragleave', (e) => {
             dragDepth = Math.max(0, dragDepth - 1);
@@ -4782,7 +4791,6 @@ class CanvasEngine {
         window.addEventListener('drop', async (e) => {
             e.preventDefault();
             e.stopPropagation();
-            const targetFormat = donut_converter_1.DonutConverter.getInstance().getTargetOnDrop();
             resetDragState();
             const fileList = [];
             if (e.dataTransfer) {
@@ -4820,41 +4828,6 @@ class CanvasEngine {
                     }
                 }
                 if (filePaths.length > 0 && window.roboIsland) {
-                    // If user specifically dropped on a target format petal in the donut:
-                    if (targetFormat) {
-                        const firstPath = filePaths[0];
-                        donut_converter_1.DonutConverter.getInstance().showProgress(targetFormat);
-                        try {
-                            const res = await window.roboIsland.convertFile(firstPath, targetFormat);
-                            donut_converter_1.DonutConverter.getInstance().hide();
-                            if (res && res.success && res.outputPath) {
-                                this.triggerAirDropHud('received', res.fileName || 'Converted File');
-                                this.activeTab = 'tray';
-                                this.showDomTab('tray');
-                                await this.loadTrayShelf(true);
-                                this.triggerNotification({
-                                    id: `conv-${Date.now()}`,
-                                    title: 'Document Converted',
-                                    body: `${res.fileName} is ready in your tray`,
-                                    kind: 'done'
-                                });
-                                return;
-                            }
-                            else {
-                                this.triggerNotification({
-                                    id: `conv-err-${Date.now()}`,
-                                    title: 'Conversion Failed',
-                                    body: res?.error || 'Could not convert file',
-                                    kind: 'error'
-                                });
-                            }
-                        }
-                        catch (err) {
-                            donut_converter_1.DonutConverter.getInstance().hide();
-                            console.error('[CanvasEngine] Conversion error:', err);
-                        }
-                    }
-                    // Default / Center Drop -> Normal Phone AirDrop (100% preserves existing flow!)
                     await window.roboIsland.trayAddFiles(filePaths);
                     const firstFileName = filePaths[0].split(/[/\\]/).pop() || 'File';
                     const count = filePaths.length;
@@ -5138,18 +5111,18 @@ class CanvasEngine {
                             });
                             actionsDiv.appendChild(qlBtn);
                             actionsDiv.appendChild(revBtn);
-                            const formats = donut_converter_1.DonutConverter.getInstance().getFormatsForFile(f.name);
-                            if (formats.length > 0 && formats[0] !== 'ZIP') {
+                            const targetFmt = getConvertibleTargetFormat(f.name);
+                            if (targetFmt) {
                                 const convBtn = document.createElement('button');
                                 convBtn.className = 'tray-item-btn btn-conv';
-                                convBtn.title = `Convert to ${formats[0]}`;
+                                convBtn.title = `Convert to ${targetFmt}`;
                                 convBtn.type = 'button';
                                 convBtn.innerHTML = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="#00d2ff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>';
                                 convBtn.addEventListener('click', async (e) => {
                                     e.stopPropagation();
                                     convBtn.style.opacity = '0.5';
                                     try {
-                                        const res = await window.roboIsland?.convertFile?.(f.path, formats[0]);
+                                        const res = await window.roboIsland?.convertFile?.(f.path, targetFmt);
                                         if (res && res.success) {
                                             await this.loadTrayShelf(true);
                                             this.triggerAirDropHud('received', res.fileName || 'Converted File');
