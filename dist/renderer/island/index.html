@@ -747,6 +747,32 @@
     </div>
   </div>
 
+  <!-- Cinema / Video Subtitle Detection Banner Toast (Both Compact & Expanded) -->
+  <div id="cinema-detect-toast" class="cinema-detect-toast hidden" role="alert">
+    <div class="toast-cc-badge">
+      <span class="toast-cc-text">CC</span>
+      <span class="toast-pulse-dot"></span>
+    </div>
+    <div class="toast-info-block">
+      <div class="toast-primary-line">
+        <span class="toast-app-badge" id="cinema-toast-app">Chrome</span>
+        <span class="toast-heading">Video Detected</span>
+      </div>
+      <span id="cinema-toast-title" class="toast-subtitle-title">Video Playing</span>
+    </div>
+    <div class="toast-actions-block">
+      <button id="btn-cinema-toast-enable" class="btn-toast-turn-on" title="Turn on live subtitles">
+        Add Subtitles (<span id="cinema-toast-lang-badge">EN -> HI</span>)
+      </button>
+      <button id="btn-cinema-toast-dismiss" class="btn-toast-dismiss" title="Dismiss">
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+  </div>
+
   <!-- Cinema Mode Floating Subtitle HUD Overlay -->
   <div id="cinema-subtitle-hud" class="cinema-subtitle-hud hidden" aria-live="polite">
     <div class="cinema-subtitle-inner">

@@ -42,10 +42,22 @@ assert.strictEqual(CinemaDetector.matchesVideoApp('netflix.exe'), true);
 assert.strictEqual(CinemaDetector.matchesVideoApp('notepad.exe'), false);
 console.log('  OK: CinemaDetector accurately matches dedicated video player processes');
 
+// Browser matching
+assert.strictEqual(CinemaDetector.matchesBrowserApp('chrome.exe'), true);
+assert.strictEqual(CinemaDetector.matchesBrowserApp('Google Chrome'), true);
+assert.strictEqual(CinemaDetector.matchesBrowserApp('msedge.exe'), true);
+assert.strictEqual(CinemaDetector.matchesBrowserApp('firefox.exe'), true);
+assert.strictEqual(CinemaDetector.matchesBrowserApp('brave.exe'), true);
+assert.strictEqual(CinemaDetector.matchesBrowserApp('opera.exe'), true);
+assert.strictEqual(CinemaDetector.matchesBrowserApp('arc.exe'), true);
+assert.strictEqual(CinemaDetector.matchesBrowserApp('spotify.exe'), false);
+console.log('  OK: CinemaDetector accurately matches all major web browsers');
+
 // Title matching
 assert.strictEqual(CinemaDetector.matchesVideoTitle('Stranger Things - Netflix - Google Chrome'), true);
 assert.strictEqual(CinemaDetector.matchesVideoTitle('Interstellar (2014) 1080p.mkv - VLC media player'), true);
 assert.strictEqual(CinemaDetector.matchesVideoTitle('The Lord of the Rings - Prime Video - Microsoft Edge'), true);
+assert.strictEqual(CinemaDetector.matchesVideoTitle('LET\'S SMILE JOKE - NAYA COMPUTER || FUNNY GAMING COMEDY'), true);
 assert.strictEqual(CinemaDetector.matchesVideoTitle('Document1 - Word'), false);
 console.log('  OK: CinemaDetector accurately matches streaming platforms and video file titles');
 
@@ -68,7 +80,26 @@ assert.strictEqual(r4.isCinema, false);
 const r5 = CinemaDetector.evaluateCinemaState('Trailer', 'browser.exe', false, true, 'Video');
 assert.strictEqual(r5.isCinema, true);
 assert.strictEqual(r5.reason, 'smtc');
-console.log('  OK: Cinema state evaluation correctly arbitrates video, player, and streaming states');
+
+// User Screenshot Test Case: YouTube Comedy in Chrome
+const userCase = CinemaDetector.evaluateCinemaState(
+  '(1488) LET\'S SMILE JOKE - NAYA COMPUTER || FUNNY GAMING COMEDY',
+  'chrome.exe',
+  false,
+  true
+);
+assert.strictEqual(userCase.isCinema, true, 'YouTube comedy video in Chrome must be detected as Cinema Video!');
+console.log('  OK: YouTube video playing in Google Chrome correctly triggers Cinema Mode');
+
+// 3rd-Party Streaming Website Test Case (SFlix, FMovies, Anime, etc.)
+const thirdPartyCase = CinemaDetector.evaluateCinemaState(
+  'Episode 420 Online - AnimeStream',
+  'brave.exe',
+  false,
+  true
+);
+assert.strictEqual(thirdPartyCase.isCinema, true, '3rd-party video in Brave browser must be detected as Cinema Video!');
+console.log('  OK: 3rd-party video streaming websites across browsers correctly trigger Cinema Mode');
 
 // 3. Testing SubtitleEngine logic
 const { SubtitleEngine, SUPPORTED_LANGUAGES } = require('../dist/main/subtitle-engine');
@@ -85,6 +116,9 @@ async function runSubtitleTests() {
   // Test translation dictionary
   const hiTrans = await engine.translate('We need to leave now', 'hi', 'en');
   assert.strictEqual(hiTrans.includes('निकलना होगा'), true, `Expected Hindi translation, got: ${hiTrans}`);
+
+  const hiComputer = await engine.translate('new computer', 'hi', 'en');
+  assert.strictEqual(hiComputer.includes('नया कंप्यूटर'), true, `Expected Hindi translation for new computer, got: ${hiComputer}`);
 
   const esTrans = await engine.translate('I have a bad feeling about this', 'es', 'en');
   assert.strictEqual(esTrans.includes('mal presentimiento'), true, `Expected Spanish translation, got: ${esTrans}`);

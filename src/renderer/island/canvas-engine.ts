@@ -668,6 +668,19 @@ export class CanvasEngine {
 
   private lastTime = performance.now();
 
+  // Cinema Mode & Universal Subtitles
+  public isCinemaActive = false;
+  public isSubtitleActive = false;
+  public cinemaTargetLang = 'en';
+  public ccButtonHitRect: { x: number; y: number; w: number; h: number } | null = null;
+  public cinemaToastTimer: any = null;
+
+  public matchesBrowserApp(app: string): boolean {
+    if (!app) return false;
+    const lower = app.toLowerCase();
+    return ['chrome', 'msedge', 'edge', 'firefox', 'brave', 'opera', 'vivaldi', 'arc', 'chromium', 'browser'].some(b => lower.includes(b));
+  }
+
   // UX-4: Resource Optimization — idle frame throttling and dirty-flag render
   private _idleFrameCount = 0;
   private _lastRenderHash = '';
@@ -2138,6 +2151,15 @@ export class CanvasEngine {
       return;
     }
 
+    // Compact Cinema [CC] Badge Click (YouTube, Chrome, Edge, and 3rd party video streaming)
+    if (this.mode === 'compact' && this.ccButtonHitRect) {
+      const { x: bx, y: by, w: bw, h: bh } = this.ccButtonHitRect;
+      if (x >= bx - 3 && x <= bx + bw + 3 && y >= by - 3 && y <= by + bh + 3) {
+        this.toggleSubtitles();
+        return;
+      }
+    }
+
     // Notification Interactive Button Clicks (TwoCode Parity: Allow, Deny, View, Dismiss)
     if (this.isNotificationActive() && Object.keys(this.notificationHits).length > 0) {
       for (const [key, rect] of Object.entries(this.notificationHits)) {
@@ -3329,9 +3351,55 @@ export class CanvasEngine {
     }
     this.ctx.restore();
 
+    // 2b. Universal Cinema Subtitle [CC] Pill Button (YouTube, Browsers & Streaming Sites)
+    const isVideoOrCinema = this.isCinemaActive || (this.mediaState.app && this.matchesBrowserApp(this.mediaState.app));
+    let ccX0 = vizX;
+    if (isVideoOrCinema) {
+      const ccW = 30;
+      const ccH = 16;
+      const ccX = vizX - ccW - 8;
+      const ccY = cy - ccH / 2;
+      this.ccButtonHitRect = { x: ccX, y: ccY, w: ccW, h: ccH };
+      ccX0 = ccX;
+
+      this.ctx.save();
+      this.ctx.beginPath();
+      this.ctx.roundRect(ccX, ccY, ccW, ccH, 4);
+
+      if (this.isSubtitleActive) {
+        // Active Subtitles: Glowing golden amber pill
+        this.ctx.fillStyle = '#f59e0b';
+        this.ctx.shadowColor = '#f59e0b';
+        this.ctx.shadowBlur = 6;
+        this.ctx.fill();
+
+        this.ctx.fillStyle = '#000000';
+        this.ctx.font = '700 9px Inter, -apple-system, sans-serif';
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillText('CC', ccX + ccW / 2, cy + 0.5);
+      } else {
+        // Inactive / Ready state: Translucent frosted glass pill
+        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.14)';
+        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.38)';
+        this.ctx.lineWidth = 1;
+        this.ctx.fill();
+        this.ctx.stroke();
+
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.font = '600 9px Inter, -apple-system, sans-serif';
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillText('CC', ccX + ccW / 2, cy + 0.5);
+      }
+      this.ctx.restore();
+    } else {
+      this.ccButtonHitRect = null;
+    }
+
     // 3. Middle Content: Synchronized Lyrics or Song / Ad Title (No eyes during media playback)
     const x0 = coverX + cs + 12;
-    const x1 = vizX - 12;
+    const x1 = ccX0 - 10;
     const w = Math.max(20, x1 - x0);
     const band = 20;
 
@@ -5778,9 +5846,56 @@ export class CanvasEngine {
     const langPill = document.getElementById('cinema-lang-pill');
     const langText = document.getElementById('cinema-lang-text');
 
+    // Video Detection Toast Elements
+    const toastEl = document.getElementById('cinema-detect-toast');
+    const toastApp = document.getElementById('cinema-toast-app');
+    const toastTitle = document.getElementById('cinema-toast-title');
+    const toastLang = document.getElementById('cinema-toast-lang-badge');
+    const btnToastEnable = document.getElementById('btn-cinema-toast-enable');
+    const btnToastDismiss = document.getElementById('btn-cinema-toast-dismiss');
+
+    // Subtitle Prompt Event: Triggered on YouTube, Chrome, Edge, and 3rd party video streaming
+    if (api.onCinemaPromptSubtitles) {
+      api.onCinemaPromptSubtitles((data: any) => {
+        if (!data || !toastEl) return;
+        this.isCinemaActive = true;
+        if (toastApp) toastApp.textContent = (data.app || 'Video').toUpperCase();
+        if (toastTitle) toastTitle.textContent = data.title || 'Video Detected';
+        const targetLang = (data.targetLanguage || this.cinemaTargetLang || 'hi').toUpperCase();
+        if (toastLang) toastLang.textContent = `EN -> ${targetLang}`;
+
+        toastEl.classList.remove('hidden');
+
+        if (this.cinemaToastTimer) clearTimeout(this.cinemaToastTimer);
+        this.cinemaToastTimer = setTimeout(() => {
+          if (toastEl) toastEl.classList.add('hidden');
+        }, 7500);
+      });
+    }
+
+    if (btnToastEnable) {
+      btnToastEnable.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.isSubtitleActive = true;
+        api.setSubtitleEnabled?.(true);
+        api.testPreviewSubtitle?.();
+        if (subHud) subHud.classList.remove('hidden');
+        if (toastEl) toastEl.classList.add('hidden');
+      });
+    }
+
+    if (btnToastDismiss) {
+      btnToastDismiss.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (toastEl) toastEl.classList.add('hidden');
+      });
+    }
+
     if (api.onCinemaStateChanged) {
       api.onCinemaStateChanged((state: any) => {
         if (!state) return;
+        this.isCinemaActive = Boolean(state.isCinemaMode);
+        this.cinemaTargetLang = state.targetLanguage || 'en';
         if (cinemaBadge && cinemaText) {
           cinemaBadge.classList.toggle('hidden', !state.isCinemaMode);
           cinemaText.textContent = `CINEMA: ${String(state.targetLanguage || 'EN').toUpperCase()}`;
@@ -5797,6 +5912,9 @@ export class CanvasEngine {
         }
         if (subTitle && state.activeTitle) {
           subTitle.textContent = state.activeTitle;
+        }
+        if (!state.isCinemaMode && toastEl) {
+          toastEl.classList.add('hidden');
         }
       });
     }
@@ -5838,6 +5956,22 @@ export class CanvasEngine {
         e.stopPropagation();
         api.testPreviewSubtitle?.();
       });
+    }
+  }
+
+  public toggleSubtitles(): void {
+    const next = !this.isSubtitleActive;
+    this.isSubtitleActive = next;
+    const api = (window as any).roboIsland;
+    const subHud = document.getElementById('cinema-subtitle-hud');
+    if (next) {
+      api?.setSubtitleEnabled?.(true);
+      api?.testPreviewSubtitle?.();
+      if (subHud) subHud.classList.remove('hidden');
+    } else {
+      api?.setSubtitleEnabled?.(false);
+      api?.clearSubtitles?.();
+      if (subHud) subHud.classList.add('hidden');
     }
   }
 

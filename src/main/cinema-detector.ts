@@ -1,12 +1,14 @@
 import { BrowserWindow, ipcMain, screen } from 'electron';
 import { configStore } from './config-store';
 
+export type CinemaReason = 'player' | 'streaming' | 'browser' | 'fullscreen' | 'smtc' | 'generic_video' | 'none';
+
 export interface CinemaState {
   isCinemaMode: boolean;
   activeApp: string;
   activeTitle: string;
   isForegroundFullscreen: boolean;
-  detectedReason: 'player' | 'streaming' | 'fullscreen' | 'smtc' | 'none';
+  detectedReason: CinemaReason;
   targetLanguage: string;
   subtitlePosition: 'bottom' | 'top';
   subtitleFontSize: 'small' | 'medium' | 'large';
@@ -35,7 +37,39 @@ export const KNOWN_VIDEO_PLAYERS: string[] = [
   'wmplayer',
   'wmplayer.exe',
   'quicktime',
-  'iina'
+  'iina',
+  'mpc-hc',
+  'mpc-be',
+  'zunevideo',
+  'movies & tv',
+  'films & tv'
+];
+
+export const KNOWN_BROWSER_APPS: string[] = [
+  'chrome',
+  'google chrome',
+  'chrome.exe',
+  'msedge',
+  'edge',
+  'msedge.exe',
+  'firefox',
+  'firefox.exe',
+  'brave',
+  'brave.exe',
+  'opera',
+  'opera.exe',
+  'opera gx',
+  'vivaldi',
+  'vivaldi.exe',
+  'arc',
+  'arc.exe',
+  'chromium',
+  'chromium.exe',
+  'waterfox',
+  'librewolf',
+  'sidekick',
+  'zen',
+  'browser'
 ];
 
 export const STREAMING_KEYWORDS: string[] = [
@@ -50,10 +84,57 @@ export const STREAMING_KEYWORDS: string[] = [
   'hbo max',
   'max.com',
   'youtube',
+  'youtu.be',
   'peacock',
   'apple tv',
   'paramount+',
-  'twitch.tv'
+  'twitch',
+  'twitch.tv',
+  'dailymotion',
+  'vimeo',
+  'bilibili',
+  'sflix',
+  'fmovies',
+  '123movies',
+  'putlocker',
+  'gogoanime',
+  '9anime',
+  'aniwatch',
+  'zoro.to',
+  'hianime',
+  'animepahe',
+  'kick.com',
+  'rumble.com',
+  'streamtape',
+  'doodstream',
+  'vidcloud',
+  'upcloud',
+  'megacloud'
+];
+
+export const VIDEO_TITLE_PATTERNS: string[] = [
+  'episode',
+  'ep.',
+  'season',
+  's0',
+  'e0',
+  'full movie',
+  'official video',
+  'official trailer',
+  'teaser',
+  'clip',
+  'scene',
+  'comedy',
+  'live stream',
+  'stream',
+  'watch online',
+  '1080p',
+  '720p',
+  '4k',
+  'web-dl',
+  'webrip',
+  'bluray',
+  'camrip'
 ];
 
 export const VIDEO_EXTENSIONS: string[] = [
@@ -64,7 +145,10 @@ export const VIDEO_EXTENSIONS: string[] = [
   '.webm',
   '.flv',
   '.wmv',
-  '.m4v'
+  '.m4v',
+  '.ts',
+  '.m2ts',
+  '.3gp'
 ];
 
 export class CinemaDetector {
@@ -106,6 +190,12 @@ export class CinemaDetector {
     return KNOWN_VIDEO_PLAYERS.some((p) => lower.includes(p));
   }
 
+  public static matchesBrowserApp(processOrPath: string): boolean {
+    if (!processOrPath) return false;
+    const lower = processOrPath.toLowerCase().trim();
+    return KNOWN_BROWSER_APPS.some((b) => lower.includes(b));
+  }
+
   public static matchesVideoTitle(title: string): boolean {
     if (!title) return false;
     const lower = title.toLowerCase().trim();
@@ -113,6 +203,9 @@ export class CinemaDetector {
       return true;
     }
     if (VIDEO_EXTENSIONS.some((ext) => lower.includes(ext))) {
+      return true;
+    }
+    if (VIDEO_TITLE_PATTERNS.some((pat) => lower.includes(pat))) {
       return true;
     }
     return false;
@@ -127,29 +220,44 @@ export class CinemaDetector {
     isFullscreen: boolean,
     isMediaPlaying: boolean,
     smtcMediaType?: string
-  ): { isCinema: boolean; reason: 'player' | 'streaming' | 'fullscreen' | 'smtc' | 'none' } {
+  ): { isCinema: boolean; reason: CinemaReason } {
+    const app = (processName || '').toLowerCase().trim();
+    const title = (windowTitle || '').toLowerCase().trim();
+
     // 1. Explicit SMTC Video Session
     if (smtcMediaType === 'Video' && isMediaPlaying) {
       return { isCinema: true, reason: 'smtc' };
     }
 
     // 2. Dedicated Video Player Process
-    if (CinemaDetector.matchesVideoApp(processName)) {
+    if (CinemaDetector.matchesVideoApp(app)) {
       return { isCinema: true, reason: 'player' };
     }
 
-    // 3. Streaming Site Window Title
-    if (CinemaDetector.matchesVideoTitle(windowTitle)) {
+    // 3. Known Streaming Domain, Video Keyword, or Video File Title
+    if (CinemaDetector.matchesVideoTitle(title)) {
       return { isCinema: true, reason: 'streaming' };
     }
 
-    // 4. Fullscreen Video Session
+    // 4. Any Web Browser Playing Media (YouTube, Chrome, Edge, 3rd party streaming websites)
+    if (CinemaDetector.matchesBrowserApp(app) && isMediaPlaying) {
+      return { isCinema: true, reason: 'browser' };
+    }
+
+    // 5. Fullscreen Video Session
     if (isFullscreen && isMediaPlaying) {
       return { isCinema: true, reason: 'fullscreen' };
     }
 
+    // 6. Generic Video/Media Playback (non-music app)
+    if (isMediaPlaying && app && !app.includes('spotify') && !app.includes('applemusic') && !app.includes('itunes')) {
+      return { isCinema: true, reason: 'generic_video' };
+    }
+
     return { isCinema: false, reason: 'none' };
   }
+
+  private lastPromptSession = '';
 
   /**
    * Called by FocusGuard / MediaEngine whenever front process or media changes.
@@ -176,6 +284,9 @@ export class CinemaDetector {
       this.state.activeTitle !== title ||
       this.state.activeApp !== app;
 
+    const sessionKey = `${app}|${title}`;
+    const isNewVideoSession = evaluation.isCinema && isMediaPlaying && sessionKey !== this.lastPromptSession;
+
     this.state.isCinemaMode = evaluation.isCinema;
     this.state.activeTitle = title;
     this.state.activeApp = app;
@@ -185,6 +296,17 @@ export class CinemaDetector {
 
     if (changed) {
       this.broadcastState();
+    }
+
+    if (isNewVideoSession) {
+      this.lastPromptSession = sessionKey;
+      this.broadcastSubtitlePrompt({
+        title,
+        app,
+        reason: evaluation.reason,
+        targetLanguage: this.state.targetLanguage || 'en',
+        sourceLang: 'en'
+      });
     }
   }
 
@@ -230,6 +352,22 @@ export class CinemaDetector {
     }
   }
 
+  public broadcastSubtitlePrompt(promptData: {
+    title: string;
+    app: string;
+    reason: CinemaReason;
+    targetLanguage: string;
+    sourceLang: string;
+  }): void {
+    if (BrowserWindow && typeof BrowserWindow.getAllWindows === 'function') {
+      BrowserWindow.getAllWindows().forEach((win) => {
+        if (!win.isDestroyed()) {
+          win.webContents.send('cinema:prompt-subtitles', promptData);
+        }
+      });
+    }
+  }
+
   private setupIPC(): void {
     if (!ipcMain || typeof ipcMain.handle !== 'function') return;
 
@@ -253,6 +391,19 @@ export class CinemaDetector {
     ipcMain.handle('cinema:set-font-size', (_event, size: 'small' | 'medium' | 'large') => {
       this.setFontSize(size);
       return { success: true, size };
+    });
+
+    ipcMain.handle('cinema:trigger-prompt-check', () => {
+      if (this.state.isCinemaMode) {
+        this.broadcastSubtitlePrompt({
+          title: this.state.activeTitle,
+          app: this.state.activeApp,
+          reason: this.state.detectedReason,
+          targetLanguage: this.state.targetLanguage || 'en',
+          sourceLang: 'en'
+        });
+      }
+      return { success: true, isCinema: this.state.isCinemaMode };
     });
   }
 }

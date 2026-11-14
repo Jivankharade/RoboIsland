@@ -134,6 +134,76 @@ const CINEMA_DICTIONARY: Record<string, Record<string, string>> = {
     fr: 'Merci beaucoup.',
     de: 'Vielen Dank.',
     zh: '非常感谢。'
+  },
+  'new computer': {
+    hi: 'नया कंप्यूटर!',
+    mr: 'नवीन संगणक!',
+    es: '¡Nueva computadora!',
+    ja: '新しいコンピューター！',
+    ko: '새 컴퓨터!',
+    fr: 'Nouvel ordinateur !',
+    de: 'Neuer Computer!',
+    zh: '新电脑！'
+  },
+  'are you ready': {
+    hi: 'क्या आप तैयार हैं?',
+    mr: 'तुम्ही तयार आहात का?',
+    es: '¿Estás listo?',
+    ja: '準備はできた？',
+    ko: '준비되셨나요?',
+    fr: 'Es-tu prêt ?',
+    de: 'Bist du bereit?',
+    zh: '准备好了吗？'
+  },
+  'lets go': {
+    hi: 'चलो चलें!',
+    mr: 'चला जाऊया!',
+    es: '¡Vamos!',
+    ja: '行こう！',
+    ko: '가자!',
+    fr: 'Allons-y !',
+    de: 'Los gehts!',
+    zh: '我们走吧！'
+  },
+  'watch this': {
+    hi: 'यह देखो!',
+    mr: 'हे पहा!',
+    es: '¡Mira esto!',
+    ja: 'これを見て！',
+    ko: '이것 좀 봐!',
+    fr: 'Regarde ça !',
+    de: 'Schau dir das an!',
+    zh: '看这个！'
+  },
+  'what are you doing': {
+    hi: 'तुम क्या कर रहे हो?',
+    mr: 'तू काय करत आहेस?',
+    es: '¿Qué estás haciendo?',
+    ja: '何をしているの？',
+    ko: '뭐 하고 있어요?',
+    fr: 'Que fais-tu ?',
+    de: 'Was machst du?',
+    zh: '你在做什么？'
+  },
+  'this is amazing': {
+    hi: 'यह अद्भुत है!',
+    mr: 'हे अप्रतिम आहे!',
+    es: '¡Esto es increíble!',
+    ja: '素晴らしい！',
+    ko: '대단해요!',
+    fr: 'C\'est incroyable !',
+    de: 'Das ist fantastisch!',
+    zh: '太神奇了！'
+  },
+  'i cannot believe this': {
+    hi: 'मुझे इस पर विश्वास नहीं हो रहा!',
+    mr: 'माझा यावर विश्वास बसत नाही!',
+    es: '¡No puedo creer esto!',
+    ja: '信じられない！',
+    ko: '믿을 수 없어!',
+    fr: 'Je n\'arrive pas à y croire !',
+    de: 'Ich kann das nicht glauben!',
+    zh: '真不敢相信！'
   }
 };
 

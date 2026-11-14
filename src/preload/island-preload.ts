@@ -239,6 +239,11 @@ const api = {
     ipcRenderer.on('cinema:state-changed', handler);
     return () => ipcRenderer.removeListener('cinema:state-changed', handler);
   },
+  onCinemaPromptSubtitles: (callback: (data: any) => void) => {
+    const handler = (_event: any, data: any) => callback(data);
+    ipcRenderer.on('cinema:prompt-subtitles', handler);
+    return () => ipcRenderer.removeListener('cinema:prompt-subtitles', handler);
+  },
   onSubtitleCue: (callback: (cue: any) => void) => {
     const handler = (_event: any, cue: any) => callback(cue);
     ipcRenderer.on('subtitle:cue', handler);
@@ -250,6 +255,8 @@ const api = {
     return () => ipcRenderer.removeListener('subtitle:clear', handler);
   },
   testPreviewSubtitle: () => ipcRenderer.invoke('subtitle:test-preview'),
+  setSubtitleEnabled: (enabled: boolean) => ipcRenderer.invoke('subtitle:set-enabled', enabled),
+  clearSubtitles: () => ipcRenderer.invoke('subtitle:clear'),
   setSubtitleLanguage: (lang: string) => ipcRenderer.invoke('cinema:set-language', lang),
   setSubtitlePosition: (pos: 'bottom' | 'top') => ipcRenderer.invoke('cinema:set-position', pos),
   pushSubtitleTranscript: (text: string, sourceLang?: string) => ipcRenderer.invoke('subtitle:push-transcript', text, sourceLang)
