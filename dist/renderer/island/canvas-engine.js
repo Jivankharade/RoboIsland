@@ -1561,6 +1561,14 @@ class CanvasEngine {
         if (ctxMenu && !ctxMenu.classList.contains('hidden') && ctxMenu.style.display !== 'none') {
             return false;
         }
+        const quicklook = document.getElementById('quicklook-modal');
+        if (quicklook && !quicklook.classList.contains('hidden') && quicklook.style.display !== 'none') {
+            return false;
+        }
+        const guardModal = document.getElementById('focus-guard-modal');
+        if (guardModal && !guardModal.classList.contains('hidden') && guardModal.style.display !== 'none') {
+            return false;
+        }
         // Media player scrubbing or dragging volume slider
         if (window.isMediaInteracting || window.isMediaScrubbing || window.isMediaVolumeDragging || this.isScrubbingVolumeHud) {
             return false;
@@ -1776,23 +1784,28 @@ class CanvasEngine {
                 this.pointerY <= topY + this.currentHeight;
         }
         else {
-            inBounds = this.pointerX >= cx - halfW &&
-                this.pointerX <= cx + halfW &&
-                this.pointerY >= topY &&
-                this.pointerY <= topY + effectiveH;
+            const marginX = this.mode === 'compact' ? 14 : 0;
+            const marginY = this.mode === 'compact' ? 6 : 0;
+            inBounds = this.pointerX >= cx - halfW - marginX &&
+                this.pointerX <= cx + halfW + marginX &&
+                this.pointerY >= Math.max(0, topY - marginY) &&
+                this.pointerY <= topY + effectiveH + marginY;
         }
         if (inBounds !== this.isHovered) {
             this.isHovered = inBounds;
             this.updateTargetDimensions();
         }
-        // Rest Mode Hover Restoration
+        // Rest Mode & Compact Mode Hover Expansion
         if (inBounds && this.mode === 'rest') {
-            // Hover restores cleanly to compact!
             this.restoreFromRest('compact');
-            this.justRestoredFromRest = true;
+            if (this.collapseTimer) {
+                clearTimeout(this.collapseTimer);
+                this.collapseTimer = null;
+            }
+            this.expand();
         }
         else if (inBounds && this.mode === 'compact') {
-            if (!this.justRestoredFromRest && !(performance.now() < this.volumeHudUntil) && !(performance.now() < this.chargerSurgeUntil)) {
+            if (!(performance.now() < this.volumeHudUntil) && !(performance.now() < this.chargerSurgeUntil)) {
                 // Smart Hover Expansion: entering the compact island expands it smoothly
                 if (this.collapseTimer) {
                     clearTimeout(this.collapseTimer);
@@ -1803,11 +1816,16 @@ class CanvasEngine {
         }
         else if (!inBounds) {
             this.justRestoredFromRest = false;
-            // In expanded mode, do NOT auto-collapse on minor pointer jitter or momentary mouseleave.
-            // The expanded island remains stably open until an explicit outside-click, Escape, or collapse button.
-            if (this.collapseTimer) {
-                clearTimeout(this.collapseTimer);
-                this.collapseTimer = null;
+            // Auto-collapse when dragging/moving mouse outside expanded island
+            if (this.mode === 'expanded' && this.canAutoCollapse()) {
+                if (!this.collapseTimer) {
+                    this.collapseTimer = window.setTimeout(() => {
+                        this.collapseTimer = null;
+                        if (this.mode === 'expanded' && !this.isHovered && this.canAutoCollapse()) {
+                            this.collapse();
+                        }
+                    }, 200);
+                }
             }
         }
         else if (inBounds && this.collapseTimer) {
@@ -1944,6 +1962,7 @@ class CanvasEngine {
             this.collapseTimer = null;
         }
         this.mode = 'compact';
+        this.isHovered = false;
         this.setPopover('none');
         this.updateTargetDimensions();
         if (playSound) {
@@ -1954,6 +1973,9 @@ class CanvasEngine {
             ctxMenu.classList.add('hidden');
         if (window.roboIsland?.notifyModeChanged) {
             window.roboIsland.notifyModeChanged('compact');
+        }
+        if (window.roboIsland?.setInteractive) {
+            window.roboIsland.setInteractive(false);
         }
     }
     triggerMindfulDistractionPause(data) {
@@ -2227,6 +2249,19 @@ class CanvasEngine {
                 this.expand();
             }
             return;
+        }
+        // Expanded mode: Clicking outside the capsule collapses back to compact
+        if (this.mode === 'expanded') {
+            const pillLeft = cx - effectiveW / 2;
+            const pillRight = cx + effectiveW / 2;
+            const pillBottom = topY + effectiveH;
+            const insidePill = x >= pillLeft && x <= pillRight && y >= topY && y <= pillBottom;
+            if (!insidePill) {
+                if (this.canAutoCollapse()) {
+                    this.collapse();
+                }
+                return;
+            }
         }
         // Expanded Hub Interactions (only for canvas UI mode; DOM overlay handles DOM UI clicks)
         if (this.config.expandedUiMode === 'canvas') {

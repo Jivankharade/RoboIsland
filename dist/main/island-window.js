@@ -143,9 +143,7 @@ class IslandWindow {
                 const restH = 40;
                 const inHoverZone = relX >= (cx - restHalfW) && relX <= (cx + restHalfW) &&
                     relY >= 0 && relY <= restH;
-                if (inHoverZone) {
-                    this.setInteractive(true);
-                }
+                this.setInteractive(inHoverZone);
             }
             else {
                 // When in compact mode, ensure hover activation zone is sufficiently wide (±20px margin)
@@ -155,9 +153,7 @@ class IslandWindow {
                 const compactH = 64;
                 const inHoverZone = relX >= (cx - compactHalfW) && relX <= (cx + compactHalfW) &&
                     relY >= 0 && relY <= compactH;
-                if (inHoverZone) {
-                    this.setInteractive(true);
-                }
+                this.setInteractive(inHoverZone);
             }
             this.window.webContents.send('companion:pointer', {
                 x: relX,
@@ -368,6 +364,9 @@ class IslandWindow {
             this.currentMode = mode;
             if (mode === 'expanded') {
                 this.setInteractive(true);
+            }
+            else {
+                this.setInteractive(false);
             }
         });
     }
