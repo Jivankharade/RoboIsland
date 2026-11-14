@@ -845,6 +845,19 @@ export class CanvasEngine {
       const inIsland = Math.abs(e.clientX - cx) <= effectiveW / 2 && e.clientY >= topY && e.clientY <= topY + effectiveH;
       const onEyes = (this.mode === 'compact' || this.mode === 'rest') && Math.abs(e.clientX - cx) <= 32 && e.clientY >= topY && e.clientY <= topY + effectiveH;
 
+      // If clicking in compact CC button zone, do not start drag/swipe gestures
+      if (this.mode === 'compact') {
+        const isVideoOrCinema = this.isCinemaActive || (this.mediaState.app && this.matchesBrowserApp(this.mediaState.app));
+        const pillRight = cx + this.currentWidth / 2;
+        const inCcZone = (this.ccButtonHitRect && e.clientX >= this.ccButtonHitRect.x - 8 && e.clientX <= this.ccButtonHitRect.x + this.ccButtonHitRect.w + 8) ||
+                         (isVideoOrCinema && e.clientX >= pillRight - 68 && e.clientX <= pillRight - 18);
+        if (inCcZone && e.clientY >= 0 && e.clientY <= topY + this.currentHeight + 12) {
+          dragStart = null;
+          swallowClick = false;
+          return;
+        }
+      }
+
       if (inIsland) {
         dragStart = { x: e.clientX, y: e.clientY, time: performance.now(), onEyes };
       }
@@ -2152,9 +2165,26 @@ export class CanvasEngine {
     }
 
     // Compact Cinema [CC] Badge Click (YouTube, Chrome, Edge, and 3rd party video streaming)
-    if (this.mode === 'compact' && this.ccButtonHitRect) {
-      const { x: bx, y: by, w: bw, h: bh } = this.ccButtonHitRect;
-      if (x >= bx - 3 && x <= bx + bw + 3 && y >= by - 3 && y <= by + bh + 3) {
+    if (this.mode === 'compact') {
+      const isVideoOrCinema = this.isCinemaActive || (this.mediaState.app && this.matchesBrowserApp(this.mediaState.app));
+      const pillRight = cx + this.currentWidth / 2;
+      const inCcExact = Boolean(
+        this.ccButtonHitRect &&
+        x >= this.ccButtonHitRect.x - 8 &&
+        x <= this.ccButtonHitRect.x + this.ccButtonHitRect.w + 8 &&
+        y >= 0 &&
+        y <= topY + this.currentHeight + 12
+      );
+
+      const inCcRelative = Boolean(
+        isVideoOrCinema &&
+        x >= pillRight - 68 &&
+        x <= pillRight - 18 &&
+        y >= 0 &&
+        y <= topY + this.currentHeight + 12
+      );
+
+      if (inCcExact || inCcRelative) {
         this.toggleSubtitles();
         return;
       }
@@ -3355,39 +3385,46 @@ export class CanvasEngine {
     const isVideoOrCinema = this.isCinemaActive || (this.mediaState.app && this.matchesBrowserApp(this.mediaState.app));
     let ccX0 = vizX;
     if (isVideoOrCinema) {
-      const ccW = 30;
-      const ccH = 16;
+      const ccW = 32;
+      const ccH = 17;
       const ccX = vizX - ccW - 8;
       const ccY = cy - ccH / 2;
       this.ccButtonHitRect = { x: ccX, y: ccY, w: ccW, h: ccH };
       ccX0 = ccX;
 
+      const isHovered = Boolean(
+        this.pointerX >= ccX - 6 &&
+        this.pointerX <= ccX + ccW + 6 &&
+        this.pointerY >= 0 &&
+        this.pointerY <= topY + this.currentHeight + 8
+      );
+
       this.ctx.save();
       this.ctx.beginPath();
-      this.ctx.roundRect(ccX, ccY, ccW, ccH, 4);
+      this.ctx.roundRect(ccX, ccY, ccW, ccH, 5);
 
       if (this.isSubtitleActive) {
         // Active Subtitles: Glowing golden amber pill
         this.ctx.fillStyle = '#f59e0b';
         this.ctx.shadowColor = '#f59e0b';
-        this.ctx.shadowBlur = 6;
+        this.ctx.shadowBlur = 8;
         this.ctx.fill();
 
         this.ctx.fillStyle = '#000000';
-        this.ctx.font = '700 9px Inter, -apple-system, sans-serif';
+        this.ctx.font = '700 9.5px Inter, -apple-system, sans-serif';
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'middle';
         this.ctx.fillText('CC', ccX + ccW / 2, cy + 0.5);
       } else {
-        // Inactive / Ready state: Translucent frosted glass pill
-        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.14)';
-        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.38)';
-        this.ctx.lineWidth = 1;
+        // Inactive / Ready state: Translucent frosted glass pill with hover brightness
+        this.ctx.fillStyle = isHovered ? 'rgba(255, 255, 255, 0.28)' : 'rgba(255, 255, 255, 0.14)';
+        this.ctx.strokeStyle = isHovered ? '#ffffff' : 'rgba(255, 255, 255, 0.45)';
+        this.ctx.lineWidth = isHovered ? 1.5 : 1;
         this.ctx.fill();
         this.ctx.stroke();
 
         this.ctx.fillStyle = '#ffffff';
-        this.ctx.font = '600 9px Inter, -apple-system, sans-serif';
+        this.ctx.font = '700 9.5px Inter, -apple-system, sans-serif';
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'middle';
         this.ctx.fillText('CC', ccX + ccW / 2, cy + 0.5);
@@ -5957,6 +5994,29 @@ export class CanvasEngine {
         api.testPreviewSubtitle?.();
       });
     }
+
+    // Media Panel Subtitle Controls
+    const btnMediaSubToggle = document.getElementById('btn-media-subtitles-toggle');
+    const btnMediaSubLang = document.getElementById('btn-media-subtitles-lang');
+    const mediaSubStatusText = document.getElementById('media-subtitles-status-text');
+    const mediaSubLangLabel = document.getElementById('media-subtitles-lang-label');
+
+    if (btnMediaSubToggle) {
+      btnMediaSubToggle.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.toggleSubtitles();
+      });
+    }
+
+    if (btnMediaSubLang) {
+      btnMediaSubLang.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const langs = ['en', 'hi', 'mr', 'es', 'ja', 'fr', 'de'];
+        const current = (mediaSubLangLabel?.textContent || 'HI').toLowerCase();
+        const next = langs[(langs.indexOf(current) + 1) % langs.length];
+        api.setSubtitleLanguage?.(next);
+      });
+    }
   }
 
   public toggleSubtitles(): void {
@@ -5964,13 +6024,36 @@ export class CanvasEngine {
     this.isSubtitleActive = next;
     const api = (window as any).roboIsland;
     const subHud = document.getElementById('cinema-subtitle-hud');
+    const subText = document.getElementById('cinema-subtitle-text');
+    const langText = document.getElementById('cinema-lang-text');
+    const toastEl = document.getElementById('cinema-detect-toast');
+    const mediaSubStatusText = document.getElementById('media-subtitles-status-text');
+    const mediaSubLangLabel = document.getElementById('media-subtitles-lang-label');
+
+    try {
+      AudioSynth.getInstance().playMelody(next ? 'pop' : 'badge');
+    } catch {}
+
+    if (toastEl) {
+      toastEl.classList.add('hidden');
+    }
+
+    const langUpper = (this.cinemaTargetLang || 'hi').toUpperCase();
+    if (mediaSubLangLabel) mediaSubLangLabel.textContent = langUpper;
+
     if (next) {
       api?.setSubtitleEnabled?.(true);
       api?.testPreviewSubtitle?.();
-      if (subHud) subHud.classList.remove('hidden');
+      if (mediaSubStatusText) mediaSubStatusText.textContent = `Live Subtitles: ON (${langUpper})`;
+      if (subHud) {
+        subHud.classList.remove('hidden');
+        if (subText) subText.textContent = `Live Subtitles Active (${langUpper})...`;
+        if (langText) langText.textContent = langUpper;
+      }
     } else {
       api?.setSubtitleEnabled?.(false);
       api?.clearSubtitles?.();
+      if (mediaSubStatusText) mediaSubStatusText.textContent = 'Live Subtitles: OFF (Click to Start)';
       if (subHud) subHud.classList.add('hidden');
     }
   }
