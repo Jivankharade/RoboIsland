@@ -1,8 +1,15 @@
 # RoboIsland
 
-> The Intelligent Dynamic Island & AI Companion for Windows 10 & 11
+> The Intelligent Dynamic Island & AI Companion for Windows & Linux (Fedora KDE/GNOME)
 
-RoboIsland brings the fluid, responsive Dynamic Island experience to Windows, supercharged with an offline-first AI mascot, real-time developer terminal monitoring, Apple-grade hardware HUDs, media controls with live synced lyrics, and local peer-to-peer file transfer.
+RoboIsland brings the fluid, responsive Dynamic Island experience to desktop operating systems, supercharged with an offline-first AI mascot, real-time developer terminal monitoring, Apple-grade hardware HUDs, media controls with live synced lyrics, and local peer-to-peer file transfer.
+
+---
+
+## Supported Operating Systems
+
+- **Windows**: Windows 10 & Windows 11 (Win32, NSIS Installer, Portable EXE, Microsoft Store MSIX/AppX)
+- **Linux**: Fedora, Ubuntu, Arch, Debian (KDE Plasma Wayland/X11, GNOME, native `.rpm` and portable `.AppImage`)
 
 ---
 
@@ -110,7 +117,7 @@ npm start
 
 ## Building & Packaging
 
-To compile release packages:
+### Windows Packages
 
 ```powershell
 # Compile all source files
@@ -126,10 +133,22 @@ npm run dist:dir
 npm run dist:appx
 ```
 
+### Linux Packages (Fedora KDE/GNOME & Universal)
+
+```bash
+# Compile and build both RPM and AppImage:
+npm run dist:linux
+
+# Build native Fedora .rpm package:
+npm run dist:rpm
+
+# Build universal portable .AppImage:
+npm run dist:appimage
+```
+
 Release binaries are output to the `release/` directory:
-- `release/RoboIsland-Setup-1.0.0.exe` (Direct Win32 Microsoft Store Submission)
-- `release/RoboIsland-Portable-1.0.0.exe`
-- `release/win-unpacked/RoboIsland.exe`
+- **Windows**: `RoboIsland-Setup-1.0.0.exe`, `RoboIsland-Portable-1.0.0.exe`
+- **Linux**: `RoboIsland-1.0.0.x86_64.rpm`, `RoboIsland-1.0.0.x86_64.AppImage`
 
 ---
 
