@@ -438,14 +438,40 @@
             </div>
           </div>
           <form id="chat-input-form" class="chat-input-bar">
-            <input type="text" id="chat-input" placeholder="Ask Robo or type a task..." autocomplete="off">
+            <input type="text" id="chat-input" placeholder="Reply" autocomplete="off">
             <button type="submit" id="btn-chat-send" title="Send">
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="22" y1="2" x2="11" y2="13"/>
-                <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="19" x2="12" y2="5"/>
+                <polyline points="5 12 12 5 19 12"/>
               </svg>
             </button>
           </form>
+          <div id="chat-quick-chips" class="chat-quick-chips cr-list">
+            <button type="button" class="cr-row" data-kind="explain" style="--k:#0091ff">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.4 1 1.1 1 1.8V16h5v-.3c0-.7.4-1.4 1-1.8A6 6 0 0 0 12 3z"/>
+              </svg>
+              <span>Explain</span>
+            </button>
+            <button type="button" class="cr-row" data-kind="spelling" style="--k:#30d158">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m4 12.5 4 4L18 6"/><path d="M14 18h6"/>
+              </svg>
+              <span>Check my spelling</span>
+            </button>
+            <button type="button" class="cr-row" data-kind="translate" style="--k:#00d2e0">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>
+              </svg>
+              <span>Translate</span>
+            </button>
+            <button type="button" class="cr-row" data-kind="summary" style="--k:#bf5af2">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 6h14M5 12h14M5 18h8"/>
+              </svg>
+              <span>Summarize</span>
+            </button>
+          </div>
         </div>
       </section>
 

@@ -413,6 +413,46 @@ function injectChatStyles() {
       0%, 100% { opacity: 1; }
       50% { opacity: 0; }
     }
+
+    /* TwoCode AI Quick Action Chips & Frosted Glass */
+    .chat-quick-chips.cr-list {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin: 8px 10px 4px 10px;
+      max-width: 100%;
+      pointer-events: auto;
+      flex-wrap: wrap;
+    }
+    .cr-row {
+      flex: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 30px;
+      padding: 0 12px 0 10px;
+      border: 0;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.08);
+      color: #ffffff;
+      font: 500 12.5px Inter, "Segoe UI", sans-serif;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s ease-out;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.09);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+    }
+    .cr-row:hover {
+      background: rgba(255, 255, 255, 0.16);
+    }
+    .cr-row:active {
+      transform: scale(0.97);
+    }
+    .cr-row svg {
+      flex: none;
+      color: var(--k);
+    }
   `;
     document.head.appendChild(style);
 }
@@ -659,6 +699,39 @@ class ChatUI {
                 e.stopImmediatePropagation();
                 this.clearHistory();
             }, true);
+        }
+        // TwoCode AI Quick Action Chips Listener
+        const quickChips = document.getElementById('chat-quick-chips');
+        if (quickChips) {
+            quickChips.addEventListener('click', (e) => {
+                const btn = e.target.closest('.cr-row');
+                if (!btn)
+                    return;
+                const kind = btn.dataset.kind;
+                if (!kind)
+                    return;
+                let prompt = '';
+                if (kind === 'explain') {
+                    prompt = 'Explain what is on my screen or the topic in plain, clear language.';
+                }
+                else if (kind === 'spelling') {
+                    prompt = 'Check my spelling and grammar. Highlight errors and provide the corrected version.';
+                }
+                else if (kind === 'translate') {
+                    prompt = 'Translate the text on screen or provided into clear, natural English.';
+                }
+                else if (kind === 'summary') {
+                    prompt = 'Summarize what is on screen or the topic in a few clear bullet points.';
+                }
+                if (prompt) {
+                    const input = document.getElementById('chat-input');
+                    if (input)
+                        input.value = '';
+                    const attachedImage = this.pendingImageData;
+                    this.clearAttachment();
+                    this.handleSendMessage(prompt, attachedImage);
+                }
+            });
         }
         // 4. Export Chat Button
         const exportBtn = document.getElementById('btn-chat-export');

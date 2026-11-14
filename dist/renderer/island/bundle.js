@@ -1579,14 +1579,18 @@
     visualizerBars = [0.1, 0.1, 0.1, 0.1, 0.1, 0.1];
     syncedLyrics = [];
     // TwoCode Synchronized Lyrics State Machine (lyrics-ui.js)
+    lyricsSongKey = "";
     lyricsIndex = -1;
     lyricsGap = false;
     lyricsChangedAt = 0;
     lyricsPrevious = null;
     lyricsWidest = 0;
+    lyricsHoldUntil = 0;
+    lyricsLoading = false;
+    LYRICS_HOLD = 2500;
     LYRICS_LEAD = 250;
     LYRICS_SWAP = 420;
-    LYRICS_FONT = '500 12.5px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+    LYRICS_FONT = '600 13px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
     isDevicesOpen = false;
     spotifyDevices = [];
     // Live AI State (Claude Code & Codex)
@@ -2778,30 +2782,43 @@
       } else if (this.mascot.mood === "excited") {
         this.mascot.setMood("neutral");
       }
-      if (isSongChanged && state.active && state.title) {
+      const songKey = state.active && state.title ? `${state.title}|${state.artist}` : "";
+      if (songKey !== this.lyricsSongKey) {
+        const had = this.syncedLyrics.length > 0;
+        if (had) {
+          this.lyricsPrevious = this.getCurrentLyricText();
+          this.lyricsChangedAt = performance.now();
+          this.lyricsHoldUntil = performance.now() + this.LYRICS_HOLD;
+        }
+        this.lyricsSongKey = songKey;
         this.syncedLyrics = [];
         this.lyricsIndex = -1;
         this.lyricsGap = false;
-        this.lyricsPrevious = null;
-        this.lyricsWidest = 0;
+        this.lyricsLoading = Boolean(songKey);
+        if (!had) this.lyricsWidest = 0;
         this.mediaState.lyricLine = "";
-        window.roboIsland?.getLyrics({
-          title: state.title,
-          artist: state.artist,
-          duration: state.durationMs
-        }).then((res) => {
-          if (res && res.lines && res.lines.length > 0) {
-            this.syncedLyrics = res.lines;
-            this.ctx.save();
-            this.ctx.font = this.LYRICS_FONT;
-            this.lyricsWidest = res.lines.reduce((max, l) => {
-              return Math.max(max, l.text ? this.ctx.measureText(l.text).width : 0);
-            }, 0);
-            this.ctx.restore();
-            this.updateTargetDimensions();
-          }
-        }).catch(() => {
-        });
+        if (songKey) {
+          window.roboIsland?.getLyrics({
+            title: state.title,
+            artist: state.artist,
+            duration: state.durationMs
+          }).then((res) => {
+            if (this.lyricsSongKey !== songKey) return;
+            this.lyricsLoading = false;
+            if (res && res.lines && res.lines.length > 0) {
+              this.syncedLyrics = res.lines;
+              this.ctx.save();
+              this.ctx.font = this.LYRICS_FONT;
+              this.lyricsWidest = res.lines.reduce((max, l) => {
+                return Math.max(max, l.text ? this.ctx.measureText(l.text).width : 0);
+              }, 0);
+              this.ctx.restore();
+              this.updateTargetDimensions();
+            }
+          }).catch(() => {
+            if (this.lyricsSongKey === songKey) this.lyricsLoading = false;
+          });
+        }
       }
       this.updateTargetDimensions();
     }
@@ -2818,7 +2835,7 @@
         const isMusicWithLyrics = (tab === "music" || this.activeTab === "media") && this.hasSyncedLyrics();
         switch (tab) {
           case "music":
-            this.targetHeight = 280;
+            this.targetHeight = isMusicWithLyrics ? 354 : 280;
             break;
           case "chat":
             this.targetHeight = 320;
@@ -3085,9 +3102,11 @@
       return l && l.text ? l.text : null;
     }
     getLyricNow() {
-      if (!this.syncedLyrics.length) return null;
       const rawK = Math.min(1, (performance.now() - this.lyricsChangedAt) / this.LYRICS_SWAP);
       const k = 1 - Math.pow(1 - rawK, 4);
+      if (!this.syncedLyrics.length) {
+        return this.lyricsLoading && performance.now() < this.lyricsHoldUntil ? { text: null, previous: rawK < 1 ? this.lyricsPrevious : null, k, font: this.LYRICS_FONT } : null;
+      }
       return {
         text: this.getCurrentLyricText(),
         previous: rawK < 1 ? this.lyricsPrevious : null,
@@ -3095,8 +3114,27 @@
         font: this.LYRICS_FONT
       };
     }
+    getLyricAround() {
+      if (!this.syncedLyrics.length) {
+        return this.lyricsLoading && performance.now() < this.lyricsHoldUntil ? { before: "", now: "", next: "", k: 1 } : null;
+      }
+      const rawK = Math.min(1, (performance.now() - this.lyricsChangedAt) / this.LYRICS_SWAP);
+      const k = 1 - Math.pow(1 - rawK, 4);
+      const textAt = (idx) => this.syncedLyrics[idx] && this.syncedLyrics[idx].text || "";
+      if (this.lyricsIndex < 0) {
+        return { before: "", now: "", next: this.syncedLyrics.find((l) => l.text)?.text || "", k: 1 };
+      }
+      return {
+        before: textAt(this.lyricsIndex - 1),
+        now: this.getCurrentLyricText() || "",
+        next: textAt(this.lyricsIndex + 1),
+        k
+      };
+    }
     hasSyncedLyrics() {
-      return Boolean(this.syncedLyrics.length > 0 && this.mediaState.playing && !this.isTucked);
+      return Boolean(
+        (this.syncedLyrics.length > 0 || this.lyricsLoading && performance.now() < this.lyricsHoldUntil) && this.mediaState.playing && !this.isTucked
+      );
     }
     checkHitTest() {
       const cx = window.innerWidth / 2;
@@ -3962,10 +4000,18 @@
         this.ctx.shadowColor = "rgba(0, 0, 0, 0.40)";
         this.ctx.shadowBlur = 14;
         this.ctx.shadowOffsetY = 3;
+        const seeThrough2 = this.config?.islandAlpha ?? 0.96;
+        const black2 = seeThrough2 >= 1 ? "#000000" : `rgba(0,0,0,${(1 - Math.sqrt(1 - Math.min(0.999, seeThrough2))).toFixed(3)})`;
         this.islandPath(this.ctx, pillLeft, topY, mainWidth, h2, r2);
         this.ctx.moveTo(bubbleCx + bubbleR, bubbleCy);
         this.ctx.arc(bubbleCx, bubbleCy, bubbleR, 0, Math.PI * 2);
-        this.ctx.fillStyle = "#000000";
+        this.ctx.fillStyle = black2;
+        this.ctx.fill();
+        this.ctx.restore();
+        this.islandPath(this.ctx, pillLeft, topY, mainWidth, h2, r2);
+        this.ctx.moveTo(bubbleCx + bubbleR, bubbleCy);
+        this.ctx.arc(bubbleCx, bubbleCy, bubbleR, 0, Math.PI * 2);
+        this.ctx.fillStyle = black2;
         this.ctx.fill();
         if (isMusicActive2) {
           const tr = Math.round(this.currentTintR);
@@ -4059,8 +4105,14 @@
         this.ctx.shadowOffsetY = 3;
       }
       TextureEngine.getInstance().renderBehind(this.ctx, left, topY, w, h, r);
+      const seeThrough = this.config?.islandAlpha ?? 0.96;
+      const black = seeThrough >= 1 ? "#000000" : `rgba(0,0,0,${(1 - Math.sqrt(1 - Math.min(0.999, seeThrough))).toFixed(3)})`;
       this.islandPath(this.ctx, left, topY, w, h, r);
-      this.ctx.fillStyle = "#000000";
+      this.ctx.fillStyle = black;
+      this.ctx.fill();
+      this.ctx.restore();
+      this.islandPath(this.ctx, left, topY, w, h, r);
+      this.ctx.fillStyle = black;
       this.ctx.fill();
       if (isMusicActive) {
         const tr = Math.round(this.currentTintR);
@@ -5167,20 +5219,13 @@
       }
       this.ctx.fillText(displayArtist, tx, top0 + 44);
       this.ctx.restore();
-      const hasLyrics = Boolean(this.mediaState.lyricLine && this.syncedLyrics.length > 0);
-      const extra = hasLyrics ? 74 : 0;
-      if (hasLyrics) {
+      const lyr = this.hasSyncedLyrics() ? this.getLyricAround() : null;
+      const extra = lyr ? 74 : 0;
+      if (lyr) {
         const ly = top0 + cs + 14;
         const lw = right - x0;
-        const curPos = this.mediaState.positionMs;
-        let curIdx = -1;
-        for (let k = 0; k < this.syncedLyrics.length; k++) {
-          if (this.syncedLyrics[k].timeMs <= curPos + 250) curIdx = k;
-          else break;
-        }
-        const prevLine = curIdx > 0 ? this.syncedLyrics[curIdx - 1].text : "";
-        const nowLine = curIdx >= 0 ? this.syncedLyrics[curIdx].text : "";
-        const nextLine = curIdx + 1 < this.syncedLyrics.length ? this.syncedLyrics[curIdx + 1].text : "";
+        const step = 19;
+        const push = (1 - lyr.k) * step;
         this.ctx.save();
         this.ctx.beginPath();
         this.ctx.rect(x0, ly - 2, lw, 60);
@@ -5189,13 +5234,13 @@
         this.ctx.textBaseline = "alphabetic";
         this.ctx.font = '500 12px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
         this.ctx.fillStyle = "rgba(255, 255, 255, 0.32)";
-        this.ctx.fillText(prevLine, x0, ly + 14);
+        this.ctx.fillText(lyr.before, x0, ly + 12 + push);
         this.ctx.font = '700 15px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-        this.ctx.fillStyle = "#ffffff";
-        this.ctx.fillText(nowLine || "...", x0, ly + 34);
+        this.ctx.fillStyle = lyr.now ? "#ffffff" : "rgba(255, 255, 255, 0.5)";
+        this.ctx.fillText(lyr.now || "\u266A", x0, ly + 12 + step + push);
         this.ctx.font = '500 12px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
         this.ctx.fillStyle = "rgba(255, 255, 255, 0.45)";
-        this.ctx.fillText(nextLine, x0, ly + 54);
+        this.ctx.fillText(lyr.next, x0, ly + 12 + step * 2 + push);
         this.ctx.restore();
       }
       const barY = top0 + cs + 16 + extra;

@@ -36,6 +36,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.MediaEngine = void 0;
 const child_process_1 = require("child_process");
 const path = __importStar(require("path"));
+const fs = __importStar(require("fs"));
+const crypto = __importStar(require("crypto"));
 const electron_1 = require("electron");
 const spotify_pkce_1 = require("./spotify-pkce");
 const config_store_1 = require("./config-store");
@@ -530,63 +532,194 @@ class MediaEngine {
         this.broadcastMediaState();
     }
     // ==========================================================================
-    // Synced Lyrics (LRCLIB)
+    // Synced Lyrics (TwoCode LRCLIB + NetEase Cloud Music Fallback Engine)
+    // Direct port from c:\Users\hp218\Downloads\resources\app\lyrics-main.cjs
     // ==========================================================================
-    async fetchLyrics(title, artist, duration) {
-        const key = `${artist}-${title}`.toLowerCase();
-        let lines = this.lyricsCache.get(key);
-        if (!lines && title) {
+    static LYRICS_API = 'https://lrclib.net/api';
+    static NETEASE_API = 'https://music.163.com/api';
+    static SOURCES = 2;
+    static NONE_DAYS = 7;
+    lyricsMemory = new Map();
+    lyricsAsking = new Map();
+    getLyricsFolder() {
+        return path.join(electron_1.app.getPath('userData'), 'lyrics');
+    }
+    cleanString(s, max = 200) {
+        return String(s || '').replace(/\s+/g, ' ').trim().slice(0, max);
+    }
+    keyOf(q) {
+        return crypto
+            .createHash('sha1')
+            .update([q.title, q.artist, Math.round(q.duration || 0)].join('|').toLowerCase())
+            .digest('hex')
+            .slice(0, 24);
+    }
+    parseLrc(lrc) {
+        const lines = [];
+        for (const raw of String(lrc || '').split(/\r?\n/)) {
+            const stamps = [...raw.matchAll(/\[(\d{1,3}):(\d{1,2}(?:[.:]\d{1,3})?)\]/g)];
+            if (!stamps.length)
+                continue;
+            const text = raw.replace(/\[[^\]]*\]/g, '').trim();
+            for (const m of stamps) {
+                const ms = Math.round((Number(m[1]) * 60 + Number(m[2].replace(':', '.'))) * 1000);
+                lines.push({ timeMs: ms, t: ms, text });
+            }
+        }
+        return lines.sort((a, b) => a.timeMs - b.timeMs);
+    }
+    async fetchJson(url) {
+        const r = await electron_1.net.fetch(url, {
+            headers: { 'User-Agent': `RoboIsland ${electron_1.app.getVersion()} (https://roboisland.local)` },
+            signal: AbortSignal.timeout(10000)
+        });
+        if (r.status === 404)
+            return null;
+        if (!r.ok)
+            throw new Error(new URL(url).host + ' ' + r.status);
+        return r.json();
+    }
+    simple(s) {
+        return String(s || '')
+            .toLowerCase()
+            .replace(/\s*[([][^)\]]*\b(feat|ft|with|remaster(ed)?|live|version|edit|mix|mono|stereo|deluxe|bonus|from)\b[^)\]]*[)\]]/g, '')
+            .replace(/\s+[-–—]\s+.*\b(remaster(ed)?|live|version|edit|mix|mono|stereo|single|from)\b.*$/g, '')
+            .replace(/[^\p{L}\p{N}]+/gu, ' ')
+            .trim();
+    }
+    artists(s) {
+        return String(s || '')
+            .toLowerCase()
+            .split(/\s*(?:,|&|\/|;|\bx\b|\bfeat\.?|\bft\.?|\bwith\b)\s*/)
+            .map(a => a.replace(/[^\p{L}\p{N}]+/gu, ' ').trim())
+            .filter(Boolean);
+    }
+    sameArtist(a, b) {
+        return this.artists(a).some(x => this.artists(b).some(y => x === y || (Math.min(x.length, y.length) > 3 && (x.includes(y) || y.includes(x)))));
+    }
+    sameLength(q, sec) {
+        return !q.duration || !sec || Math.abs(sec - q.duration) <= 3;
+    }
+    async fromLrclib(q) {
+        const params = new URLSearchParams({ track_name: q.title, artist_name: q.artist });
+        if (q.album)
+            params.set('album_name', q.album);
+        if (q.duration)
+            params.set('duration', String(Math.round(q.duration)));
+        let hit = await this.fetchJson(`${MediaEngine.LYRICS_API}/get?${params}`).catch(() => null);
+        const names = [[q.title, q.artist]], plain = [this.simple(q.title), this.artists(q.artist)[0] || q.artist];
+        if (plain[0] && (plain[0] !== q.title.toLowerCase() || plain[1] !== q.artist.toLowerCase()))
+            names.push(plain);
+        for (const [title, artist] of names) {
+            if (hit?.syncedLyrics || hit?.instrumental)
+                break;
+            const found = await this.fetchJson(`${MediaEngine.LYRICS_API}/search?${new URLSearchParams({ track_name: title, artist_name: artist })}`).catch(() => null);
+            const synced = (Array.isArray(found) ? found : []).filter(x => x.syncedLyrics && this.sameArtist(x.artistName, q.artist));
+            hit = synced.find(x => q.duration && this.sameLength(q, x.duration)) || (q.duration ? null : synced[0]) || hit;
+        }
+        if (hit?.instrumental)
+            return { lines: [], instrumental: true };
+        const lines = this.parseLrc(hit?.syncedLyrics);
+        return { lines: lines.some(l => l.text) ? lines : [] };
+    }
+    static CREDIT = /^\s*[\p{Script=Han}A-Za-z .&/-]{1,24}\s*[:：]\s*\S/u;
+    async fromNetease(q) {
+        const s = `${this.simple(q.title)} ${this.artists(q.artist)[0] || ''}`.trim();
+        const found = await this.fetchJson(`${MediaEngine.NETEASE_API}/cloudsearch/pc?${new URLSearchParams({ s, type: '1', limit: '10' })}`).catch(() => null);
+        const songs = Array.isArray(found?.result?.songs) ? found.result.songs : [], want = this.simple(q.title);
+        const hit = songs.find((x) => this.simple(x.name) === want && (x.ar || []).some((a) => this.sameArtist(a.name, q.artist)) && this.sameLength(q, (x.dt || 0) / 1000));
+        if (!hit)
+            return null;
+        const lyricRes = await this.fetchJson(`${MediaEngine.NETEASE_API}/song/lyric?${new URLSearchParams({ id: String(hit.id), lv: '1' })}`).catch(() => null);
+        const lyric = String(lyricRes?.lrc?.lyric || '');
+        if (/纯音乐/.test(lyric))
+            return { lines: [], instrumental: true };
+        const lines = this.parseLrc(lyric).filter(l => !(l.timeMs < 40000 && MediaEngine.CREDIT.test(l.text)));
+        return lines.some(l => l.text) ? { lines } : null;
+    }
+    async lookupLyrics(q) {
+        let answer = null, failed = 0;
+        try {
+            answer = await this.fromLrclib(q);
+        }
+        catch {
+            failed++;
+        }
+        if (!answer?.lines.length && !answer?.instrumental) {
             try {
-                const cleanTitle = title.replace(/\s*\(.*?\)/g, '').replace(/\s*\[.*?\]/g, '').trim();
-                const params = new URLSearchParams({
-                    track_name: cleanTitle,
-                    artist_name: artist
-                });
-                if (duration)
-                    params.append('duration', String(Math.round(duration / 1000)));
-                const res = await fetch(`https://lrclib.net/api/get?${params.toString()}`, {
-                    signal: AbortSignal.timeout(6000)
-                });
-                if (res.ok) {
-                    const json = await res.json();
-                    if (json.syncedLyrics) {
-                        lines = this.parseLrc(json.syncedLyrics);
-                        this.lyricsCache.set(key, lines);
-                    }
+                answer = (await this.fromNetease(q)) || answer;
+            }
+            catch {
+                failed++;
+            }
+        }
+        if (failed && !answer?.lines.length && !answer?.instrumental)
+            throw new Error('A lyrics source could not be reached');
+        return answer || { lines: [] };
+    }
+    async findLyrics(raw) {
+        const q = {
+            title: this.cleanString(raw?.title),
+            artist: this.cleanString(raw?.artist),
+            album: this.cleanString(raw?.album),
+            duration: Math.max(0, Math.min(7200, Number(raw?.duration) || 0))
+        };
+        if (!q.title || !q.artist)
+            return { lines: [], synced: false, currentLine: '' };
+        const key = this.keyOf(q);
+        const file = path.join(this.getLyricsFolder(), key + '.json');
+        if (this.lyricsMemory.has(key)) {
+            const cached = this.lyricsMemory.get(key);
+            return this.formatLyricsResponse(cached);
+        }
+        try {
+            if (fs.existsSync(file)) {
+                const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
+                if (saved.lines?.length || saved.instrumental || (saved.sources >= MediaEngine.SOURCES && Date.now() - (saved.at || 0) < MediaEngine.NONE_DAYS * 864e5)) {
+                    this.lyricsMemory.set(key, saved);
+                    return this.formatLyricsResponse(saved);
                 }
             }
-            catch { }
         }
-        if (lines && lines.length > 0) {
+        catch { }
+        if (this.lyricsAsking.has(key)) {
+            const pending = await this.lyricsAsking.get(key);
+            return this.formatLyricsResponse(pending);
+        }
+        const job = this.lookupLyrics(q).then(answer => {
+            const saved = { ...answer, at: Date.now(), sources: MediaEngine.SOURCES };
+            this.lyricsMemory.set(key, saved);
+            try {
+                fs.mkdirSync(this.getLyricsFolder(), { recursive: true });
+                fs.writeFileSync(file, JSON.stringify(saved));
+            }
+            catch { }
+            return saved;
+        }, () => ({ lines: [], failed: true })).finally(() => this.lyricsAsking.delete(key));
+        this.lyricsAsking.set(key, job);
+        const result = await job;
+        return this.formatLyricsResponse(result);
+    }
+    formatLyricsResponse(res) {
+        const lines = Array.isArray(res?.lines) ? res.lines : [];
+        const instrumental = Boolean(res?.instrumental);
+        const synced = lines.length > 0;
+        let currentLine = '';
+        if (synced) {
             const currentPos = this.getInterpolatedState().positionMs;
-            let matched = lines[0].text;
             for (const line of lines) {
                 if (line.timeMs <= currentPos) {
-                    matched = line.text;
+                    currentLine = line.text;
                 }
                 else {
                     break;
                 }
             }
-            return { synced: true, currentLine: matched, lines };
         }
-        return { synced: false, currentLine: '', lines: [] };
+        return { synced, currentLine, lines, instrumental };
     }
-    parseLrc(lrc) {
-        const lines = [];
-        const regex = /\[(\d{2}):(\d{2})\.(\d{2,3})\](.*)/g;
-        let match;
-        while ((match = regex.exec(lrc)) !== null) {
-            const minutes = parseInt(match[1], 10);
-            const seconds = parseInt(match[2], 10);
-            const frac = parseInt(match[3].padEnd(3, '0').slice(0, 3), 10);
-            const timeMs = minutes * 60000 + seconds * 1000 + frac;
-            const text = match[4].trim();
-            if (text) {
-                lines.push({ timeMs, text });
-            }
-        }
-        return lines.sort((a, b) => a.timeMs - b.timeMs);
+    async fetchLyrics(title, artist, duration) {
+        return this.findLyrics({ title, artist, duration: duration ? duration / 1000 : undefined });
     }
     // ==========================================================================
     // IPC Setup
@@ -683,6 +816,9 @@ class MediaEngine {
             return { ok };
         });
         electron_1.ipcMain.handle('media:get-lyrics', async (_event, query) => {
+            return this.fetchLyrics(query.title, query.artist, query.duration);
+        });
+        electron_1.ipcMain.handle('lyrics:get', async (_event, query) => {
             return this.fetchLyrics(query.title, query.artist, query.duration);
         });
         // 4. Windows Volume Controls

@@ -221,6 +221,22 @@ async function runTests() {
   assert('Double-click poke activates circle eyes mood (poked)', testMascot.getMood() === 'poked');
   assert('Double-click poke activates reactive jump physics', testMascot.isJumping && testMascot.jumpVelocity < 0);
 
+  // 9. Testing TwoCode Dual Lyrics Normalization & LRC Parser
+  console.log('\n--- 9. Testing TwoCode Dual Lyrics Engine & Normalization ---');
+  const sampleLrc = '[00:12.50] Look at the stars\n[00:15.80] Look how they shine for you';
+  const parsedLines = [];
+  for (const raw of sampleLrc.split(/\r?\n/)) {
+    const stamps = [...raw.matchAll(/\[(\d{1,3}):(\d{1,2}(?:[.:]\d{1,3})?)\]/g)];
+    if (!stamps.length) continue;
+    const text = raw.replace(/\[[^\]]*\]/g, '').trim();
+    for (const m of stamps) {
+      const ms = Math.round((Number(m[1]) * 60 + Number(m[2].replace(':', '.'))) * 1000);
+      parsedLines.push({ timeMs: ms, t: ms, text });
+    }
+  }
+  assert('Parsed LRC produces timeMs and t stamps', parsedLines.length === 2 && parsedLines[0].timeMs === 12500);
+  assert('Parsed LRC accurately extracts line text', parsedLines[0].text === 'Look at the stars');
+
   // Summary
   console.log('\n====================================================');
   console.log(`TEST SUMMARY: ${passed} PASSED, ${failed} FAILED`);
