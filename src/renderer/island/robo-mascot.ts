@@ -212,7 +212,7 @@ export class RoboMascot {
   public mood: MascotMood = 'neutral';
   public skinKey = 'classic';
   public hatKey = 'none';
-  public outfitKey = 'best';
+  public outfitKey = 'none';
   public bodyColorKey = 'cloud';
   public eyeColorKey = 'mint';
 

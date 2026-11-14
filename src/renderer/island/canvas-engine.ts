@@ -140,6 +140,7 @@ export class CanvasEngine {
   public volumeHudMuted = false;
   private isVolumeInitialized = false;
   private isScrubbingVolumeHud = false;
+  private engineStartTime = performance.now();
 
   // Apple Speedometer Telemetry HUD Pop State (CPU, RAM, Storage)
   public speedometerHudUntil = 0;
@@ -723,12 +724,10 @@ export class CanvasEngine {
 
     try {
       const vol = await window.roboIsland.getVolume();
-      if (vol) {
+      if (vol && typeof vol.level === 'number' && vol.level >= 0) {
         this.volumeState = vol;
-        if (typeof vol.level === 'number') {
-          this.volumeHudLevel = vol.level;
-          this.volumeHudMuted = Boolean(vol.muted);
-        }
+        this.volumeHudLevel = vol.level;
+        this.volumeHudMuted = Boolean(vol.muted);
         this.isVolumeInitialized = true;
       }
     } catch {}
@@ -1116,10 +1115,11 @@ export class CanvasEngine {
       });
       window.roboIsland.onMediaStateChanged((state: any) => this.handleMediaStateUpdate(state));
       window.roboIsland.onVolumeChanged((vol: any) => {
-        if (!this.isVolumeInitialized) {
+        const isWarmup = (performance.now() - this.engineStartTime) < 4000;
+        if (!this.isVolumeInitialized || isWarmup) {
           this.isVolumeInitialized = true;
           this.volumeState = vol;
-          if (vol && typeof vol.level === 'number') {
+          if (vol && typeof vol.level === 'number' && vol.level >= 0) {
             this.volumeHudLevel = vol.level;
             this.volumeHudMuted = Boolean(vol.muted);
           }

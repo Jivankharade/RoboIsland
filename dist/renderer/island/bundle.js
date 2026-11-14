@@ -413,7 +413,7 @@
     mood = "neutral";
     skinKey = "classic";
     hatKey = "none";
-    outfitKey = "best";
+    outfitKey = "none";
     bodyColorKey = "cloud";
     eyeColorKey = "mint";
     // Eye gaze tracking
@@ -1571,6 +1571,7 @@
     volumeHudMuted = false;
     isVolumeInitialized = false;
     isScrubbingVolumeHud = false;
+    engineStartTime = performance.now();
     // Apple Speedometer Telemetry HUD Pop State (CPU, RAM, Storage)
     speedometerHudUntil = 0;
     speedometerHudStartTime = 0;
@@ -2078,12 +2079,10 @@
       }
       try {
         const vol = await window.roboIsland.getVolume();
-        if (vol) {
+        if (vol && typeof vol.level === "number" && vol.level >= 0) {
           this.volumeState = vol;
-          if (typeof vol.level === "number") {
-            this.volumeHudLevel = vol.level;
-            this.volumeHudMuted = Boolean(vol.muted);
-          }
+          this.volumeHudLevel = vol.level;
+          this.volumeHudMuted = Boolean(vol.muted);
           this.isVolumeInitialized = true;
         }
       } catch {
@@ -2427,10 +2426,11 @@
         });
         window.roboIsland.onMediaStateChanged((state) => this.handleMediaStateUpdate(state));
         window.roboIsland.onVolumeChanged((vol) => {
-          if (!this.isVolumeInitialized) {
+          const isWarmup = performance.now() - this.engineStartTime < 4e3;
+          if (!this.isVolumeInitialized || isWarmup) {
             this.isVolumeInitialized = true;
             this.volumeState = vol;
-            if (vol && typeof vol.level === "number") {
+            if (vol && typeof vol.level === "number" && vol.level >= 0) {
               this.volumeHudLevel = vol.level;
               this.volumeHudMuted = Boolean(vol.muted);
             }

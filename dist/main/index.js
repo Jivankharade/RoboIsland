@@ -99,21 +99,16 @@ electron_1.app.whenReady().then(() => {
     }
     // Handle second-instance launch (user clicked Desktop or Start Menu shortcut while app is running)
     electron_1.app.on('second-instance', () => {
-        openSettingsWindow();
         const win = islandWindow?.getWindow();
         if (win) {
             if (win.isMinimized())
                 win.restore();
             win.show();
+            win.focus();
             win.webContents.send('island:toggle-expand');
         }
     });
     setupAppIPC();
-    // On manual launch, open Settings Dashboard so user has immediate visual feedback
-    const isAutoStart = process.argv.includes('--autostart');
-    if (!isAutoStart) {
-        openSettingsWindow();
-    }
 });
 function openSettingsWindow(tab = 'home') {
     if (settingsWindow && !settingsWindow.isDestroyed()) {

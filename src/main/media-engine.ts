@@ -76,7 +76,7 @@ export class MediaEngine {
   private spotifyLastSampleTime = 0;
   private spotifyPollTimer: NodeJS.Timeout | null = null;
 
-  private currentVolume: SystemVolumeState = { level: 50, muted: false };
+  private currentVolume: SystemVolumeState = { level: -1, muted: false };
   private currentNet: SystemNetState = { wired: true };
   private lyricsCache = new Map<string, LyricLine[]>();
 

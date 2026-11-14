@@ -62,7 +62,7 @@ class MediaEngine {
     spotifyState = null;
     spotifyLastSampleTime = 0;
     spotifyPollTimer = null;
-    currentVolume = { level: 50, muted: false };
+    currentVolume = { level: -1, muted: false };
     currentNet = { wired: true };
     lyricsCache = new Map();
     constructor() {

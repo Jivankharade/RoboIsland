@@ -54,7 +54,7 @@ exports.DEFAULT_CONFIG = {
     mascotName: 'Robo',
     mascotSkin: 'classic',
     mascotHat: 'none',
-    mascotOutfit: 'best',
+    mascotOutfit: 'none',
     mascotBodyColor: 'cloud',
     mascotEyeColor: 'mint',
     trafficLightEyes: {
@@ -116,6 +116,9 @@ class ConfigStore {
             if (fs.existsSync(this.filePath)) {
                 const raw = fs.readFileSync(this.filePath, 'utf8');
                 const parsed = JSON.parse(raw);
+                if (parsed.mascotOutfit === 'best') {
+                    parsed.mascotOutfit = 'none';
+                }
                 return { ...exports.DEFAULT_CONFIG, ...parsed };
             }
         }

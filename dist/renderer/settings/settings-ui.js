@@ -485,7 +485,7 @@
         sunglasses: '<svg class="i" viewBox="0 0 24 24"><use href="#i-sunglasses"/></svg>',
         crown: '<svg class="i" viewBox="0 0 24 24"><use href="#i-crown"/></svg>'
       };
-      const currentOutfit = this.config.mascotOutfit || "best";
+      const currentOutfit = this.config.mascotOutfit || "none";
       if (hatDisplay) hatDisplay.innerHTML = outfitIcons[currentOutfit] || "";
       if (wearingCaption) {
         const activeCard = Array.from(outfitCards).find((c) => c.getAttribute("data-outfit") === currentOutfit);
@@ -493,7 +493,7 @@
         wearingCaption.textContent = `Wearing: ${name}`;
       }
       outfitCards.forEach((card) => {
-        const outfit = card.getAttribute("data-outfit") || "best";
+        const outfit = card.getAttribute("data-outfit") || "none";
         card.classList.toggle("active", outfit === currentOutfit);
         card.addEventListener("click", () => {
           outfitCards.forEach((c) => c.classList.remove("active"));

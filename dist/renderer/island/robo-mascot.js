@@ -150,7 +150,7 @@ class RoboMascot {
     mood = 'neutral';
     skinKey = 'classic';
     hatKey = 'none';
-    outfitKey = 'best';
+    outfitKey = 'none';
     bodyColorKey = 'cloud';
     eyeColorKey = 'mint';
     // Eye gaze tracking
