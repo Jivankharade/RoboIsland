@@ -73,8 +73,9 @@ const api = {
     },
     getAIMonitorHistory: () => electron_1.ipcRenderer.invoke('ai-monitor:get-history'),
     controlAIAgent: (action) => electron_1.ipcRenderer.invoke('ai-monitor:control', action),
-    // AI Chat API (OpenAI, Claude, Custom, Ollama)
-    sendAIChatPrompt: (provider, prompt, model) => electron_1.ipcRenderer.invoke('ai-chat:send-prompt', { provider, prompt, model }),
+    // AI Chat API (OpenAI, Claude, Custom, Ollama, Robo Vision)
+    captureScreen: () => electron_1.ipcRenderer.invoke('ai-chat:capture-screen'),
+    sendAIChatPrompt: (provider, prompt, model, imageData) => electron_1.ipcRenderer.invoke('ai-chat:send-prompt', { provider, prompt, model, imageData }),
     onAIChatChunk: (callback) => {
         const handler = (_event, chunk) => callback(chunk);
         electron_1.ipcRenderer.on('ai-chat:chunk', handler);

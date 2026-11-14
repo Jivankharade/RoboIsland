@@ -1,4 +1,4 @@
-import { ipcMain, safeStorage, BrowserWindow } from 'electron';
+import { ipcMain, safeStorage, BrowserWindow, desktopCapturer } from 'electron';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -296,7 +296,8 @@ export class AIProviderManager {
     model?: string,
     onChunk?: (chunk: string) => void,
     onDone?: () => void,
-    sessionId = 'default'
+    sessionId = 'default',
+    imageData?: string
   ): Promise<string> {
     const cred = this.getCredential(provider);
     const controller = new AbortController();
@@ -310,9 +311,9 @@ export class AIProviderManager {
 
     try {
       if (provider === 'anthropic') {
-        await this.streamAnthropic(cred, prompt, model, chunkEmitter, controller.signal);
+        await this.streamAnthropic(cred, prompt, model, chunkEmitter, controller.signal, imageData);
       } else if (provider === 'openai' || provider === 'custom' || provider === 'ollama') {
-        await this.streamOpenAICompatible(provider, cred, prompt, model, chunkEmitter, controller.signal);
+        await this.streamOpenAICompatible(provider, cred, prompt, model, chunkEmitter, controller.signal, imageData);
       } else {
         throw new Error(`Unsupported AI provider: ${provider}`);
       }
@@ -341,7 +342,8 @@ export class AIProviderManager {
     prompt: string,
     requestedModel: string | undefined,
     onChunk: (chunk: string) => void,
-    signal: AbortSignal
+    signal: AbortSignal,
+    imageData?: string
   ): Promise<void> {
     const apiKey = cred?.apiKey || '';
     let baseUrl = cred?.baseUrl;
@@ -372,16 +374,29 @@ export class AIProviderManager {
       headers['Authorization'] = `Bearer ${apiKey}`;
     }
 
+    const userContent = imageData ? [
+      {
+        type: 'text',
+        text: prompt || 'Analyze what is visible on my screen and provide concise, helpful insights or troubleshooting steps.'
+      },
+      {
+        type: 'image_url',
+        image_url: {
+          url: imageData.startsWith('data:') ? imageData : `data:image/jpeg;base64,${imageData}`
+        }
+      }
+    ] : prompt;
+
     const payload = {
       model,
       messages: [
         {
           role: 'system',
-          content: 'You are Robo, a concise and friendly Windows Dynamic Island companion. Provide helpful answers with markdown formatting and code snippets when requested.'
+          content: 'You are Robo, a concise and friendly Windows Dynamic Island companion with advanced vision capabilities. Provide helpful answers with markdown formatting and code snippets when requested.'
         },
         {
           role: 'user',
-          content: prompt
+          content: userContent
         }
       ],
       stream: true
@@ -442,7 +457,8 @@ export class AIProviderManager {
     prompt: string,
     requestedModel: string | undefined,
     onChunk: (chunk: string) => void,
-    signal: AbortSignal
+    signal: AbortSignal,
+    imageData?: string
   ): Promise<void> {
     const apiKey = cred?.apiKey;
     if (!apiKey) {
@@ -461,14 +477,33 @@ export class AIProviderManager {
       'anthropic-version': '2023-06-01'
     };
 
+    let userContent: any = prompt;
+    if (imageData) {
+      const base64Data = imageData.replace(/^data:image\/[a-zA-Z]+;base64,/, '');
+      userContent = [
+        {
+          type: 'image',
+          source: {
+            type: 'base64',
+            media_type: 'image/jpeg',
+            data: base64Data
+          }
+        },
+        {
+          type: 'text',
+          text: prompt || 'Analyze what is visible on my screen and provide concise, helpful insights or troubleshooting steps.'
+        }
+      ];
+    }
+
     const payload = {
       model,
       max_tokens: 4096,
-      system: 'You are Robo, a concise and friendly Windows Dynamic Island companion. Provide helpful answers with markdown formatting and code snippets when requested.',
+      system: 'You are Robo, a concise and friendly Windows Dynamic Island companion with advanced vision capabilities. Provide helpful answers with markdown formatting and code snippets when requested.',
       messages: [
         {
           role: 'user',
-          content: prompt
+          content: userContent
         }
       ],
       stream: true
@@ -594,14 +629,73 @@ try {
       });
     });
   }
+
+  /**
+   * Captures the primary desktop screen for Robo Vision.
+   * Briefly sets Island window opacity to 0 so it does not obscure desktop content.
+   */
+  public async captureScreen(senderWebContents?: Electron.WebContents): Promise<{ success: boolean; dataUrl?: string; width?: number; height?: number; error?: string }> {
+    try {
+      let win: BrowserWindow | null = null;
+      if (senderWebContents) {
+        win = BrowserWindow.fromWebContents(senderWebContents);
+      }
+
+      const wasVisible = win && !win.isDestroyed() && win.isVisible();
+      if (win && wasVisible) {
+        win.setOpacity(0);
+      }
+
+      // Small delay to let the DWM compositor present the clean desktop
+      await new Promise((r) => setTimeout(r, 120));
+
+      const sources = await desktopCapturer.getSources({
+        types: ['screen'],
+        thumbnailSize: { width: 1920, height: 1080 }
+      });
+
+      if (win && wasVisible && !win.isDestroyed()) {
+        win.setOpacity(1);
+      }
+
+      if (!sources || sources.length === 0) {
+        return { success: false, error: 'No display sources found.' };
+      }
+
+      // Primary screen source
+      const primarySource = sources[0];
+      const thumbnail = primarySource.thumbnail;
+
+      if (!thumbnail || thumbnail.isEmpty()) {
+        return { success: false, error: 'Failed to capture screenshot.' };
+      }
+
+      const jpegBuffer = thumbnail.toJPEG(85);
+      const dataUrl = `data:image/jpeg;base64,${jpegBuffer.toString('base64')}`;
+      const size = thumbnail.getSize();
+
+      return {
+        success: true,
+        dataUrl,
+        width: size.width,
+        height: size.height
+      };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Screen capture failed' };
+    }
+  }
 }
 
 /**
  * Register Main Process IPC Handlers for AI Chat.
  */
 export function registerAIProviderIPC(manager: AIProviderManager): void {
-  ipcMain.handle('ai-chat:send-prompt', async (event, args: { provider: AIProvider; prompt: string; model?: string }) => {
-    const { provider, prompt, model } = args || {};
+  ipcMain.handle('ai-chat:capture-screen', async (event) => {
+    return manager.captureScreen(event.sender);
+  });
+
+  ipcMain.handle('ai-chat:send-prompt', async (event, args: { provider: AIProvider; prompt: string; model?: string; imageData?: string }) => {
+    const { provider, prompt, model, imageData } = args || {};
     const win = BrowserWindow.fromWebContents(event.sender);
 
     let result = '';
@@ -619,7 +713,9 @@ export function registerAIProviderIPC(manager: AIProviderManager): void {
         if (win && !win.isDestroyed()) {
           win.webContents.send('ai-chat:done');
         }
-      }
+      },
+      'default',
+      imageData
     );
 
     return result;

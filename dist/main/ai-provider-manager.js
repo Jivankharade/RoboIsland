@@ -301,7 +301,7 @@ class AIProviderManager {
      * Multi-provider streaming method.
      * Connects via SSE and streams chunks as they arrive.
      */
-    async streamPrompt(provider, prompt, model, onChunk, onDone, sessionId = 'default') {
+    async streamPrompt(provider, prompt, model, onChunk, onDone, sessionId = 'default', imageData) {
         const cred = this.getCredential(provider);
         const controller = new AbortController();
         this.abortControllers.set(sessionId, controller);
@@ -313,10 +313,10 @@ class AIProviderManager {
         };
         try {
             if (provider === 'anthropic') {
-                await this.streamAnthropic(cred, prompt, model, chunkEmitter, controller.signal);
+                await this.streamAnthropic(cred, prompt, model, chunkEmitter, controller.signal, imageData);
             }
             else if (provider === 'openai' || provider === 'custom' || provider === 'ollama') {
-                await this.streamOpenAICompatible(provider, cred, prompt, model, chunkEmitter, controller.signal);
+                await this.streamOpenAICompatible(provider, cred, prompt, model, chunkEmitter, controller.signal, imageData);
             }
             else {
                 throw new Error(`Unsupported AI provider: ${provider}`);
@@ -343,7 +343,7 @@ class AIProviderManager {
         }
         return fullOutput;
     }
-    async streamOpenAICompatible(provider, cred, prompt, requestedModel, onChunk, signal) {
+    async streamOpenAICompatible(provider, cred, prompt, requestedModel, onChunk, signal, imageData) {
         const apiKey = cred?.apiKey || '';
         let baseUrl = cred?.baseUrl;
         if (!baseUrl) {
@@ -370,16 +370,28 @@ class AIProviderManager {
         if (apiKey) {
             headers['Authorization'] = `Bearer ${apiKey}`;
         }
+        const userContent = imageData ? [
+            {
+                type: 'text',
+                text: prompt || 'Analyze what is visible on my screen and provide concise, helpful insights or troubleshooting steps.'
+            },
+            {
+                type: 'image_url',
+                image_url: {
+                    url: imageData.startsWith('data:') ? imageData : `data:image/jpeg;base64,${imageData}`
+                }
+            }
+        ] : prompt;
         const payload = {
             model,
             messages: [
                 {
                     role: 'system',
-                    content: 'You are Robo, a concise and friendly Windows Dynamic Island companion. Provide helpful answers with markdown formatting and code snippets when requested.'
+                    content: 'You are Robo, a concise and friendly Windows Dynamic Island companion with advanced vision capabilities. Provide helpful answers with markdown formatting and code snippets when requested.'
                 },
                 {
                     role: 'user',
-                    content: prompt
+                    content: userContent
                 }
             ],
             stream: true
@@ -428,7 +440,7 @@ class AIProviderManager {
             }
         }
     }
-    async streamAnthropic(cred, prompt, requestedModel, onChunk, signal) {
+    async streamAnthropic(cred, prompt, requestedModel, onChunk, signal, imageData) {
         const apiKey = cred?.apiKey;
         if (!apiKey) {
             onChunk('No API key configured for Anthropic Claude. Please configure your API key in Settings.');
@@ -443,14 +455,32 @@ class AIProviderManager {
             'x-api-key': apiKey,
             'anthropic-version': '2023-06-01'
         };
+        let userContent = prompt;
+        if (imageData) {
+            const base64Data = imageData.replace(/^data:image\/[a-zA-Z]+;base64,/, '');
+            userContent = [
+                {
+                    type: 'image',
+                    source: {
+                        type: 'base64',
+                        media_type: 'image/jpeg',
+                        data: base64Data
+                    }
+                },
+                {
+                    type: 'text',
+                    text: prompt || 'Analyze what is visible on my screen and provide concise, helpful insights or troubleshooting steps.'
+                }
+            ];
+        }
         const payload = {
             model,
             max_tokens: 4096,
-            system: 'You are Robo, a concise and friendly Windows Dynamic Island companion. Provide helpful answers with markdown formatting and code snippets when requested.',
+            system: 'You are Robo, a concise and friendly Windows Dynamic Island companion with advanced vision capabilities. Provide helpful answers with markdown formatting and code snippets when requested.',
             messages: [
                 {
                     role: 'user',
-                    content: prompt
+                    content: userContent
                 }
             ],
             stream: true
@@ -565,14 +595,63 @@ try {
             });
         });
     }
+    /**
+     * Captures the primary desktop screen for Robo Vision.
+     * Briefly sets Island window opacity to 0 so it does not obscure desktop content.
+     */
+    async captureScreen(senderWebContents) {
+        try {
+            let win = null;
+            if (senderWebContents) {
+                win = electron_1.BrowserWindow.fromWebContents(senderWebContents);
+            }
+            const wasVisible = win && !win.isDestroyed() && win.isVisible();
+            if (win && wasVisible) {
+                win.setOpacity(0);
+            }
+            // Small delay to let the DWM compositor present the clean desktop
+            await new Promise((r) => setTimeout(r, 120));
+            const sources = await electron_1.desktopCapturer.getSources({
+                types: ['screen'],
+                thumbnailSize: { width: 1920, height: 1080 }
+            });
+            if (win && wasVisible && !win.isDestroyed()) {
+                win.setOpacity(1);
+            }
+            if (!sources || sources.length === 0) {
+                return { success: false, error: 'No display sources found.' };
+            }
+            // Primary screen source
+            const primarySource = sources[0];
+            const thumbnail = primarySource.thumbnail;
+            if (!thumbnail || thumbnail.isEmpty()) {
+                return { success: false, error: 'Failed to capture screenshot.' };
+            }
+            const jpegBuffer = thumbnail.toJPEG(85);
+            const dataUrl = `data:image/jpeg;base64,${jpegBuffer.toString('base64')}`;
+            const size = thumbnail.getSize();
+            return {
+                success: true,
+                dataUrl,
+                width: size.width,
+                height: size.height
+            };
+        }
+        catch (err) {
+            return { success: false, error: err.message || 'Screen capture failed' };
+        }
+    }
 }
 exports.AIProviderManager = AIProviderManager;
 /**
  * Register Main Process IPC Handlers for AI Chat.
  */
 function registerAIProviderIPC(manager) {
+    electron_1.ipcMain.handle('ai-chat:capture-screen', async (event) => {
+        return manager.captureScreen(event.sender);
+    });
     electron_1.ipcMain.handle('ai-chat:send-prompt', async (event, args) => {
-        const { provider, prompt, model } = args || {};
+        const { provider, prompt, model, imageData } = args || {};
         const win = electron_1.BrowserWindow.fromWebContents(event.sender);
         let result = '';
         await manager.streamPrompt(provider || 'openai', prompt || '', model, (chunk) => {
@@ -584,7 +663,7 @@ function registerAIProviderIPC(manager) {
             if (win && !win.isDestroyed()) {
                 win.webContents.send('ai-chat:done');
             }
-        });
+        }, 'default', imageData);
         return result;
     });
     electron_1.ipcMain.handle('ai-chat:save-credentials', async (_event, args) => {

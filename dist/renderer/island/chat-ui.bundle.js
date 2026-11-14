@@ -8,6 +8,8 @@
     copy: `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`,
     check: `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="#34c759" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`,
     mic: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>`,
+    camera: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>`,
+    close: `<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`,
     speaker: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>`,
     speakerMuted: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>`,
     export: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`,
@@ -166,6 +168,7 @@
       color: #00d2ff;
       background: rgba(0, 210, 255, 0.15);
     }
+    .chat-input-bar .chat-vision-btn,
     .chat-input-bar .chat-mic-btn {
       background: transparent;
       border: none;
@@ -178,9 +181,14 @@
       border-radius: 50%;
       transition: all 0.2s;
     }
+    .chat-input-bar .chat-vision-btn:hover,
     .chat-input-bar .chat-mic-btn:hover {
       color: #00d2ff;
       background: rgba(255, 255, 255, 0.1);
+    }
+    .chat-input-bar .chat-vision-btn.capturing {
+      color: #00d2ff;
+      transform: scale(1.15);
     }
     .chat-input-bar .chat-mic-btn.listening {
       color: #ff3b30;
@@ -190,6 +198,76 @@
       0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.4); }
       70% { transform: scale(1.1); box-shadow: 0 0 0 8px rgba(255, 59, 48, 0); }
       100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 59, 48, 0); }
+    }
+    .chat-attachment-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 10px;
+      margin: 0 10px 4px 10px;
+      background: rgba(0, 210, 255, 0.08);
+      border: 1px solid rgba(0, 210, 255, 0.25);
+      border-radius: 8px;
+      animation: slideInAttachment 0.2s ease-out;
+    }
+    .chat-attachment-bar.hidden {
+      display: none !important;
+    }
+    @keyframes slideInAttachment {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .chat-attachment-thumb {
+      width: 32px;
+      height: 20px;
+      object-fit: cover;
+      border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    .chat-attachment-info {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+    .chat-attachment-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: #00d2ff;
+    }
+    .chat-attachment-sub {
+      font-size: 9px;
+      color: rgba(255, 255, 255, 0.5);
+    }
+    .chat-attachment-remove-btn {
+      background: transparent;
+      border: none;
+      color: rgba(255, 255, 255, 0.6);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2px;
+      border-radius: 4px;
+      transition: all 0.15s;
+    }
+    .chat-attachment-remove-btn:hover {
+      color: #ff3b30;
+      background: rgba(255, 59, 48, 0.15);
+    }
+    .msg-attachment-thumb-wrap {
+      margin-bottom: 6px;
+    }
+    .msg-attachment-thumb {
+      max-width: 180px;
+      max-height: 100px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+    .msg-attachment-thumb:hover {
+      transform: scale(1.03);
     }
     .code-block-wrapper {
       margin: 6px 0;
@@ -297,6 +375,7 @@
     isStreaming = false;
     activeAssistantBubble = null;
     activeAssistantText = "";
+    pendingImageData = null;
     constructor() {
       this.loadState();
       this.enhanceUI();
@@ -374,18 +453,51 @@
         }
       }
       const form = document.getElementById("chat-input-form");
-      if (form && !document.getElementById("btn-chat-mic")) {
-        const micBtn = document.createElement("button");
-        micBtn.type = "button";
-        micBtn.id = "btn-chat-mic";
-        micBtn.className = "chat-mic-btn";
-        micBtn.title = "Voice Typing (Win + H)";
-        micBtn.innerHTML = SVG_ICONS.mic;
-        const sendBtn = document.getElementById("btn-chat-send");
-        if (sendBtn) {
-          form.insertBefore(micBtn, sendBtn);
-        } else {
-          form.appendChild(micBtn);
+      if (form) {
+        let attachBar = document.getElementById("chat-attachment-bar");
+        if (!attachBar && form.parentNode) {
+          attachBar = document.createElement("div");
+          attachBar.id = "chat-attachment-bar";
+          attachBar.className = "chat-attachment-bar hidden";
+          attachBar.innerHTML = `
+          <img id="chat-attachment-thumb" class="chat-attachment-thumb" src="" alt="Thumbnail" />
+          <div class="chat-attachment-info">
+            <span class="chat-attachment-label">Screen attached</span>
+            <span class="chat-attachment-sub" id="chat-attachment-meta">1920x1080 JPEG</span>
+          </div>
+          <button type="button" id="btn-chat-attachment-remove" class="chat-attachment-remove-btn" title="Remove attachment">
+            ${SVG_ICONS.close}
+          </button>
+        `;
+          form.parentNode.insertBefore(attachBar, form);
+        }
+        if (!document.getElementById("btn-chat-vision")) {
+          const visionBtn = document.createElement("button");
+          visionBtn.type = "button";
+          visionBtn.id = "btn-chat-vision";
+          visionBtn.className = "chat-vision-btn";
+          visionBtn.title = "Robo Vision: Look at Screen (Ctrl+Shift+S)";
+          visionBtn.innerHTML = SVG_ICONS.camera;
+          const input = document.getElementById("chat-input");
+          if (input) {
+            form.insertBefore(visionBtn, input);
+          } else {
+            form.prepend(visionBtn);
+          }
+        }
+        if (!document.getElementById("btn-chat-mic")) {
+          const micBtn = document.createElement("button");
+          micBtn.type = "button";
+          micBtn.id = "btn-chat-mic";
+          micBtn.className = "chat-mic-btn";
+          micBtn.title = "Voice Typing (Win + H)";
+          micBtn.innerHTML = SVG_ICONS.mic;
+          const sendBtn = document.getElementById("btn-chat-send");
+          if (sendBtn) {
+            form.insertBefore(micBtn, sendBtn);
+          } else {
+            form.appendChild(micBtn);
+          }
         }
       }
     }
@@ -430,9 +542,12 @@
             e.stopPropagation();
             e.stopImmediatePropagation();
             const text = input ? input.value.trim() : "";
-            if (!text || this.isStreaming) return;
+            if (!text && !this.pendingImageData || this.isStreaming) return;
+            const promptText = text || "Analyze what is visible on my screen and provide concise, helpful insights or troubleshooting steps.";
+            const attachedImage = this.pendingImageData;
+            this.clearAttachment();
             if (input) input.value = "";
-            this.handleSendMessage(text);
+            this.handleSendMessage(promptText, attachedImage);
           },
           true
           // Capture phase
@@ -533,6 +648,26 @@
           }, 3e3);
         });
       }
+      const visionBtn = document.getElementById("btn-chat-vision");
+      if (visionBtn) {
+        visionBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          this.triggerScreenCapture();
+        });
+      }
+      const removeAttachBtn = document.getElementById("btn-chat-attachment-remove");
+      if (removeAttachBtn) {
+        removeAttachBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          this.clearAttachment();
+        });
+      }
+      window.addEventListener("keydown", (e) => {
+        if (e.ctrlKey && e.shiftKey && (e.key === "S" || e.key === "s")) {
+          e.preventDefault();
+          this.triggerScreenCapture();
+        }
+      });
       const messagesContainer = document.getElementById("chat-messages");
       if (messagesContainer) {
         messagesContainer.addEventListener("click", (e) => {
@@ -587,24 +722,27 @@
         el.className = `chat-msg ${msg.role}`;
         const bubble = document.createElement("div");
         bubble.className = "msg-bubble";
-        bubble.innerHTML = msg.role === "robo" ? renderMarkdown(msg.text) : sanitizeHtml(msg.text);
+        const imageHtml = msg.imageData ? `<div class="msg-attachment-thumb-wrap"><img class="msg-attachment-thumb" src="${msg.imageData}" alt="Screen Glance" /></div>` : "";
+        bubble.innerHTML = `${imageHtml}${msg.role === "robo" ? renderMarkdown(msg.text) : sanitizeHtml(msg.text)}`;
         el.appendChild(bubble);
         container.appendChild(el);
       }
       container.scrollTop = container.scrollHeight;
     }
-    handleSendMessage(text) {
+    handleSendMessage(text, imageData) {
       const container = document.getElementById("chat-messages");
       if (!container) return;
       const userMsgEl = document.createElement("div");
       userMsgEl.className = "chat-msg user";
-      userMsgEl.innerHTML = `<div class="msg-bubble">${sanitizeHtml(text)}</div>`;
+      const imageHtml = imageData ? `<div class="msg-attachment-thumb-wrap"><img class="msg-attachment-thumb" src="${imageData}" alt="Screen Glance" /></div>` : "";
+      userMsgEl.innerHTML = `<div class="msg-bubble">${imageHtml}${sanitizeHtml(text)}</div>`;
       container.appendChild(userMsgEl);
       this.messages.push({
         id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         role: "user",
         text,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        imageData: imageData || void 0
       });
       const roboMsgEl = document.createElement("div");
       roboMsgEl.className = "chat-msg robo";
@@ -619,7 +757,7 @@
       this.isStreaming = true;
       const api = window.roboIsland;
       if (api && typeof api.sendAIChatPrompt === "function") {
-        api.sendAIChatPrompt(this.currentProvider, text, this.currentModel || void 0).then((fullResponse) => {
+        api.sendAIChatPrompt(this.currentProvider, text, this.currentModel || void 0, imageData || void 0).then((fullResponse) => {
           if (this.isStreaming && fullResponse) {
             this.activeAssistantText = fullResponse;
             this.handleStreamDone();
@@ -633,9 +771,49 @@
         });
       } else {
         setTimeout(() => {
-          this.activeAssistantText = `I heard: "${text}". AI provider is configured for ${this.currentProvider}. Connect an API key in Settings to unlock full cloud intelligence!`;
+          const imageNote = imageData ? " [Screen captured]" : "";
+          this.activeAssistantText = `I analyzed your screen${imageNote} and prompt: "${text}". Connect OpenAI, Claude, or local Ollama in settings for live visual inference!`;
           this.handleStreamDone();
         }, 350);
+      }
+    }
+    async triggerScreenCapture() {
+      const visionBtn = document.getElementById("btn-chat-vision");
+      if (visionBtn) visionBtn.classList.add("capturing");
+      try {
+        const api = window.roboIsland;
+        if (api && typeof api.captureScreen === "function") {
+          const dataUrl = await api.captureScreen();
+          if (dataUrl) {
+            this.pendingImageData = dataUrl;
+            const attachBar = document.getElementById("chat-attachment-bar");
+            const attachThumb = document.getElementById("chat-attachment-thumb");
+            if (attachBar && attachThumb) {
+              attachThumb.src = dataUrl;
+              attachBar.classList.remove("hidden");
+            }
+            const input = document.getElementById("chat-input");
+            if (input) {
+              input.placeholder = "Ask about what is on your screen...";
+              input.focus();
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("[ChatUI] Screen capture error:", err);
+      } finally {
+        if (visionBtn) visionBtn.classList.remove("capturing");
+      }
+    }
+    clearAttachment() {
+      this.pendingImageData = null;
+      const attachBar = document.getElementById("chat-attachment-bar");
+      const attachThumb = document.getElementById("chat-attachment-thumb");
+      if (attachBar) attachBar.classList.add("hidden");
+      if (attachThumb) attachThumb.src = "";
+      const input = document.getElementById("chat-input");
+      if (input) {
+        input.placeholder = "Ask Robo...";
       }
     }
     handleIncomingChunk(chunk) {

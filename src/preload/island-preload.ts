@@ -77,9 +77,10 @@ const api = {
   getAIMonitorHistory: () => ipcRenderer.invoke('ai-monitor:get-history'),
   controlAIAgent: (action: 'stop' | 'pause' | 'allow' | 'deny') => ipcRenderer.invoke('ai-monitor:control', action),
 
-  // AI Chat API (OpenAI, Claude, Custom, Ollama)
-  sendAIChatPrompt: (provider: 'openai' | 'anthropic' | 'custom' | 'ollama', prompt: string, model?: string) =>
-    ipcRenderer.invoke('ai-chat:send-prompt', { provider, prompt, model }),
+  // AI Chat API (OpenAI, Claude, Custom, Ollama, Robo Vision)
+  captureScreen: () => ipcRenderer.invoke('ai-chat:capture-screen'),
+  sendAIChatPrompt: (provider: 'openai' | 'anthropic' | 'custom' | 'ollama', prompt: string, model?: string, imageData?: string) =>
+    ipcRenderer.invoke('ai-chat:send-prompt', { provider, prompt, model, imageData }),
   onAIChatChunk: (callback: (chunk: string) => void) => {
     const handler = (_event: any, chunk: string) => callback(chunk);
     ipcRenderer.on('ai-chat:chunk', handler);
