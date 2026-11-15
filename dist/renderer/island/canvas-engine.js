@@ -174,6 +174,10 @@ class CanvasEngine {
     transferProgress = null;
     transferDirection = 'download';
     transferProgressUntil = 0;
+    // Apple macOS Style Clipboard History State
+    rawClipboardHistory = [];
+    clipboardSearchQuery = '';
+    clipboardFilter = 'all';
     activeDownloadsList = [];
     isNotificationActive() {
         if (!this.activeNotification)
@@ -1878,9 +1882,12 @@ class CanvasEngine {
                     this.targetHeight = 310;
                     break;
                 case 'tray':
-                case 'clipboard':
                 case 'notes':
                     this.targetHeight = 270;
+                    break;
+                case 'clipboard':
+                    this.targetWidth = 560;
+                    this.targetHeight = 370;
                     break;
                 case 'settings':
                     this.targetHeight = 300;
@@ -7290,11 +7297,41 @@ class CanvasEngine {
         menu.style.top = `${Math.min(window.innerHeight - 150, Math.max(10, y))}px`;
         menu.classList.remove('hidden');
     }
+    isCodeSnippet(text) {
+        if (!text)
+            return false;
+        const trimmed = text.trim();
+        if (/^(>|npm |pnpm |yarn |git |cd |dir |ls |curl |node |powershell |python |pip |docker |kubectl |ssh )/i.test(trimmed))
+            return true;
+        if (trimmed.includes('{') && trimmed.includes('}'))
+            return true;
+        if (trimmed.includes('const ') || trimmed.includes('let ') || trimmed.includes('function ') || trimmed.includes('import ') || trimmed.includes('class ') || trimmed.includes('export '))
+            return true;
+        if (trimmed.split('\n').length > 1 && trimmed.includes(';'))
+            return true;
+        return false;
+    }
+    formatTimeAgo(timestamp) {
+        if (!timestamp)
+            return '';
+        const sec = Math.floor((Date.now() - timestamp) / 1000);
+        if (sec < 60)
+            return 'Just now';
+        const min = Math.floor(sec / 60);
+        if (min < 60)
+            return `${min}m ago`;
+        const hr = Math.floor(min / 60);
+        if (hr < 24)
+            return `${hr}h ago`;
+        const day = Math.floor(hr / 24);
+        return `${day}d ago`;
+    }
     async loadClipboardList() {
         const list = document.getElementById('clipboard-list');
-        const empty = document.getElementById('clipboard-empty');
         const badge = document.getElementById('clipboard-badge');
         const clearBtn = document.getElementById('btn-clipboard-clear');
+        const searchInput = document.getElementById('clipboard-search-input');
+        const filterChips = document.querySelectorAll('.clip-filter-chip');
         if (!list || !window.roboIsland)
             return;
         if (clearBtn && !clearBtn.__bound) {
@@ -7303,113 +7340,229 @@ class CanvasEngine {
                 e.stopPropagation();
                 await window.roboIsland.clearClipboardHistory?.();
                 this.mascot.sounds.playChirp();
-                this.loadClipboardList();
+                this.rawClipboardHistory = [];
+                if (badge)
+                    badge.textContent = '0 clips';
+                this.renderClipboardCards();
             });
         }
+        if (searchInput && !searchInput.__bound) {
+            searchInput.__bound = true;
+            searchInput.addEventListener('input', () => {
+                this.clipboardSearchQuery = searchInput.value.trim().toLowerCase();
+                this.renderClipboardCards();
+            });
+            searchInput.addEventListener('click', (e) => e.stopPropagation());
+            searchInput.addEventListener('mousedown', (e) => e.stopPropagation());
+        }
+        filterChips.forEach((chip) => {
+            if (!chip.__bound) {
+                chip.__bound = true;
+                chip.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    filterChips.forEach(c => c.classList.remove('active'));
+                    chip.classList.add('active');
+                    this.clipboardFilter = chip.dataset.filter || 'all';
+                    this.renderClipboardCards();
+                });
+            }
+        });
         try {
             const history = await window.roboIsland.getClipboardHistory();
-            list.innerHTML = '';
-            if (history && history.length > 0) {
-                if (empty)
-                    empty.style.display = 'none';
-                if (badge)
-                    badge.textContent = `${history.length} clip${history.length > 1 ? 's' : ''}`;
-                history.forEach((item) => {
-                    const card = document.createElement('div');
-                    const isImage = item.type === 'image' && (item.thumbnail || item.filePath);
-                    if (isImage) {
-                        card.className = 'clip-card clip-card-image';
-                        card.draggable = true;
-                        const resText = (item.width && item.height) ? `${item.width}×${item.height}` : 'Screenshot';
-                        card.innerHTML = `
-              <div class="clip-thumb-wrap">
-                <img class="clip-thumb-img" src="${item.thumbnail || ''}" alt="Screenshot" draggable="false" />
-                <span class="clip-badge-drag">Drag Out</span>
-              </div>
-              <div class="clip-info">
-                <div class="clip-title-row">
-                  <span class="clip-tag image-tag">
-                    <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
-                    Screenshot
-                  </span>
-                  <span class="clip-res">${resText}</span>
-                </div>
-                <div class="clip-actions">
-                  <button class="clip-action-btn btn-copy" title="Copy image to clipboard" type="button">Copy</button>
-                  <button class="clip-action-btn btn-del" title="Delete" type="button">×</button>
-                </div>
-              </div>
-            `;
-                        // Native drag-out from RoboIsland to any external application
-                        card.addEventListener('dragstart', (e) => {
-                            e.preventDefault();
-                            if (item.filePath) {
-                                window.roboIsland.startClipboardDragOut?.(item.filePath);
-                            }
-                        });
-                        // Click to copy image back to clipboard
-                        card.addEventListener('click', async (e) => {
-                            const target = e.target;
-                            if (target.closest('.btn-del')) {
-                                e.stopPropagation();
-                                await window.roboIsland.deleteClipboardItem?.(item.id);
-                                this.loadClipboardList();
-                                return;
-                            }
-                            await window.roboIsland.copyClipboardItem?.(item);
-                            this.mascot.sounds.playSuccess();
-                            card.classList.add('copied');
-                            setTimeout(() => card.classList.remove('copied'), 1000);
-                        });
+            this.rawClipboardHistory = history || [];
+            if (badge) {
+                badge.textContent = `${this.rawClipboardHistory.length} clip${this.rawClipboardHistory.length === 1 ? '' : 's'}`;
+            }
+            this.renderClipboardCards();
+        }
+        catch { }
+    }
+    renderClipboardCards() {
+        const list = document.getElementById('clipboard-list');
+        const empty = document.getElementById('clipboard-empty');
+        if (!list)
+            return;
+        list.innerHTML = '';
+        // Filter items
+        let filtered = this.rawClipboardHistory;
+        // Filter by type
+        if (this.clipboardFilter === 'image') {
+            filtered = filtered.filter(item => item.type === 'image');
+        }
+        else if (this.clipboardFilter === 'url') {
+            filtered = filtered.filter(item => item.type === 'url');
+        }
+        else if (this.clipboardFilter === 'text') {
+            filtered = filtered.filter(item => item.type !== 'image');
+        }
+        // Filter by search query
+        if (this.clipboardSearchQuery) {
+            const q = this.clipboardSearchQuery;
+            filtered = filtered.filter(item => {
+                if (item.type === 'image') {
+                    const dims = `${item.width}x${item.height}`.toLowerCase();
+                    const fName = (item.filePath || '').toLowerCase();
+                    return dims.includes(q) || fName.includes(q) || 'screenshot'.includes(q) || 'image'.includes(q);
+                }
+                const text = (item.text || '').toLowerCase();
+                return text.includes(q);
+            });
+        }
+        if (!filtered || filtered.length === 0) {
+            if (empty) {
+                empty.style.display = 'flex';
+                const h2 = empty.querySelector('h2');
+                if (h2) {
+                    h2.textContent = this.clipboardSearchQuery ? 'No matching clips found' : 'Nothing copied yet';
+                }
+            }
+            return;
+        }
+        if (empty)
+            empty.style.display = 'none';
+        filtered.forEach((item) => {
+            const card = document.createElement('div');
+            const timeStr = this.formatTimeAgo(item.timestamp);
+            if (item.type === 'image' && (item.thumbnail || item.filePath)) {
+                card.className = 'clip-card clip-card-image';
+                card.draggable = true;
+                const resText = (item.width && item.height) ? `${item.width} × ${item.height}` : 'Screenshot';
+                card.innerHTML = `
+          <div class="clip-card-header">
+            <div class="clip-header-left">
+              <span class="clip-tag image-tag">
+                <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.4"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+                Image
+              </span>
+              ${timeStr ? `<span class="clip-time">${timeStr}</span>` : ''}
+            </div>
+            <div class="clip-card-actions">
+              <button class="clip-btn-icon btn-copy" title="Copy Image" type="button">
+                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+              </button>
+              <button class="clip-btn-icon btn-del" title="Delete" type="button">
+                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="clip-thumb-wrap">
+            <img class="clip-thumb-img" src="${item.thumbnail || ''}" alt="Screenshot" draggable="false" />
+            <span class="clip-badge-drag">Drag Out</span>
+          </div>
+          <div class="clip-image-meta">
+            <span>PNG • ${resText}</span>
+            <span style="color:#64d2ff; font-weight:500;">Click to copy</span>
+          </div>
+        `;
+                // Native drag-out from RoboIsland to any external application
+                card.addEventListener('dragstart', (e) => {
+                    e.preventDefault();
+                    if (item.filePath) {
+                        window.roboIsland.startClipboardDragOut?.(item.filePath);
                     }
-                    else {
-                        // Text, URL, or Color Clip
-                        card.className = `clip-card clip-card-${item.type || 'text'}`;
-                        const text = item.text || '';
-                        const preview = text.length > 120 ? text.slice(0, 118) + '…' : text;
-                        let typeIcon = '<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
-                        let typeLabel = 'Text';
-                        let colorSwatch = '';
-                        if (item.type === 'color') {
-                            typeLabel = 'Color';
-                            colorSwatch = `<span class="clip-color-swatch" style="background:${text}"></span>`;
-                        }
-                        else if (item.type === 'url') {
-                            typeLabel = 'Link';
-                            typeIcon = '<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>';
-                        }
-                        card.innerHTML = `
-              <div class="clip-header-mini">
-                <span class="clip-tag ${item.type || 'text'}-tag">${typeIcon}${colorSwatch}${typeLabel}</span>
-                <button class="clip-del-mini btn-del" title="Delete" type="button">×</button>
-              </div>
-              <div class="clip-text-body">${this.escapeHtml(preview)}</div>
-            `;
-                        card.addEventListener('click', async (e) => {
-                            const target = e.target;
-                            if (target.closest('.btn-del')) {
-                                e.stopPropagation();
-                                await window.roboIsland.deleteClipboardItem?.(item.id);
-                                this.loadClipboardList();
-                                return;
-                            }
-                            await window.roboIsland.copyClipboardItem?.(item);
-                            this.mascot.sounds.playSuccess();
-                            card.classList.add('copied');
-                            setTimeout(() => card.classList.remove('copied'), 1000);
-                        });
-                    }
-                    list.appendChild(card);
                 });
             }
             else {
-                if (empty)
-                    empty.style.display = 'block';
-                if (badge)
-                    badge.textContent = '0 clips';
+                const text = item.text || '';
+                const isCode = this.isCodeSnippet(text);
+                let tagClass = 'text-tag';
+                let tagLabel = 'Text';
+                let tagIcon = '<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
+                if (item.type === 'color') {
+                    tagClass = 'color-tag';
+                    tagLabel = 'Color';
+                    tagIcon = '<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/></svg>';
+                }
+                else if (item.type === 'url') {
+                    tagClass = 'url-tag';
+                    tagLabel = 'Link';
+                    tagIcon = '<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>';
+                }
+                else if (isCode) {
+                    tagClass = 'code-tag';
+                    tagLabel = 'Code';
+                    tagIcon = '<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>';
+                }
+                let bodyHtml = '';
+                if (item.type === 'color') {
+                    bodyHtml = `
+            <div class="clip-color-body">
+              <span class="clip-color-swatch-large" style="background:${this.escapeHtml(text)}"></span>
+              <span class="clip-color-val">${this.escapeHtml(text)}</span>
+            </div>
+          `;
+                }
+                else if (item.type === 'url') {
+                    bodyHtml = `
+            <div class="clip-url-body">
+              <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+              <span>${this.escapeHtml(text)}</span>
+            </div>
+          `;
+                }
+                else if (isCode) {
+                    const preview = text.length > 200 ? text.slice(0, 198) + '…' : text;
+                    bodyHtml = `<div class="clip-code-body">${this.escapeHtml(preview)}</div>`;
+                }
+                else {
+                    const preview = text.length > 180 ? text.slice(0, 178) + '…' : text;
+                    bodyHtml = `<div class="clip-text-body">${this.escapeHtml(preview)}</div>`;
+                }
+                card.className = `clip-card clip-card-${item.type || 'text'}`;
+                card.innerHTML = `
+          <div class="clip-card-header">
+            <div class="clip-header-left">
+              <span class="clip-tag ${tagClass}">${tagIcon}${tagLabel}</span>
+              ${timeStr ? `<span class="clip-time">${timeStr}</span>` : ''}
+            </div>
+            <div class="clip-card-actions">
+              <button class="clip-btn-icon btn-copy" title="Copy" type="button">
+                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+              </button>
+              <button class="clip-btn-icon btn-del" title="Delete" type="button">
+                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+          </div>
+          ${bodyHtml}
+        `;
             }
-        }
-        catch { }
+            // Click to copy item with Apple Mac feedback banner
+            card.addEventListener('click', async (e) => {
+                const target = e.target;
+                if (target.closest('.btn-del')) {
+                    e.stopPropagation();
+                    await window.roboIsland.deleteClipboardItem?.(item.id);
+                    this.rawClipboardHistory = this.rawClipboardHistory.filter(c => c.id !== item.id);
+                    const badge = document.getElementById('clipboard-badge');
+                    if (badge)
+                        badge.textContent = `${this.rawClipboardHistory.length} clip${this.rawClipboardHistory.length === 1 ? '' : 's'}`;
+                    this.renderClipboardCards();
+                    return;
+                }
+                await window.roboIsland.copyClipboardItem?.(item);
+                this.mascot.sounds.playSuccess();
+                // Show Copied overlay banner
+                card.classList.add('copied');
+                let banner = card.querySelector('.clip-copied-banner');
+                if (!banner) {
+                    banner = document.createElement('div');
+                    banner.className = 'clip-copied-banner';
+                    banner.innerHTML = `
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+            <span>Copied to Clipboard</span>
+          `;
+                    card.appendChild(banner);
+                }
+                setTimeout(() => {
+                    card.classList.remove('copied');
+                    banner?.remove();
+                }, 900);
+            });
+            list.appendChild(card);
+        });
     }
     async openPhoneDrop() {
         if (!window.roboIsland)

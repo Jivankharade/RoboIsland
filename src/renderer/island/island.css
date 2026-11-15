@@ -3650,14 +3650,15 @@ html, body {
 }
 
 /* ==========================================================================
-   CLIPBOARD HISTORY & SCREENSHOT DRAG-AND-DROP CARDS
+   CLIPBOARD HISTORY & SCREENSHOT DRAG-AND-DROP CARDS (APPLE MAC DESIGN)
    ========================================================================== */
 .clipboard-content {
   display: flex;
   flex-direction: column;
   height: 100%;
   width: 100%;
-  padding: 4px 6px;
+  padding: 6px 10px 4px 10px;
+  box-sizing: border-box;
   overflow: hidden;
 }
 
@@ -3665,7 +3666,7 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 2px 4px 8px 4px;
+  padding: 0 2px 8px 2px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   margin-bottom: 8px;
   flex-shrink: 0;
@@ -3678,10 +3679,11 @@ html, body {
 }
 
 .clipboard-header-title {
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 13.5px;
+  font-weight: 700;
   color: #ffffff;
-  letter-spacing: -0.2px;
+  letter-spacing: -0.25px;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", Inter, sans-serif;
 }
 
 .clipboard-count-badge {
@@ -3689,116 +3691,368 @@ html, body {
   font-weight: 600;
   color: #64d2ff;
   background: rgba(100, 210, 255, 0.16);
-  border: 1px solid rgba(100, 210, 255, 0.3);
+  border: 1px solid rgba(100, 210, 255, 0.32);
   border-radius: 10px;
-  padding: 1px 7px;
+  padding: 1.5px 8px;
+  letter-spacing: 0.1px;
 }
 
 .clipboard-clear-btn {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 4.5px;
   font-size: 11px;
   font-weight: 500;
-  color: #a0a0a8;
-  background: rgba(255, 255, 255, 0.08);
+  color: #a1a1aa;
+  background: rgba(255, 255, 255, 0.07);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 6px;
-  padding: 3px 8px;
+  border-radius: 7px;
+  padding: 3.5px 9px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.16s ease;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif;
 }
 
 .clipboard-clear-btn:hover {
   background: rgba(255, 69, 58, 0.18);
   color: #ff453a;
-  border-color: rgba(255, 69, 58, 0.3);
+  border-color: rgba(255, 69, 58, 0.35);
+  transform: translateY(-0.5px);
 }
 
+/* macOS Search & Segmented Filter Bar */
+.clipboard-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-shrink: 0;
+}
+
+.clipboard-search-wrap {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.clipboard-search-icon {
+  position: absolute;
+  left: 9px;
+  color: #8e8e93;
+  pointer-events: none;
+}
+
+.clipboard-search-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 8px;
+  padding: 5px 8px 5px 28px;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif;
+  font-size: 11.5px;
+  color: #ffffff;
+  outline: none;
+  transition: all 0.16s ease;
+}
+
+.clipboard-search-input:focus {
+  background: rgba(255, 255, 255, 0.11);
+  border-color: #64d2ff;
+  box-shadow: 0 0 0 2px rgba(100, 210, 255, 0.25);
+}
+
+.clipboard-search-input::placeholder {
+  color: #8e8e93;
+}
+
+.clipboard-filters {
+  display: flex;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.35);
+  padding: 2px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  gap: 2px;
+}
+
+.clip-filter-chip {
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: #8e8e93;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: all 0.14s ease;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif;
+}
+
+.clip-filter-chip:hover {
+  color: #ffffff;
+}
+
+.clip-filter-chip.active {
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* Empty State */
+.clipboard-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 28px 16px;
+  color: #8e8e93;
+  gap: 6px;
+  flex: 1;
+}
+
+.clipboard-empty h2 {
+  font-size: 13px;
+  font-weight: 600;
+  color: #e4e4e7;
+  margin: 0;
+}
+
+.clipboard-empty p {
+  font-size: 11px;
+  color: #71717a;
+  max-width: 320px;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.clipboard-empty kbd {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 4px;
+  padding: 1px 4px;
+  font-size: 10px;
+  color: #ffffff;
+}
+
+/* Clipboard Cards Grid (Apple Mac List) */
 .clipboard-list {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
+  gap: 9px;
   overflow-y: auto;
-  max-height: 195px;
-  padding-right: 4px;
+  flex: 1;
+  min-height: 0;
+  padding: 2px 4px 8px 2px;
 }
 
 .clipboard-list::-webkit-scrollbar {
-  width: 4px;
+  width: 5px;
 }
 
 .clipboard-list::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.18);
-  border-radius: 2px;
+  border-radius: 4px;
 }
 
+.clipboard-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.32);
+}
+
+/* Apple Liquid Glass Card */
 .clip-card {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 9px;
-  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 11px;
+  padding: 8px 10px;
   cursor: pointer;
   display: flex;
   flex-direction: column;
-  transition: all 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+  justify-content: space-between;
+  min-height: 76px;
+  box-sizing: border-box;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
   overflow: hidden;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22);
 }
 
 .clip-card:hover {
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.22);
-  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.24);
+  transform: translateY(-1.5px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.38);
 }
 
 .clip-card.copied {
-  border-color: #30d158 !important;
-  background: rgba(48, 209, 88, 0.18) !important;
+  border-color: #34c759 !important;
+  background: rgba(52, 199, 89, 0.18) !important;
+  box-shadow: 0 0 16px rgba(52, 199, 89, 0.38) !important;
 }
 
-/* Image / Screenshot card */
+/* Copied Overlay Badge */
+.clip-copied-banner {
+  position: absolute;
+  inset: 0;
+  background: rgba(18, 18, 20, 0.94);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #34c759;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 11px;
+  z-index: 10;
+  animation: clipPopIn 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes clipPopIn {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Card Header */
+.clip-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 5px;
+  width: 100%;
+}
+
+.clip-header-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.clip-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3.5px;
+  font-size: 9.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  border-radius: 5px;
+  padding: 1.5px 6px;
+  flex-shrink: 0;
+}
+
+.clip-tag.image-tag {
+  background: rgba(100, 210, 255, 0.2);
+  color: #64d2ff;
+  border: 1px solid rgba(100, 210, 255, 0.3);
+}
+
+.clip-tag.code-tag {
+  background: rgba(167, 139, 250, 0.2);
+  color: #c4b5fd;
+  border: 1px solid rgba(167, 139, 250, 0.3);
+}
+
+.clip-tag.url-tag {
+  background: rgba(52, 199, 89, 0.2);
+  color: #34c759;
+  border: 1px solid rgba(52, 199, 89, 0.3);
+}
+
+.clip-tag.color-tag {
+  background: rgba(255, 214, 10, 0.2);
+  color: #ffd60a;
+  border: 1px solid rgba(255, 214, 10, 0.3);
+}
+
+.clip-tag.text-tag {
+  background: rgba(255, 255, 255, 0.12);
+  color: #d1d1d6;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.clip-time {
+  font-size: 10px;
+  color: #8e8e93;
+  white-space: nowrap;
+}
+
+.clip-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0.55;
+  transition: opacity 0.14s ease;
+}
+
+.clip-card:hover .clip-card-actions {
+  opacity: 1;
+}
+
+.clip-btn-icon {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #a1a1aa;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.12s ease;
+}
+
+.clip-btn-icon:hover {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+
+.clip-btn-icon.btn-del:hover {
+  background: rgba(255, 69, 58, 0.2);
+  color: #ff453a;
+}
+
+/* Image / Screenshot Card (Apple Mac Crisp View) */
 .clip-card-image {
   grid-column: span 1;
-  padding: 6px;
-}
-
-.clip-card-image[draggable="true"] {
-  cursor: grab;
-}
-
-.clip-card-image[draggable="true"]:active {
-  cursor: grabbing;
 }
 
 .clip-thumb-wrap {
   width: 100%;
-  height: 64px;
-  background: #000000;
-  border-radius: 6px;
+  height: 72px;
+  background: #111114;
+  border-radius: 7px;
   overflow: hidden;
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 3px;
+  box-sizing: border-box;
 }
 
 .clip-thumb-img {
   max-width: 100%;
   max-height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  border-radius: 4px;
   display: block;
 }
 
 .clip-badge-drag {
   position: absolute;
-  bottom: 3px;
-  right: 3px;
-  background: rgba(0, 0, 0, 0.78);
-  border: 1px solid rgba(100, 210, 255, 0.4);
+  bottom: 4px;
+  right: 4px;
+  background: rgba(0, 0, 0, 0.82);
+  border: 1px solid rgba(100, 210, 255, 0.45);
   color: #64d2ff;
-  font-size: 9px;
+  font-size: 8.5px;
   font-weight: 600;
   border-radius: 4px;
   padding: 1px 5px;
@@ -3809,137 +4063,89 @@ html, body {
 .clip-card-image:hover .clip-badge-drag {
   background: #64d2ff;
   color: #000000;
+  font-weight: 700;
 }
 
-.clip-info {
+.clip-image-meta {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-top: 5px;
-}
-
-.clip-title-row {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  min-width: 0;
-}
-
-.clip-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font-size: 9px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-  border-radius: 3px;
-  padding: 1px 5px;
-  flex-shrink: 0;
-}
-
-.clip-tag.image-tag {
-  background: rgba(100, 210, 255, 0.2);
-  color: #64d2ff;
-}
-
-.clip-tag.color-tag {
-  background: rgba(255, 214, 10, 0.2);
-  color: #ffd60a;
-}
-
-.clip-tag.url-tag {
-  background: rgba(48, 209, 88, 0.2);
-  color: #30d158;
-}
-
-.clip-tag.text-tag {
-  background: rgba(255, 255, 255, 0.12);
-  color: #cccccc;
-}
-
-.clip-color-swatch {
-  width: 8px;
-  height: 8px;
-  border-radius: 2px;
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  display: inline-block;
-}
-
-.clip-res {
   font-size: 10px;
   color: #8e8e93;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.clip-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.clip-action-btn {
-  font-size: 10px;
-  font-weight: 500;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #ffffff;
-  cursor: pointer;
-  transition: all 0.12s ease;
-}
-
-.clip-action-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-.clip-action-btn.btn-del {
-  padding: 1px 5px;
-  color: #8e8e93;
-}
-
-.clip-action-btn.btn-del:hover {
-  color: #ff453a;
-  background: rgba(255, 69, 58, 0.16);
-}
-
-/* Text and Code Clips */
-.clip-header-mini {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 4px;
-}
-
-.clip-del-mini {
-  background: transparent;
-  border: none;
-  color: #666666;
-  font-size: 13px;
-  cursor: pointer;
-  line-height: 1;
-  padding: 0 2px;
-}
-
-.clip-del-mini:hover {
-  color: #ff453a;
-}
-
-.clip-text-body {
+/* Code & Terminal Snippet Card */
+.clip-code-body {
+  font-family: "SF Mono", Menlo, Monaco, Consolas, monospace;
   font-size: 11px;
-  color: #e5e5ea;
-  line-height: 1.35;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  max-height: 38px;
+  color: #e4e4e7;
+  line-height: 1.4;
+  background: rgba(0, 0, 0, 0.42);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 7px;
+  padding: 6px 8px;
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   word-break: break-all;
+  white-space: pre-wrap;
+}
+
+/* Plain Text Card */
+.clip-text-body {
+  font-size: 12px;
+  color: #f4f4f5;
+  line-height: 1.42;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
+  white-space: pre-wrap;
+  padding: 1px 0;
+}
+
+/* Link Card */
+.clip-url-body {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: #64d2ff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 4px 0;
+  text-decoration: none;
+}
+
+/* Color Card */
+.clip-color-body {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.clip-color-swatch-large {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  flex-shrink: 0;
+}
+
+.clip-color-val {
+  font-family: "SF Mono", monospace;
+  font-size: 11px;
+  color: #ffd60a;
+  font-weight: 600;
 }
 
 /* Apple iPhone / Mac Style WhatsApp Quick Reply Overlay Bar */
