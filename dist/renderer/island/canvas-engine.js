@@ -91,6 +91,9 @@ class CanvasEngine {
     targetTintR = 30;
     targetTintG = 215;
     targetTintB = 96;
+    lastPushedTintR = -1;
+    lastPushedTintG = -1;
+    lastPushedTintB = -1;
     visualizerBars = [0.1, 0.1, 0.1, 0.1, 0.1, 0.1];
     syncedLyrics = [];
     // TwoCode Synchronized Lyrics State Machine (lyrics-ui.js)
@@ -2675,14 +2678,19 @@ class CanvasEngine {
         this.currentTintR += (this.targetTintR - this.currentTintR) * 0.12;
         this.currentTintG += (this.targetTintG - this.currentTintG) * 0.12;
         this.currentTintB += (this.targetTintB - this.currentTintB) * 0.12;
-        // Push album tint into CSS custom properties so the DOM media panel reacts live
+        // Push album tint into CSS custom properties only when RGB values change (prevents per-frame DOM style recalc)
         const tr = Math.round(this.currentTintR);
         const tg = Math.round(this.currentTintG);
         const tb = Math.round(this.currentTintB);
-        document.documentElement.style.setProperty('--album-tint-r', String(tr));
-        document.documentElement.style.setProperty('--album-tint-g', String(tg));
-        document.documentElement.style.setProperty('--album-tint-b', String(tb));
-        document.documentElement.style.setProperty('--album-tint-rgb', `${tr}, ${tg}, ${tb}`);
+        if (tr !== this.lastPushedTintR || tg !== this.lastPushedTintG || tb !== this.lastPushedTintB) {
+            this.lastPushedTintR = tr;
+            this.lastPushedTintG = tg;
+            this.lastPushedTintB = tb;
+            document.documentElement.style.setProperty('--album-tint-r', String(tr));
+            document.documentElement.style.setProperty('--album-tint-g', String(tg));
+            document.documentElement.style.setProperty('--album-tint-b', String(tb));
+            document.documentElement.style.setProperty('--album-tint-rgb', `${tr}, ${tg}, ${tb}`);
+        }
         // Update dynamic reactive textures (TwoCode parity)
         texture_engine_1.TextureEngine.getInstance().update(this.config?.lastCpuPercent || 25, this.config?.lastRamPercent || 45);
         // Feature B: Auto-relax charger surge pop after duration expires

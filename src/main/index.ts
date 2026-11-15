@@ -21,6 +21,9 @@ if (!gotTheLock) {
   process.exit(0);
 }
 
+// Memory optimization: Encourage timely V8 garbage collection while maintaining full 60+ FPS animation smoothness
+app.commandLine.appendSwitch('js-flags', '--max-old-space-size=160');
+
 process.on('uncaughtException', (err) => {
   console.error('[RoboIsland] Uncaught exception:', err);
 });

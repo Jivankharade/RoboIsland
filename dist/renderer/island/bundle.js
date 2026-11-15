@@ -1577,6 +1577,9 @@
     targetTintR = 30;
     targetTintG = 215;
     targetTintB = 96;
+    lastPushedTintR = -1;
+    lastPushedTintG = -1;
+    lastPushedTintB = -1;
     visualizerBars = [0.1, 0.1, 0.1, 0.1, 0.1, 0.1];
     syncedLyrics = [];
     // TwoCode Synchronized Lyrics State Machine (lyrics-ui.js)
@@ -3914,10 +3917,15 @@
       const tr = Math.round(this.currentTintR);
       const tg = Math.round(this.currentTintG);
       const tb = Math.round(this.currentTintB);
-      document.documentElement.style.setProperty("--album-tint-r", String(tr));
-      document.documentElement.style.setProperty("--album-tint-g", String(tg));
-      document.documentElement.style.setProperty("--album-tint-b", String(tb));
-      document.documentElement.style.setProperty("--album-tint-rgb", `${tr}, ${tg}, ${tb}`);
+      if (tr !== this.lastPushedTintR || tg !== this.lastPushedTintG || tb !== this.lastPushedTintB) {
+        this.lastPushedTintR = tr;
+        this.lastPushedTintG = tg;
+        this.lastPushedTintB = tb;
+        document.documentElement.style.setProperty("--album-tint-r", String(tr));
+        document.documentElement.style.setProperty("--album-tint-g", String(tg));
+        document.documentElement.style.setProperty("--album-tint-b", String(tb));
+        document.documentElement.style.setProperty("--album-tint-rgb", `${tr}, ${tg}, ${tb}`);
+      }
       TextureEngine.getInstance().update(this.config?.lastCpuPercent || 25, this.config?.lastRamPercent || 45);
       if (this.chargerSurgeUntil > 0 && performance.now() >= this.chargerSurgeUntil) {
         this.chargerSurgeUntil = 0;

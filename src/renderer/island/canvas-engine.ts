@@ -119,6 +119,9 @@ export class CanvasEngine {
   private targetTintR: number = 30;
   private targetTintG: number = 215;
   private targetTintB: number = 96;
+  private lastPushedTintR: number = -1;
+  private lastPushedTintG: number = -1;
+  private lastPushedTintB: number = -1;
   private visualizerBars: number[] = [0.1, 0.1, 0.1, 0.1, 0.1, 0.1];
   private syncedLyrics: Array<{ timeMs: number; text: string }> = [];
   // TwoCode Synchronized Lyrics State Machine (lyrics-ui.js)
@@ -2781,14 +2784,19 @@ export class CanvasEngine {
     this.currentTintG += (this.targetTintG - this.currentTintG) * 0.12;
     this.currentTintB += (this.targetTintB - this.currentTintB) * 0.12;
 
-    // Push album tint into CSS custom properties so the DOM media panel reacts live
+    // Push album tint into CSS custom properties only when RGB values change (prevents per-frame DOM style recalc)
     const tr = Math.round(this.currentTintR);
     const tg = Math.round(this.currentTintG);
     const tb = Math.round(this.currentTintB);
-    document.documentElement.style.setProperty('--album-tint-r', String(tr));
-    document.documentElement.style.setProperty('--album-tint-g', String(tg));
-    document.documentElement.style.setProperty('--album-tint-b', String(tb));
-    document.documentElement.style.setProperty('--album-tint-rgb', `${tr}, ${tg}, ${tb}`);
+    if (tr !== this.lastPushedTintR || tg !== this.lastPushedTintG || tb !== this.lastPushedTintB) {
+      this.lastPushedTintR = tr;
+      this.lastPushedTintG = tg;
+      this.lastPushedTintB = tb;
+      document.documentElement.style.setProperty('--album-tint-r', String(tr));
+      document.documentElement.style.setProperty('--album-tint-g', String(tg));
+      document.documentElement.style.setProperty('--album-tint-b', String(tb));
+      document.documentElement.style.setProperty('--album-tint-rgb', `${tr}, ${tg}, ${tb}`);
+    }
 
     // Update dynamic reactive textures (TwoCode parity)
     TextureEngine.getInstance().update(this.config?.lastCpuPercent || 25, this.config?.lastRamPercent || 45);
