@@ -1027,6 +1027,22 @@
           if (btnTestWhatsApp) btnTestWhatsApp.textContent = "Test WhatsApp";
         }, 1500);
       });
+      const btnTestChrome = document.getElementById("btn-test-chrome");
+      btnTestChrome?.addEventListener("click", () => {
+        window.settingsApi?.postNotification?.({
+          id: "test-chrome-" + Date.now(),
+          app: "Google Chrome",
+          title: "GitHub: Build Successful",
+          body: "Workflow run completed for roboisland/main (100% passed)",
+          kind: "chrome",
+          url: "https://github.com",
+          durationMs: 5e3
+        });
+        btnTestChrome.textContent = "Pushed!";
+        setTimeout(() => {
+          if (btnTestChrome) btnTestChrome.textContent = "Test Chrome";
+        }, 1500);
+      });
       const btnTestMail = document.getElementById("btn-test-mail");
       btnTestMail?.addEventListener("click", () => {
         window.settingsApi?.postNotification?.({

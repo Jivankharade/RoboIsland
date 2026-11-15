@@ -242,11 +242,15 @@ async function runTests() {
   assert('download-monitor.js exists in dist/main', fs.existsSync(path.resolve(__dirname, '../dist/main/download-monitor.js')));
   const { CanvasEngine } = require('../dist/renderer/island/canvas-engine.js');
   const getColor = CanvasEngine.prototype.getNotificationColor;
+  const getRgb = CanvasEngine.prototype.getNotificationRgb;
   assert('Notification color for WhatsApp matches #25d366', getColor('whatsapp') === '#25d366');
+  assert('Notification color for Chrome matches #4285f4', getColor('chrome') === '#4285f4');
   assert('Notification color for Mail matches #0078d4', getColor('mail') === '#0078d4');
   assert('Notification color for active Download matches #00d2ff', getColor('download') === '#00d2ff');
   assert('Download complete notification color matches #22e05a (Green Smile)', getColor('download', 'complete') === '#22e05a');
   assert('Download error/cancelled notification color matches #ff3b3b (Red Frown)', getColor('download', 'error') === '#ff3b3b');
+  assert('Notification RGB for Chrome matches r:66, g:133, b:244', getRgb('chrome').r === 66 && getRgb('chrome').g === 133);
+  assert('drawAppleAppIcon method exists on CanvasEngine prototype', typeof CanvasEngine.prototype.drawAppleAppIcon === 'function');
 
   // 11. Testing Mascot Happy Green Smile & Sad Red Reactions
   console.log('\n--- 11. Testing Mascot Moods: Green Smile & Red Sad Frown ---');

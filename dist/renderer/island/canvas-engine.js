@@ -199,12 +199,22 @@ class CanvasEngine {
                 return '#22e05a'; // TwoCode green
             case 'whatsapp':
                 return '#25d366'; // WhatsApp brand green
+            case 'chrome':
+                return '#4285f4'; // Google Chrome blue
             case 'mail':
                 return '#0078d4'; // Outlook / Apple Mail blue
+            case 'edge':
+                return '#00b294'; // Edge teal
             case 'telegram':
                 return '#229ed9'; // Telegram blue
             case 'discord':
                 return '#5865f2'; // Discord blurple
+            case 'slack':
+                return '#e01e5a'; // Slack berry red
+            case 'teams':
+                return '#6264a7'; // Teams purple
+            case 'spotify':
+                return '#1ed760'; // Spotify green
             case 'chat':
                 return '#27c93f'; // Chat green
             case 'question':
@@ -219,7 +229,49 @@ class CanvasEngine {
             case 'badge':
                 return '#bf5af2'; // Purple
             default:
-                return '#ffffff';
+                return '#00d2ff';
+        }
+    }
+    getNotificationRgb(kind, status) {
+        const s = status || (this && this.activeNotification ? this.activeNotification.status : undefined);
+        if (kind === 'download') {
+            if (s === 'complete')
+                return { r: 34, g: 224, b: 90 };
+            if (s === 'error')
+                return { r: 255, g: 59, b: 59 };
+            return { r: 0, g: 210, b: 255 };
+        }
+        switch (kind) {
+            case 'done':
+                return { r: 34, g: 224, b: 90 };
+            case 'whatsapp':
+                return { r: 37, g: 211, b: 102 };
+            case 'chrome':
+                return { r: 66, g: 133, b: 244 };
+            case 'mail':
+                return { r: 0, g: 120, b: 212 };
+            case 'edge':
+                return { r: 0, g: 178, b: 148 };
+            case 'telegram':
+                return { r: 34, g: 158, b: 217 };
+            case 'discord':
+                return { r: 88, g: 101, b: 242 };
+            case 'slack':
+                return { r: 224, g: 30, b: 90 };
+            case 'teams':
+                return { r: 98, g: 100, b: 167 };
+            case 'spotify':
+                return { r: 30, g: 215, b: 96 };
+            case 'question':
+                return { r: 255, g: 154, b: 31 };
+            case 'error':
+                return { r: 255, g: 59, b: 59 };
+            case 'warn':
+                return { r: 255, g: 214, b: 10 };
+            case 'badge':
+                return { r: 191, g: 90, b: 242 };
+            default:
+                return { r: 0, g: 210, b: 255 };
         }
     }
     triggerNotification(n) {
@@ -2412,6 +2464,23 @@ class CanvasEngine {
                         this.clearNotification();
                         return;
                     }
+                    if (key === 'cOpenApp') {
+                        const notif = this.activeNotification;
+                        if (notif?.url && window.roboIsland?.openExternal) {
+                            window.roboIsland.openExternal(notif.url);
+                        }
+                        else if ((notif?.kind === 'chrome' || notif?.app?.toLowerCase().includes('chrome')) && window.roboIsland?.openExternal) {
+                            window.roboIsland.openExternal(notif?.url || 'https://www.google.com');
+                        }
+                        else if ((notif?.kind === 'mail' || notif?.app?.toLowerCase().includes('mail') || notif?.app?.toLowerCase().includes('outlook')) && window.roboIsland?.openExternal) {
+                            window.roboIsland.openExternal(notif?.url || 'mailto:');
+                        }
+                        else if ((notif?.kind === 'edge' || notif?.app?.toLowerCase().includes('edge')) && window.roboIsland?.openExternal) {
+                            window.roboIsland.openExternal(notif?.url || 'microsoft-edge:https://www.bing.com');
+                        }
+                        this.clearNotification();
+                        return;
+                    }
                     if (key === 'cAllow') {
                         const sid = this.activeNotification?.sessionId;
                         if (sid && window.roboIsland?.aiApprove) {
@@ -2445,7 +2514,7 @@ class CanvasEngine {
             if (inBounds && this.isWhatsAppReplying) {
                 return;
             }
-            // If notification is clicked directly (WhatsApp opens quick reply; download complete reveals in folder)
+            // If notification is clicked directly (WhatsApp opens quick reply; download complete reveals in folder; apps open)
             if (inBounds && (!this.activeNotification?.actions || this.activeNotification.actions.length === 0)) {
                 if (this.activeNotification?.kind === 'whatsapp' && !this.isWhatsAppReplying) {
                     this.openWhatsAppReply();
@@ -2453,6 +2522,12 @@ class CanvasEngine {
                 }
                 if (this.activeNotification?.filePath && window.roboIsland?.showItemInFolder) {
                     window.roboIsland.showItemInFolder(this.activeNotification.filePath);
+                }
+                else if ((this.activeNotification?.kind === 'chrome' || this.activeNotification?.app?.toLowerCase().includes('chrome')) && window.roboIsland?.openExternal) {
+                    window.roboIsland.openExternal(this.activeNotification.url || 'https://www.google.com');
+                }
+                else if ((this.activeNotification?.kind === 'mail' || this.activeNotification?.app?.toLowerCase().includes('mail') || this.activeNotification?.app?.toLowerCase().includes('outlook')) && window.roboIsland?.openExternal) {
+                    window.roboIsland.openExternal(this.activeNotification.url || 'mailto:');
                 }
                 this.clearNotification();
                 return;
@@ -3179,6 +3254,21 @@ class CanvasEngine {
             this.ctx.fillRect(left - 20, topY, w + 40, h);
             this.ctx.restore();
         }
+        else if (this.isNotificationActive()) {
+            // Dynamic Notification App Ambient Tint Gradient (Direct parity with Spotify album styling)
+            const { r: nr, g: ng, b: nb } = this.getNotificationRgb(this.activeNotification?.kind, this.activeNotification?.status);
+            this.ctx.save();
+            this.islandPath(this.ctx, left, topY, w, h, r);
+            this.ctx.clip();
+            const fold = h < 60;
+            const tintGrad = this.ctx.createLinearGradient(0, fold ? topY : topY + h * 0.18, 0, topY + h);
+            tintGrad.addColorStop(0, `rgba(${nr}, ${ng}, ${nb}, ${fold ? 0.08 : 0})`);
+            tintGrad.addColorStop(0.5, `rgba(${nr}, ${ng}, ${nb}, ${fold ? 0.18 : 0.12})`);
+            tintGrad.addColorStop(1, `rgba(${nr}, ${ng}, ${nb}, 0.36)`);
+            this.ctx.fillStyle = tintGrad;
+            this.ctx.fillRect(left - 20, topY, w + 40, h);
+            this.ctx.restore();
+        }
         // Subtle Rim Stroke (Clipped to y >= 3 so top bezel has zero stroke, exactly matching TwoCode mascot.html:2154-2159)
         this.ctx.save();
         this.ctx.shadowColor = 'transparent';
@@ -3188,7 +3278,12 @@ class CanvasEngine {
         this.islandPath(this.ctx, left + 0.5, topY, w - 1, h - 0.5, r);
         this.ctx.lineWidth = 1.0;
         if (this.isNotificationActive()) {
-            this.ctx.strokeStyle = this.getNotificationColor(this.activeNotification?.kind);
+            const { r: nr, g: ng, b: nb } = this.getNotificationRgb(this.activeNotification?.kind, this.activeNotification?.status);
+            const rimGrad = this.ctx.createLinearGradient(0, topY, 0, topY + h);
+            rimGrad.addColorStop(0, 'rgba(255, 255, 255, 0.22)');
+            rimGrad.addColorStop(0.5, `rgba(${nr}, ${ng}, ${nb}, 0.45)`);
+            rimGrad.addColorStop(1, `rgba(${nr}, ${ng}, ${nb}, 0.75)`);
+            this.ctx.strokeStyle = rimGrad;
             this.ctx.lineWidth = 1.6;
         }
         else if (isAirDropHudActive) {
@@ -3394,11 +3489,554 @@ class CanvasEngine {
         }
     }
     /**
+     * Authentic Apple Mac / iOS Vector Squircle App Icon:
+     * Zero bitmap lag, 100% 60 FPS vector canvas rendering.
+     * Matches Apple HIG squircle geometry with continuous curvature,
+     * specular glass gradient top reflection, and crisp brand vector glyphs.
+     */
+    drawAppleAppIcon(iconCx, iconCy, iconR = 11, kind, status, appName) {
+        const s = status || (this && this.activeNotification ? this.activeNotification.status : undefined);
+        const app = (appName || '').toLowerCase();
+        let k = (kind || '').toLowerCase();
+        if (!k || k === 'info' || k === 'badge' || k === 'pop') {
+            if (app.includes('whatsapp'))
+                k = 'whatsapp';
+            else if (app.includes('chrome'))
+                k = 'chrome';
+            else if (app.includes('mail') || app.includes('outlook') || app.includes('thunderbird'))
+                k = 'mail';
+            else if (app.includes('edge'))
+                k = 'edge';
+            else if (app.includes('telegram'))
+                k = 'telegram';
+            else if (app.includes('discord'))
+                k = 'discord';
+            else if (app.includes('slack'))
+                k = 'slack';
+            else if (app.includes('teams'))
+                k = 'teams';
+            else if (app.includes('spotify'))
+                k = 'spotify';
+        }
+        const size = iconR * 2;
+        const sx = iconCx - iconR;
+        const sy = iconCy - iconR;
+        const cr = iconR * 0.48; // Continuous Apple squircle corner radius
+        this.ctx.save();
+        // 1. WhatsApp iOS App Icon
+        if (k === 'whatsapp') {
+            const grad = this.ctx.createLinearGradient(sx, sy, sx, sy + size);
+            grad.addColorStop(0, '#2ee26a');
+            grad.addColorStop(1, '#1aa84b');
+            this.ctx.beginPath();
+            this.ctx.roundRect(sx, sy, size, size, cr);
+            this.ctx.fillStyle = grad;
+            this.ctx.fill();
+            // Top specular glass highlight
+            const sheen = this.ctx.createLinearGradient(sx, sy, sx, sy + size * 0.5);
+            sheen.addColorStop(0, 'rgba(255, 255, 255, 0.35)');
+            sheen.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            this.ctx.fillStyle = sheen;
+            this.ctx.beginPath();
+            this.ctx.roundRect(sx, sy, size, size * 0.5, [cr, cr, 0, 0]);
+            this.ctx.fill();
+            this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+            this.ctx.lineWidth = 0.8;
+            this.ctx.stroke();
+            // WhatsApp Speech Bubble in crisp white
+            this.ctx.fillStyle = '#ffffff';
+            this.ctx.beginPath();
+            this.ctx.arc(iconCx, iconCy - 0.5, 5.2, 0, Math.PI * 2);
+            this.ctx.fill();
+            // Speech bubble tail at bottom-left
+            this.ctx.beginPath();
+            this.ctx.moveTo(iconCx - 2.8, iconCy + 3.0);
+            this.ctx.lineTo(iconCx - 5.4, iconCy + 5.5);
+            this.ctx.lineTo(iconCx - 1.0, iconCy + 4.6);
+            this.ctx.closePath();
+            this.ctx.fill();
+            // Telephone Handset in WhatsApp Green
+            this.ctx.save();
+            this.ctx.translate(iconCx, iconCy - 0.5);
+            this.ctx.rotate(-Math.PI / 10);
+            this.ctx.strokeStyle = '#20b852';
+            this.ctx.lineWidth = 1.6;
+            this.ctx.lineCap = 'round';
+            this.ctx.beginPath();
+            this.ctx.arc(0, 0, 2.5, Math.PI * 0.65, Math.PI * 1.35, true);
+            this.ctx.stroke();
+            this.ctx.fillStyle = '#20b852';
+            this.ctx.beginPath();
+            this.ctx.arc(-2.0, -1.8, 1.0, 0, Math.PI * 2);
+            this.ctx.arc(-2.0, 1.8, 1.0, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.restore();
+            this.ctx.restore();
+            return;
+        }
+        // 2. Google Chrome Apple Mac / iOS Icon
+        if (k === 'chrome') {
+            const grad = this.ctx.createLinearGradient(sx, sy, sx, sy + size);
+            grad.addColorStop(0, '#ffffff');
+            grad.addColorStop(1, '#f0f0f2');
+            this.ctx.beginPath();
+            this.ctx.roundRect(sx, sy, size, size, cr);
+            this.ctx.fillStyle = grad;
+            this.ctx.fill();
+            // Specular sheen
+            const sheen = this.ctx.createLinearGradient(sx, sy, sx, sy + size * 0.5);
+            sheen.addColorStop(0, 'rgba(255, 255, 255, 0.6)');
+            sheen.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            this.ctx.fillStyle = sheen;
+            this.ctx.beginPath();
+            this.ctx.roundRect(sx, sy, size, size * 0.5, [cr, cr, 0, 0]);
+            this.ctx.fill();
+            this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.12)';
+            this.ctx.lineWidth = 0.8;
+            this.ctx.stroke();
+            // Google Chrome 4-Color Pinwheel
+            const chromeR = 6.8;
+            // Red Blade (top)
+            this.ctx.fillStyle = '#ea4335';
+            this.ctx.beginPath();
+            this.ctx.moveTo(iconCx, iconCy);
+            this.ctx.arc(iconCx, iconCy, chromeR, -Math.PI * 5 / 6, -Math.PI / 6);
+            this.ctx.closePath();
+            this.ctx.fill();
+            // Yellow Blade (bottom-right)
+            this.ctx.fillStyle = '#fbbc05';
+            this.ctx.beginPath();
+            this.ctx.moveTo(iconCx, iconCy);
+            this.ctx.arc(iconCx, iconCy, chromeR, -Math.PI / 6, Math.PI / 2);
+            this.ctx.closePath();
+            this.ctx.fill();
+            // Green Blade (bottom-left)
+            this.ctx.fillStyle = '#34a853';
+            this.ctx.beginPath();
+            this.ctx.moveTo(iconCx, iconCy);
+            this.ctx.arc(iconCx, iconCy, chromeR, Math.PI / 2, -Math.PI * 5 / 6);
+            this.ctx.closePath();
+            this.ctx.fill();
+            // White Divider Ring
+            this.ctx.fillStyle = '#ffffff';
+            this.ctx.beginPath();
+            this.ctx.arc(iconCx, iconCy, 3.2, 0, Math.PI * 2);
+            this.ctx.fill();
+            // Google Blue Core
+            this.ctx.fillStyle = '#4285f4';
+            this.ctx.beginPath();
+            this.ctx.arc(iconCx, iconCy, 2.3, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.restore();
+            return;
+        }
+        // 3. Apple Mail / Outlook Icon
+        if (k === 'mail') {
+            const grad = this.ctx.createLinearGradient(sx, sy, sx, sy + size);
+            grad.addColorStop(0, '#1a85ff');
+            grad.addColorStop(1, '#005edb');
+            this.ctx.beginPath();
+            this.ctx.roundRect(sx, sy, size, size, cr);
+            this.ctx.fillStyle = grad;
+            this.ctx.fill();
+            // Top specular glass highlight
+            const sheen = this.ctx.createLinearGradient(sx, sy, sx, sy + size * 0.5);
+            sheen.addColorStop(0, 'rgba(255, 255, 255, 0.35)');
+            sheen.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            this.ctx.fillStyle = sheen;
+            this.ctx.beginPath();
+            this.ctx.roundRect(sx, sy, size, size * 0.5, [cr, cr, 0, 0]);
+            this.ctx.fill();
+            this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+            this.ctx.lineWidth = 0.8;
+            this.ctx.stroke();
+            // White Folded Envelope
+            const ew = 12.0;
+            const eh = 8.5;
+            const ex = iconCx - ew / 2;
+            const ey = iconCy - eh / 2;
+            this.ctx.fillStyle = '#ffffff';
+            this.ctx.beginPath();
+            this.ctx.roundRect(ex, ey, ew, eh, 1.2);
+            this.ctx.fill();
+            // Flap crease
+            this.ctx.strokeStyle = '#005edb';
+            this.ctx.lineWidth = 1.1;
+            this.ctx.lineCap = 'round';
+            this.ctx.lineJoin = 'round';
+            this.ctx.beginPath();
+            this.ctx.moveTo(ex + 0.6, ey + 0.6);
+            this.ctx.lineTo(iconCx, ey + 4.8);
+            this.ctx.lineTo(ex + ew - 0.6, ey + 0.6);
+            this.ctx.stroke();
+            // Subtle lower creases
+            this.ctx.strokeStyle = 'rgba(0, 94, 219, 0.35)';
+            this.ctx.lineWidth = 0.9;
+            this.ctx.beginPath();
+            this.ctx.moveTo(ex + 0.6, ey + eh - 0.6);
+            this.ctx.lineTo(iconCx - 2.0, ey + 4.0);
+            this.ctx.moveTo(ex + ew - 0.6, ey + eh - 0.6);
+            this.ctx.lineTo(iconCx + 2.0, ey + 4.0);
+            this.ctx.stroke();
+            this.ctx.restore();
+            return;
+        }
+        // 4. Apple Mac Safari / Downloads Icon
+        if (k === 'download') {
+            const isComplete = s === 'complete' || (this.activeNotification?.title?.toLowerCase().includes('complete') ?? false);
+            const isError = s === 'error' || (this.activeNotification?.title?.toLowerCase().includes('cancel') ?? false) || (this.activeNotification?.title?.toLowerCase().includes('fail') ?? false);
+            if (isComplete) {
+                // Complete: Emerald Green Apple Squircle with Bold White Checkmark
+                const grad = this.ctx.createLinearGradient(sx, sy, sx, sy + size);
+                grad.addColorStop(0, '#28cd41');
+                grad.addColorStop(1, '#22e05a');
+                this.ctx.beginPath();
+                this.ctx.roundRect(sx, sy, size, size, cr);
+                this.ctx.fillStyle = grad;
+                this.ctx.fill();
+                const sheen = this.ctx.createLinearGradient(sx, sy, sx, sy + size * 0.5);
+                sheen.addColorStop(0, 'rgba(255, 255, 255, 0.4)');
+                sheen.addColorStop(1, 'rgba(255, 255, 255, 0)');
+                this.ctx.fillStyle = sheen;
+                this.ctx.beginPath();
+                this.ctx.roundRect(sx, sy, size, size * 0.5, [cr, cr, 0, 0]);
+                this.ctx.fill();
+                this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                this.ctx.lineWidth = 0.8;
+                this.ctx.stroke();
+                this.ctx.strokeStyle = '#ffffff';
+                this.ctx.lineWidth = 1.8;
+                this.ctx.lineCap = 'round';
+                this.ctx.lineJoin = 'round';
+                this.ctx.beginPath();
+                this.ctx.moveTo(iconCx - 3.8, iconCy + 0.2);
+                this.ctx.lineTo(iconCx - 1.2, iconCy + 3.2);
+                this.ctx.lineTo(iconCx + 4.2, iconCy - 2.8);
+                this.ctx.stroke();
+            }
+            else if (isError) {
+                // Error / Cancelled: Crimson Red Apple Squircle with Bold White X
+                const grad = this.ctx.createLinearGradient(sx, sy, sx, sy + size);
+                grad.addColorStop(0, '#ff3b30');
+                grad.addColorStop(1, '#d70015');
+                this.ctx.beginPath();
+                this.ctx.roundRect(sx, sy, size, size, cr);
+                this.ctx.fillStyle = grad;
+                this.ctx.fill();
+                const sheen = this.ctx.createLinearGradient(sx, sy, sx, sy + size * 0.5);
+                sheen.addColorStop(0, 'rgba(255, 255, 255, 0.35)');
+                sheen.addColorStop(1, 'rgba(255, 255, 255, 0)');
+                this.ctx.fillStyle = sheen;
+                this.ctx.beginPath();
+                this.ctx.roundRect(sx, sy, size, size * 0.5, [cr, cr, 0, 0]);
+                this.ctx.fill();
+                this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                this.ctx.lineWidth = 0.8;
+                this.ctx.stroke();
+                this.ctx.strokeStyle = '#ffffff';
+                this.ctx.lineWidth = 1.8;
+                this.ctx.lineCap = 'round';
+                this.ctx.beginPath();
+                this.ctx.moveTo(iconCx - 3.2, iconCy - 3.2);
+                this.ctx.lineTo(iconCx + 3.2, iconCy + 3.2);
+                this.ctx.moveTo(iconCx + 3.2, iconCy - 3.2);
+                this.ctx.lineTo(iconCx - 3.2, iconCy + 3.2);
+                this.ctx.stroke();
+            }
+            else {
+                // Downloading: Apple Mac Safari Platter with Dynamic Progress Ring and Bobbing Arrow
+                const grad = this.ctx.createLinearGradient(sx, sy, sx, sy + size);
+                grad.addColorStop(0, '#1c1c1e');
+                grad.addColorStop(1, '#0e1217');
+                this.ctx.beginPath();
+                this.ctx.roundRect(sx, sy, size, size, cr);
+                this.ctx.fillStyle = grad;
+                this.ctx.fill();
+                const sheen = this.ctx.createLinearGradient(sx, sy, sx, sy + size * 0.5);
+                sheen.addColorStop(0, 'rgba(255, 255, 255, 0.18)');
+                sheen.addColorStop(1, 'rgba(255, 255, 255, 0)');
+                this.ctx.fillStyle = sheen;
+                this.ctx.beginPath();
+                this.ctx.roundRect(sx, sy, size, size * 0.5, [cr, cr, 0, 0]);
+                this.ctx.fill();
+                this.ctx.strokeStyle = 'rgba(0, 210, 255, 0.45)';
+                this.ctx.lineWidth = 0.9;
+                this.ctx.stroke();
+                // Progress ring
+                const pr = 6.4;
+                this.ctx.beginPath();
+                this.ctx.arc(iconCx, iconCy, pr, 0, Math.PI * 2);
+                this.ctx.strokeStyle = 'rgba(0, 210, 255, 0.22)';
+                this.ctx.lineWidth = 1.6;
+                this.ctx.stroke();
+                // Progress arc
+                this.ctx.beginPath();
+                const prog = this.activeNotification?.progress;
+                if (typeof prog === 'number' && prog > 0) {
+                    const startAngle = -Math.PI / 2;
+                    const endAngle = startAngle + Math.PI * 2 * Math.min(1, Math.max(0, prog));
+                    this.ctx.arc(iconCx, iconCy, pr, startAngle, endAngle);
+                }
+                else {
+                    const rot = (performance.now() / 450) % (Math.PI * 2);
+                    this.ctx.arc(iconCx, iconCy, pr, rot, rot + Math.PI * 0.9);
+                }
+                this.ctx.strokeStyle = '#00d2ff';
+                this.ctx.lineWidth = 1.8;
+                this.ctx.lineCap = 'round';
+                this.ctx.stroke();
+                // Bobbing Arrow & Platter Tray
+                const arrowBob = Math.sin(performance.now() / 240) * 0.7;
+                this.ctx.strokeStyle = '#00d2ff';
+                this.ctx.lineWidth = 1.4;
+                this.ctx.lineCap = 'round';
+                this.ctx.lineJoin = 'round';
+                // Downward Arrow
+                this.ctx.beginPath();
+                this.ctx.moveTo(iconCx, iconCy - 3.2 + arrowBob);
+                this.ctx.lineTo(iconCx, iconCy + 1.8 + arrowBob);
+                this.ctx.moveTo(iconCx - 2.2, iconCy + arrowBob);
+                this.ctx.lineTo(iconCx, iconCy + 2.0 + arrowBob);
+                this.ctx.lineTo(iconCx + 2.2, iconCy + arrowBob);
+                this.ctx.stroke();
+                // Tray platter
+                this.ctx.beginPath();
+                this.ctx.moveTo(iconCx - 3.2, iconCy + 3.8);
+                this.ctx.lineTo(iconCx + 3.2, iconCy + 3.8);
+                this.ctx.stroke();
+            }
+            this.ctx.restore();
+            return;
+        }
+        // 5. Telegram Icon
+        if (k === 'telegram') {
+            const grad = this.ctx.createLinearGradient(sx, sy, sx, sy + size);
+            grad.addColorStop(0, '#29b6f6');
+            grad.addColorStop(1, '#0288d1');
+            this.ctx.beginPath();
+            this.ctx.roundRect(sx, sy, size, size, cr);
+            this.ctx.fillStyle = grad;
+            this.ctx.fill();
+            // Sheen
+            const sheen = this.ctx.createLinearGradient(sx, sy, sx, sy + size * 0.5);
+            sheen.addColorStop(0, 'rgba(255, 255, 255, 0.35)');
+            sheen.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            this.ctx.fillStyle = sheen;
+            this.ctx.beginPath();
+            this.ctx.roundRect(sx, sy, size, size * 0.5, [cr, cr, 0, 0]);
+            this.ctx.fill();
+            this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+            this.ctx.lineWidth = 0.8;
+            this.ctx.stroke();
+            // White Paper Airplane
+            this.ctx.fillStyle = '#ffffff';
+            this.ctx.beginPath();
+            this.ctx.moveTo(iconCx - 4.8, iconCy + 0.4);
+            this.ctx.lineTo(iconCx + 5.2, iconCy - 4.4);
+            this.ctx.lineTo(iconCx + 1.2, iconCy + 4.6);
+            this.ctx.lineTo(iconCx - 0.6, iconCy + 1.2);
+            this.ctx.closePath();
+            this.ctx.fill();
+            this.ctx.strokeStyle = '#0288d1';
+            this.ctx.lineWidth = 0.9;
+            this.ctx.beginPath();
+            this.ctx.moveTo(iconCx + 5.2, iconCy - 4.4);
+            this.ctx.lineTo(iconCx - 0.6, iconCy + 1.2);
+            this.ctx.stroke();
+            this.ctx.restore();
+            return;
+        }
+        // 6. Discord Icon
+        if (k === 'discord') {
+            const grad = this.ctx.createLinearGradient(sx, sy, sx, sy + size);
+            grad.addColorStop(0, '#5865f2');
+            grad.addColorStop(1, '#4752c4');
+            this.ctx.beginPath();
+            this.ctx.roundRect(sx, sy, size, size, cr);
+            this.ctx.fillStyle = grad;
+            this.ctx.fill();
+            const sheen = this.ctx.createLinearGradient(sx, sy, sx, sy + size * 0.5);
+            sheen.addColorStop(0, 'rgba(255, 255, 255, 0.35)');
+            sheen.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            this.ctx.fillStyle = sheen;
+            this.ctx.beginPath();
+            this.ctx.roundRect(sx, sy, size, size * 0.5, [cr, cr, 0, 0]);
+            this.ctx.fill();
+            this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+            this.ctx.lineWidth = 0.8;
+            this.ctx.stroke();
+            // Clydesdale silhouette in white
+            this.ctx.fillStyle = '#ffffff';
+            this.ctx.beginPath();
+            this.ctx.roundRect(iconCx - 5.5, iconCy - 3.8, 11, 7.6, 2.8);
+            this.ctx.fill();
+            // Eyes in blurple
+            this.ctx.fillStyle = '#4752c4';
+            this.ctx.beginPath();
+            this.ctx.arc(iconCx - 2.4, iconCy, 1.2, 0, Math.PI * 2);
+            this.ctx.arc(iconCx + 2.4, iconCy, 1.2, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.restore();
+            return;
+        }
+        // 7. Microsoft Edge Icon
+        if (k === 'edge') {
+            const grad = this.ctx.createLinearGradient(sx, sy, sx, sy + size);
+            grad.addColorStop(0, '#0078d7');
+            grad.addColorStop(1, '#00b294');
+            this.ctx.beginPath();
+            this.ctx.roundRect(sx, sy, size, size, cr);
+            this.ctx.fillStyle = grad;
+            this.ctx.fill();
+            const sheen = this.ctx.createLinearGradient(sx, sy, sx, sy + size * 0.5);
+            sheen.addColorStop(0, 'rgba(255, 255, 255, 0.35)');
+            sheen.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            this.ctx.fillStyle = sheen;
+            this.ctx.beginPath();
+            this.ctx.roundRect(sx, sy, size, size * 0.5, [cr, cr, 0, 0]);
+            this.ctx.fill();
+            this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+            this.ctx.lineWidth = 0.8;
+            this.ctx.stroke();
+            // Wave swirl
+            this.ctx.strokeStyle = '#ffffff';
+            this.ctx.lineWidth = 1.8;
+            this.ctx.lineCap = 'round';
+            this.ctx.beginPath();
+            this.ctx.arc(iconCx, iconCy, 4.8, 0.2, Math.PI * 1.4);
+            this.ctx.stroke();
+            this.ctx.restore();
+            return;
+        }
+        // 8. Spotify Icon
+        if (k === 'spotify') {
+            const grad = this.ctx.createLinearGradient(sx, sy, sx, sy + size);
+            grad.addColorStop(0, '#1db954');
+            grad.addColorStop(1, '#1aa34a');
+            this.ctx.beginPath();
+            this.ctx.roundRect(sx, sy, size, size, cr);
+            this.ctx.fillStyle = grad;
+            this.ctx.fill();
+            const sheen = this.ctx.createLinearGradient(sx, sy, sx, sy + size * 0.5);
+            sheen.addColorStop(0, 'rgba(255, 255, 255, 0.35)');
+            sheen.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            this.ctx.fillStyle = sheen;
+            this.ctx.beginPath();
+            this.ctx.roundRect(sx, sy, size, size * 0.5, [cr, cr, 0, 0]);
+            this.ctx.fill();
+            this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+            this.ctx.lineWidth = 0.8;
+            this.ctx.stroke();
+            // 3 Black Curved Audio Waves
+            this.ctx.strokeStyle = '#000000';
+            this.ctx.lineCap = 'round';
+            this.ctx.lineWidth = 1.6;
+            this.ctx.beginPath();
+            this.ctx.arc(iconCx, iconCy + 5.6, 6.6, -Math.PI * 0.72, -Math.PI * 0.28);
+            this.ctx.stroke();
+            this.ctx.lineWidth = 1.4;
+            this.ctx.beginPath();
+            this.ctx.arc(iconCx, iconCy + 5.0, 4.8, -Math.PI * 0.72, -Math.PI * 0.28);
+            this.ctx.stroke();
+            this.ctx.lineWidth = 1.2;
+            this.ctx.beginPath();
+            this.ctx.arc(iconCx, iconCy + 4.4, 3.2, -Math.PI * 0.72, -Math.PI * 0.28);
+            this.ctx.stroke();
+            this.ctx.restore();
+            return;
+        }
+        // 9. Done / Checkmark Icon
+        if (k === 'done') {
+            const grad = this.ctx.createLinearGradient(sx, sy, sx, sy + size);
+            grad.addColorStop(0, '#28cd41');
+            grad.addColorStop(1, '#22e05a');
+            this.ctx.beginPath();
+            this.ctx.roundRect(sx, sy, size, size, cr);
+            this.ctx.fillStyle = grad;
+            this.ctx.fill();
+            const sheen = this.ctx.createLinearGradient(sx, sy, sx, sy + size * 0.5);
+            sheen.addColorStop(0, 'rgba(255, 255, 255, 0.4)');
+            sheen.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            this.ctx.fillStyle = sheen;
+            this.ctx.beginPath();
+            this.ctx.roundRect(sx, sy, size, size * 0.5, [cr, cr, 0, 0]);
+            this.ctx.fill();
+            this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            this.ctx.lineWidth = 0.8;
+            this.ctx.stroke();
+            this.ctx.strokeStyle = '#ffffff';
+            this.ctx.lineWidth = 1.8;
+            this.ctx.lineCap = 'round';
+            this.ctx.lineJoin = 'round';
+            this.ctx.beginPath();
+            this.ctx.moveTo(iconCx - 3.8, iconCy + 0.2);
+            this.ctx.lineTo(iconCx - 1.2, iconCy + 3.2);
+            this.ctx.lineTo(iconCx + 4.2, iconCy - 2.8);
+            this.ctx.stroke();
+            this.ctx.restore();
+            return;
+        }
+        // 10. AI Sparkle / Question Icon
+        if (k === 'question') {
+            const grad = this.ctx.createLinearGradient(sx, sy, sx, sy + size);
+            grad.addColorStop(0, '#ff9500');
+            grad.addColorStop(1, '#ff5e3a');
+            this.ctx.beginPath();
+            this.ctx.roundRect(sx, sy, size, size, cr);
+            this.ctx.fillStyle = grad;
+            this.ctx.fill();
+            const sheen = this.ctx.createLinearGradient(sx, sy, sx, sy + size * 0.5);
+            sheen.addColorStop(0, 'rgba(255, 255, 255, 0.4)');
+            sheen.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            this.ctx.fillStyle = sheen;
+            this.ctx.beginPath();
+            this.ctx.roundRect(sx, sy, size, size * 0.5, [cr, cr, 0, 0]);
+            this.ctx.fill();
+            this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            this.ctx.lineWidth = 0.8;
+            this.ctx.stroke();
+            // Claude 8-point Sparkle in white
+            this.ctx.strokeStyle = '#ffffff';
+            this.ctx.lineWidth = 1.8;
+            this.ctx.lineCap = 'round';
+            for (let i = 0; i < 4; i++) {
+                const an = (i * Math.PI) / 4;
+                this.ctx.beginPath();
+                this.ctx.moveTo(iconCx - Math.cos(an) * 4.8, iconCy - Math.sin(an) * 4.8);
+                this.ctx.lineTo(iconCx + Math.cos(an) * 4.8, iconCy + Math.sin(an) * 4.8);
+                this.ctx.stroke();
+            }
+            this.ctx.restore();
+            return;
+        }
+        // 11. Generic / System Notification (Deep macOS Midnight Indigo with Floating Mascot Eyes)
+        const grad = this.ctx.createLinearGradient(sx, sy, sx, sy + size);
+        grad.addColorStop(0, '#4338ca');
+        grad.addColorStop(1, '#312e81');
+        this.ctx.beginPath();
+        this.ctx.roundRect(sx, sy, size, size, cr);
+        this.ctx.fillStyle = grad;
+        this.ctx.fill();
+        const sheen = this.ctx.createLinearGradient(sx, sy, sx, sy + size * 0.5);
+        sheen.addColorStop(0, 'rgba(255, 255, 255, 0.35)');
+        sheen.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        this.ctx.fillStyle = sheen;
+        this.ctx.beginPath();
+        this.ctx.roundRect(sx, sy, size, size * 0.5, [cr, cr, 0, 0]);
+        this.ctx.fill();
+        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+        this.ctx.lineWidth = 0.8;
+        this.ctx.stroke();
+        // Floating Mascot Eyes centered inside Apple squircle
+        this.mascot.drawFloatingEyes(this.ctx, iconCx, iconCy, 0.65);
+        this.ctx.restore();
+    }
+    /**
      * TwoCode & Apple Dynamic Island Notification Content Renderer:
      * Direct parity with TwoCode ai-monitor-ui.js & Apple Dynamic Island.
-     * - Left: Mascot eyes, WhatsApp badge, Mail icon, or Apple Mac download ring
+     * - Left: Authentic Apple Mac / iOS Squircle App Icon (WhatsApp, Chrome, Mail, Safari/Download, etc.)
      * - Center: Title & body with graceful font and string truncation
-     * - Right: Interactive Allow / Deny buttons, WhatsApp Reply chip, Download Open chip, or circular dismiss button
+     * - Right: Interactive Allow / Deny buttons, WhatsApp Reply chip, App Open chip, or circular dismiss button
      * - Expanded Quick Reply: Apple iPhone / Mac style WhatsApp text input & send button
      */
     drawNotificationContent(pillLeft, midY, topY) {
@@ -3419,22 +4057,8 @@ class CanvasEngine {
             const badgeR = 8;
             const badgeCx = left + 8;
             this.ctx.save();
-            // WhatsApp mini badge
-            this.ctx.beginPath();
-            this.ctx.arc(badgeCx, headCy, badgeR, 0, Math.PI * 2);
-            this.ctx.fillStyle = '#25d366';
-            this.ctx.fill();
-            // Handset silhouette
-            this.ctx.fillStyle = '#ffffff';
-            this.ctx.beginPath();
-            this.ctx.arc(badgeCx, headCy, 4, 0, Math.PI * 2);
-            this.ctx.fill();
-            this.ctx.fillStyle = '#25d366';
-            this.ctx.beginPath();
-            this.ctx.arc(badgeCx, headCy, 2.4, 0, Math.PI * 2);
-            this.ctx.fill();
-            this.ctx.fillStyle = '#ffffff';
-            this.ctx.fillRect(badgeCx - 1.5, headCy - 3, 3, 6);
+            // WhatsApp Apple Squircle mini icon
+            this.drawAppleAppIcon(badgeCx, headCy, badgeR, 'whatsapp');
             // Contact Title
             const sender = (n.title || 'WhatsApp').replace(/^WhatsApp:\s*/i, '');
             this.ctx.font = '600 12px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
@@ -3539,167 +4163,14 @@ class CanvasEngine {
             return;
         }
         // =========================================================================
-        // 2. Standard Compact Island Notification (WhatsApp, Downloads, Mail, AI)
+        // 2. Standard Compact Island Notification (WhatsApp, Downloads, Mail, Chrome, AI)
         // =========================================================================
-        // Left Icon / App Badge (WhatsApp, Mail, Download, Done, AI Sparkle, Mascot Eyes)
-        const iconR = 10;
-        const iconCx = left + 8;
+        // Authentic Apple Mac / iOS Style Vector App Icon (Zero bitmap lag, crisp 60 FPS)
+        const iconR = 11;
+        const iconCx = left + 9;
         const iconCy = cy;
-        if (n.kind === 'whatsapp') {
-            // WhatsApp brand green circular badge with phone/chat handset icon
-            this.ctx.save();
-            this.ctx.beginPath();
-            this.ctx.arc(iconCx, iconCy, iconR, 0, Math.PI * 2);
-            this.ctx.fillStyle = '#25d366';
-            this.ctx.fill();
-            // Handset silhouette in white
-            this.ctx.fillStyle = '#ffffff';
-            this.ctx.beginPath();
-            this.ctx.arc(iconCx, iconCy, 5, 0, Math.PI * 2);
-            this.ctx.fill();
-            this.ctx.fillStyle = '#25d366';
-            this.ctx.beginPath();
-            this.ctx.arc(iconCx, iconCy, 3, 0, Math.PI * 2);
-            this.ctx.fill();
-            this.ctx.fillStyle = '#ffffff';
-            this.ctx.fillRect(iconCx - 2, iconCy - 4, 4, 8);
-            this.ctx.restore();
-        }
-        else if (n.kind === 'mail') {
-            // Mail blue circular badge with envelope icon
-            this.ctx.save();
-            this.ctx.beginPath();
-            this.ctx.arc(iconCx, iconCy, iconR, 0, Math.PI * 2);
-            this.ctx.fillStyle = '#0078d4';
-            this.ctx.fill();
-            // Envelope icon
-            this.ctx.strokeStyle = '#ffffff';
-            this.ctx.lineWidth = 1.4;
-            this.ctx.lineCap = 'round';
-            this.ctx.lineJoin = 'round';
-            const ew = 10, eh = 7;
-            this.ctx.strokeRect(iconCx - ew / 2, iconCy - eh / 2, ew, eh);
-            this.ctx.beginPath();
-            this.ctx.moveTo(iconCx - ew / 2, iconCy - eh / 2);
-            this.ctx.lineTo(iconCx, iconCy + 0.5);
-            this.ctx.lineTo(iconCx + ew / 2, iconCy - eh / 2);
-            this.ctx.stroke();
-            this.ctx.restore();
-        }
-        else if (n.kind === 'download') {
-            const isComplete = n.status === 'complete' || n.title?.toLowerCase().includes('complete');
-            const isError = n.status === 'error' || n.title?.toLowerCase().includes('cancel') || n.title?.toLowerCase().includes('fail');
-            this.ctx.save();
-            if (isComplete) {
-                // "when download complete it show green smile" -> Green circle with clean checkmark
-                this.ctx.beginPath();
-                this.ctx.arc(iconCx, iconCy, iconR, 0, Math.PI * 2);
-                this.ctx.fillStyle = '#22e05a';
-                this.ctx.fill();
-                this.ctx.strokeStyle = '#ffffff';
-                this.ctx.lineWidth = 1.6;
-                this.ctx.lineCap = 'round';
-                this.ctx.lineJoin = 'round';
-                this.ctx.beginPath();
-                this.ctx.moveTo(iconCx - 3.5, iconCy + 0.5);
-                this.ctx.lineTo(iconCx - 1, iconCy + 3);
-                this.ctx.lineTo(iconCx + 4, iconCy - 2.5);
-                this.ctx.stroke();
-            }
-            else if (isError) {
-                // "and when not download it show red" -> Red circle with clean X
-                this.ctx.beginPath();
-                this.ctx.arc(iconCx, iconCy, iconR, 0, Math.PI * 2);
-                this.ctx.fillStyle = '#ff3b3b';
-                this.ctx.fill();
-                this.ctx.strokeStyle = '#ffffff';
-                this.ctx.lineWidth = 1.6;
-                this.ctx.lineCap = 'round';
-                const cross = 3;
-                this.ctx.beginPath();
-                this.ctx.moveTo(iconCx - cross, iconCy - cross);
-                this.ctx.lineTo(iconCx + cross, iconCy + cross);
-                this.ctx.moveTo(iconCx + cross, iconCy - cross);
-                this.ctx.lineTo(iconCx - cross, iconCy + cross);
-                this.ctx.stroke();
-            }
-            else {
-                // Apple Mac style downloading circular progress ring with downward arrow
-                this.ctx.beginPath();
-                this.ctx.arc(iconCx, iconCy, iconR, 0, Math.PI * 2);
-                this.ctx.fillStyle = 'rgba(0, 210, 255, 0.12)';
-                this.ctx.fill();
-                this.ctx.strokeStyle = 'rgba(0, 210, 255, 0.3)';
-                this.ctx.lineWidth = 1.8;
-                this.ctx.stroke();
-                // Progress arc
-                this.ctx.beginPath();
-                if (typeof n.progress === 'number' && n.progress > 0) {
-                    const startAngle = -Math.PI / 2;
-                    const endAngle = startAngle + Math.PI * 2 * Math.min(1, Math.max(0, n.progress));
-                    this.ctx.arc(iconCx, iconCy, iconR, startAngle, endAngle);
-                }
-                else {
-                    // Smoothly rotating indeterminate arc
-                    const rot = (performance.now() / 450) % (Math.PI * 2);
-                    this.ctx.arc(iconCx, iconCy, iconR, rot, rot + Math.PI * 0.9);
-                }
-                this.ctx.strokeStyle = '#00d2ff';
-                this.ctx.lineWidth = 2.0;
-                this.ctx.lineCap = 'round';
-                this.ctx.stroke();
-                // Downward arrow in center with gentle pulsing bob
-                const arrowBob = Math.sin(performance.now() / 250) * 0.8;
-                this.ctx.strokeStyle = '#00d2ff';
-                this.ctx.lineWidth = 1.5;
-                this.ctx.lineCap = 'round';
-                this.ctx.lineJoin = 'round';
-                this.ctx.beginPath();
-                this.ctx.moveTo(iconCx, iconCy - 3.5 + arrowBob);
-                this.ctx.lineTo(iconCx, iconCy + 2.5 + arrowBob);
-                this.ctx.moveTo(iconCx - 2.8, iconCy + 0.2 + arrowBob);
-                this.ctx.lineTo(iconCx + 3.0, iconCy + 0.2 + arrowBob);
-                this.ctx.lineTo(iconCx + 2.8, iconCy + 0.2 + arrowBob);
-                this.ctx.stroke();
-            }
-            this.ctx.restore();
-        }
-        else if (n.kind === 'done') {
-            // Done green circular badge with checkmark
-            this.ctx.save();
-            this.ctx.beginPath();
-            this.ctx.arc(iconCx, iconCy, iconR, 0, Math.PI * 2);
-            this.ctx.fillStyle = '#22e05a';
-            this.ctx.fill();
-            this.ctx.strokeStyle = '#ffffff';
-            this.ctx.lineWidth = 1.6;
-            this.ctx.lineCap = 'round';
-            this.ctx.lineJoin = 'round';
-            this.ctx.beginPath();
-            this.ctx.moveTo(iconCx - 3.5, iconCy + 0.5);
-            this.ctx.lineTo(iconCx - 1, iconCy + 3);
-            this.ctx.lineTo(iconCx + 4, iconCy - 2.5);
-            this.ctx.stroke();
-            this.ctx.restore();
-        }
-        else if (n.kind === 'question') {
-            this.ctx.save();
-            this.ctx.strokeStyle = '#d97757';
-            this.ctx.lineWidth = 2.4;
-            this.ctx.lineCap = 'round';
-            for (let i = 0; i < 4; i++) {
-                const an = (i * Math.PI) / 4;
-                this.ctx.beginPath();
-                this.ctx.moveTo(left + 8 - Math.cos(an) * 6.5, cy - Math.sin(an) * 6.5);
-                this.ctx.lineTo(left + 8 + Math.cos(an) * 6.5, cy + Math.sin(an) * 6.5);
-                this.ctx.stroke();
-            }
-            this.ctx.restore();
-        }
-        else {
-            this.mascot.drawFloatingEyes(this.ctx, left + 10, cy, 0.85);
-        }
-        const textLeft = left + 26;
+        this.drawAppleAppIcon(iconCx, iconCy, iconR, n.kind, n.status, n.app);
+        const textLeft = left + 27;
         // Interactive Action Buttons (e.g. Deny & Allow for Claude Code tool execution)
         const actions = n.actions;
         if (actions && actions.length > 0) {
@@ -3744,7 +4215,7 @@ class CanvasEngine {
             this.ctx.restore();
         }
         else {
-            // Standard notification with optional quick action (WhatsApp Reply chip, Download Open chip, Dismiss)
+            // Standard notification with optional quick action (WhatsApp Reply chip, Download Open chip, App Open chip, Dismiss)
             const hasBody = Boolean(n.body && n.body.trim().length > 0);
             const titleFont = hasBody
                 ? '600 12px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif'
@@ -3755,7 +4226,7 @@ class CanvasEngine {
             const closeY = cy - closeSize / 2;
             const isCloseHovered = this.isHovered && this.isInsideHit(this.pointerX, this.pointerY, { x: closeX, y: closeY, width: closeSize, height: closeSize });
             let actionRight = closeX - 6;
-            // WhatsApp Quick Reply Chip (Apple iPhone / Mac Style)
+            // 1. WhatsApp Quick Reply Chip (Apple iPhone / Mac Style)
             if (n.kind === 'whatsapp') {
                 const replyW = 52;
                 const replyH = 22;
@@ -3779,8 +4250,8 @@ class CanvasEngine {
                 this.notificationHits['cWhatsAppReply'] = { x: replyX, y: replyY, width: replyW, height: replyH };
                 actionRight -= replyW + 6;
             }
-            // Download Complete "Open" File Chip
-            if (n.kind === 'download' && n.status === 'complete' && n.filePath) {
+            // 2. Download Complete "Open" File Chip
+            else if (n.kind === 'download' && n.status === 'complete' && n.filePath) {
                 const openW = 48;
                 const openH = 22;
                 const openX = actionRight - openW;
@@ -3801,6 +4272,78 @@ class CanvasEngine {
                 this.ctx.fillText('Open', openX + openW / 2, cy);
                 this.ctx.restore();
                 this.notificationHits['cOpenFile'] = { x: openX, y: openY, width: openW, height: openH };
+                actionRight -= openW + 6;
+            }
+            // 3. Google Chrome "Open" Action Chip
+            else if (n.kind === 'chrome' || (n.app && n.app.toLowerCase().includes('chrome'))) {
+                const openW = 48;
+                const openH = 22;
+                const openX = actionRight - openW;
+                const openY = cy - openH / 2;
+                const isOpenHovered = this.isHovered && this.isInsideHit(this.pointerX, this.pointerY, { x: openX, y: openY, width: openW, height: openH });
+                this.ctx.save();
+                this.ctx.beginPath();
+                this.ctx.roundRect(openX, openY, openW, openH, 11);
+                this.ctx.fillStyle = isOpenHovered ? '#4285f4' : 'rgba(66, 133, 244, 0.22)';
+                this.ctx.fill();
+                this.ctx.strokeStyle = '#4285f4';
+                this.ctx.lineWidth = 1.0;
+                this.ctx.stroke();
+                this.ctx.font = '600 11px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
+                this.ctx.fillStyle = isOpenHovered ? '#ffffff' : '#4285f4';
+                this.ctx.textAlign = 'center';
+                this.ctx.textBaseline = 'middle';
+                this.ctx.fillText('Open', openX + openW / 2, cy);
+                this.ctx.restore();
+                this.notificationHits['cOpenApp'] = { x: openX, y: openY, width: openW, height: openH };
+                actionRight -= openW + 6;
+            }
+            // 4. Apple Mail / Outlook "Open" Action Chip
+            else if (n.kind === 'mail' || (n.app && (n.app.toLowerCase().includes('mail') || n.app.toLowerCase().includes('outlook')))) {
+                const openW = 48;
+                const openH = 22;
+                const openX = actionRight - openW;
+                const openY = cy - openH / 2;
+                const isOpenHovered = this.isHovered && this.isInsideHit(this.pointerX, this.pointerY, { x: openX, y: openY, width: openW, height: openH });
+                this.ctx.save();
+                this.ctx.beginPath();
+                this.ctx.roundRect(openX, openY, openW, openH, 11);
+                this.ctx.fillStyle = isOpenHovered ? '#0078d4' : 'rgba(0, 120, 212, 0.22)';
+                this.ctx.fill();
+                this.ctx.strokeStyle = '#0078d4';
+                this.ctx.lineWidth = 1.0;
+                this.ctx.stroke();
+                this.ctx.font = '600 11px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
+                this.ctx.fillStyle = isOpenHovered ? '#ffffff' : '#0078d4';
+                this.ctx.textAlign = 'center';
+                this.ctx.textBaseline = 'middle';
+                this.ctx.fillText('Open', openX + openW / 2, cy);
+                this.ctx.restore();
+                this.notificationHits['cOpenApp'] = { x: openX, y: openY, width: openW, height: openH };
+                actionRight -= openW + 6;
+            }
+            // 5. Generic URL "Open" Action Chip
+            else if (n.url) {
+                const openW = 48;
+                const openH = 22;
+                const openX = actionRight - openW;
+                const openY = cy - openH / 2;
+                const isOpenHovered = this.isHovered && this.isInsideHit(this.pointerX, this.pointerY, { x: openX, y: openY, width: openW, height: openH });
+                this.ctx.save();
+                this.ctx.beginPath();
+                this.ctx.roundRect(openX, openY, openW, openH, 11);
+                this.ctx.fillStyle = isOpenHovered ? color : 'rgba(255, 255, 255, 0.15)';
+                this.ctx.fill();
+                this.ctx.strokeStyle = color;
+                this.ctx.lineWidth = 1.0;
+                this.ctx.stroke();
+                this.ctx.font = '600 11px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
+                this.ctx.fillStyle = isOpenHovered ? '#000000' : '#ffffff';
+                this.ctx.textAlign = 'center';
+                this.ctx.textBaseline = 'middle';
+                this.ctx.fillText('Open', openX + openW / 2, cy);
+                this.ctx.restore();
+                this.notificationHits['cOpenApp'] = { x: openX, y: openY, width: openW, height: openH };
                 actionRight -= openW + 6;
             }
             const maxTextW = Math.max(80, actionRight - textLeft - 6);

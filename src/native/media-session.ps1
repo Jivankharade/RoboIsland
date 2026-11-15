@@ -302,9 +302,13 @@ function CheckNotifications {
           $lowApp = $app.ToLower()
           if ($lowApp -match 'whatsapp') { $kind = 'whatsapp' }
           elseif ($lowApp -match 'mail' -or $lowApp -match 'outlook' -or $lowApp -match 'thunderbird') { $kind = 'mail' }
+          elseif ($lowApp -match 'chrome') { $kind = 'chrome' }
+          elseif ($lowApp -match 'edge') { $kind = 'edge' }
           elseif ($lowApp -match 'telegram') { $kind = 'telegram' }
           elseif ($lowApp -match 'discord') { $kind = 'discord' }
-          elseif ($lowApp -match 'slack' -or $lowApp -match 'teams') { $kind = 'chat' }
+          elseif ($lowApp -match 'slack') { $kind = 'slack' }
+          elseif ($lowApp -match 'teams') { $kind = 'teams' }
+          elseif ($lowApp -match 'spotify') { $kind = 'spotify' }
 
           Say @{
             toast = @{
