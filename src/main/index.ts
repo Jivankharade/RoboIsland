@@ -47,6 +47,9 @@ app.whenReady().then(() => {
   // Initialize config & startup
   StartupManager.init();
 
+  // Setup core application IPC early
+  setupAppIPC();
+
   // Create Island Window
   islandWindow = new IslandWindow();
   gameModeManager.setIslandWindow(islandWindow);
@@ -88,8 +91,6 @@ app.whenReady().then(() => {
       win.webContents.send('island:toggle-expand');
     }
   });
-
-  setupAppIPC();
 });
 
 function openSettingsWindow(tab = 'home'): void {

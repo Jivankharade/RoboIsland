@@ -1136,6 +1136,7 @@ export class ProductivityEngine {
       }
     });
 
+    try { ipcMain.removeHandler('tools:show-item-in-folder'); } catch {}
     ipcMain.handle('tools:show-item-in-folder', (_event, filePath: string) => {
       try {
         if (filePath && typeof filePath === 'string' && fs.existsSync(filePath)) {

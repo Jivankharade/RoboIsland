@@ -75,6 +75,8 @@ let downloadMonitor = null;
 electron_1.app.whenReady().then(() => {
     // Initialize config & startup
     startup_manager_1.StartupManager.init();
+    // Setup core application IPC early
+    setupAppIPC();
     // Create Island Window
     islandWindow = new island_window_1.IslandWindow();
     game_mode_1.gameModeManager.setIslandWindow(islandWindow);
@@ -114,7 +116,6 @@ electron_1.app.whenReady().then(() => {
             win.webContents.send('island:toggle-expand');
         }
     });
-    setupAppIPC();
 });
 function openSettingsWindow(tab = 'home') {
     if (settingsWindow && !settingsWindow.isDestroyed()) {

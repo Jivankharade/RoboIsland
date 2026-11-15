@@ -1133,6 +1133,10 @@ class ProductivityEngine {
                 console.error('[ProductivityEngine] startDrag error:', err);
             }
         });
+        try {
+            electron_1.ipcMain.removeHandler('tools:show-item-in-folder');
+        }
+        catch { }
         electron_1.ipcMain.handle('tools:show-item-in-folder', (_event, filePath) => {
             try {
                 if (filePath && typeof filePath === 'string' && fs.existsSync(filePath)) {
