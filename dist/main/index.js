@@ -215,6 +215,16 @@ function setupAppIPC() {
     electron_1.ipcMain.on('island:show-speedometer-hud', () => {
         islandWindow?.getWindow()?.webContents.send('island:show-speedometer-hud');
     });
+    electron_1.ipcMain.handle('system:get-username', () => {
+        const full = process.env.USERNAME || process.env.USER || 'Gaurav';
+        return full.split(' ')[0] || 'Gaurav';
+    });
+    electron_1.ipcMain.on('island:trigger-greeting', (_event, type) => {
+        islandWindow?.getWindow()?.webContents.send('island:trigger-greeting', type);
+    });
+    electron_1.ipcMain.on('island:trigger-app-activity', (_event, act) => {
+        islandWindow?.getWindow()?.webContents.send('island:app-activity', act);
+    });
     electron_1.ipcMain.handle('license:get-status', () => {
         return license_manager_1.LicenseManager.getInstance().getLicenseStatus();
     });

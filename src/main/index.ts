@@ -205,6 +205,19 @@ function setupAppIPC(): void {
     islandWindow?.getWindow()?.webContents.send('island:show-speedometer-hud');
   });
 
+  ipcMain.handle('system:get-username', () => {
+    const full = process.env.USERNAME || process.env.USER || 'Gaurav';
+    return full.split(' ')[0] || 'Gaurav';
+  });
+
+  ipcMain.on('island:trigger-greeting', (_event, type?: string) => {
+    islandWindow?.getWindow()?.webContents.send('island:trigger-greeting', type);
+  });
+
+  ipcMain.on('island:trigger-app-activity', (_event, act?: any) => {
+    islandWindow?.getWindow()?.webContents.send('island:app-activity', act);
+  });
+
   ipcMain.handle('license:get-status', () => {
     return LicenseManager.getInstance().getLicenseStatus();
   });

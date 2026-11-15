@@ -1691,6 +1691,16 @@
     clipboardSearchQuery = "";
     clipboardFilter = "all";
     activeDownloadsList = [];
+    // Apple macOS / iOS Dynamic Time-of-Day Greeting State
+    greetingUntil = 0;
+    greetingStartTime = 0;
+    greetingType = "morning";
+    userName = "Gaurav";
+    lastGreetingHour = -1;
+    // Apple macOS / iPhone Live Activity Smart Status State
+    appActivityUntil = 0;
+    appActivityStartTime = 0;
+    activeAppActivity = null;
     isNotificationActive() {
       if (!this.activeNotification) return false;
       if (this.isWhatsAppReplying) return true;
@@ -2036,9 +2046,11 @@
       const isMusicActive = Boolean(this.mediaState.playing || this.mediaState.active && this.mediaState.title);
       const hasFocus = this.focusState.active;
       const hasDownloads = this.activeDownloadsList.length > 0;
+      const hasAppActivity = Boolean(this.activeAppActivity && performance.now() < this.appActivityUntil);
       if (hasFocus && isMusicActive) return true;
       if (hasDownloads && isMusicActive) return true;
       if (this.activeDownloadsList.length > 1) return true;
+      if (hasAppActivity && isMusicActive) return true;
       return false;
     }
     triggerChargerSurge(charging = true, level) {
@@ -2240,6 +2252,393 @@
       this.ctx.stroke();
       this.ctx.restore();
     }
+    // ==========================================================================
+    // Apple macOS / iOS Dynamic Time-of-Day Greetings & Smart Status Pill
+    // ==========================================================================
+    triggerGreeting(forcedType) {
+      const now = /* @__PURE__ */ new Date();
+      const hour = now.getHours();
+      this.lastGreetingHour = hour;
+      if (forcedType) {
+        this.greetingType = forcedType;
+      } else if (hour >= 5 && hour < 12) {
+        this.greetingType = "morning";
+      } else if (hour >= 12 && hour < 17) {
+        this.greetingType = "afternoon";
+      } else if (hour >= 17 && hour < 21) {
+        this.greetingType = "evening";
+      } else {
+        this.greetingType = "night";
+      }
+      this.greetingStartTime = performance.now();
+      this.greetingUntil = performance.now() + 5500;
+      if (this.mascot && typeof this.mascot.setMood === "function") {
+        this.mascot.setMood("happy");
+      }
+      this.kickJelly(0.12, 3.2, 4.8);
+      this.updateTargetDimensions();
+    }
+    drawGreetingIcon(iconCx, iconCy, iconR = 11, type) {
+      const size = iconR * 2;
+      const sx = iconCx - iconR;
+      const sy = iconCy - iconR;
+      const cr = iconR * 0.48;
+      this.ctx.save();
+      let grad = this.ctx.createLinearGradient(sx, sy, sx, sy + size);
+      let borderRgba = "rgba(255, 255, 255, 0.28)";
+      switch (type) {
+        case "morning":
+          grad.addColorStop(0, "#ff9500");
+          grad.addColorStop(1, "#ffcc00");
+          borderRgba = "rgba(255, 245, 200, 0.45)";
+          break;
+        case "afternoon":
+          grad.addColorStop(0, "#ff9500");
+          grad.addColorStop(1, "#ff5e3a");
+          borderRgba = "rgba(255, 230, 200, 0.40)";
+          break;
+        case "evening":
+          grad.addColorStop(0, "#ff5e3a");
+          grad.addColorStop(1, "#d93baf");
+          borderRgba = "rgba(255, 220, 240, 0.40)";
+          break;
+        case "night":
+        default:
+          grad.addColorStop(0, "#312e81");
+          grad.addColorStop(0.6, "#1e1b4b");
+          grad.addColorStop(1, "#0f172a");
+          borderRgba = "rgba(165, 180, 252, 0.40)";
+          break;
+      }
+      this.ctx.beginPath();
+      this.ctx.roundRect(sx, sy, size, size, cr);
+      this.ctx.fillStyle = grad;
+      this.ctx.fill();
+      const sheen = this.ctx.createLinearGradient(sx, sy, sx, sy + size * 0.5);
+      sheen.addColorStop(0, "rgba(255, 255, 255, 0.45)");
+      sheen.addColorStop(1, "rgba(255, 255, 255, 0)");
+      this.ctx.fillStyle = sheen;
+      this.ctx.beginPath();
+      this.ctx.roundRect(sx, sy, size, size * 0.5, [cr, cr, 0, 0]);
+      this.ctx.fill();
+      this.ctx.strokeStyle = borderRgba;
+      this.ctx.lineWidth = 0.8;
+      this.ctx.stroke();
+      if (type === "morning") {
+        this.ctx.strokeStyle = "rgba(255, 255, 255, 0.8)";
+        this.ctx.lineWidth = 1.2;
+        this.ctx.lineCap = "round";
+        this.ctx.beginPath();
+        this.ctx.moveTo(iconCx - 5.5, iconCy + 2.5);
+        this.ctx.lineTo(iconCx + 5.5, iconCy + 2.5);
+        this.ctx.stroke();
+        this.ctx.fillStyle = "#ffffff";
+        this.ctx.beginPath();
+        this.ctx.arc(iconCx, iconCy + 2.5, 3.5, Math.PI, 0, false);
+        this.ctx.fill();
+        this.ctx.beginPath();
+        this.ctx.moveTo(iconCx, iconCy - 2.5);
+        this.ctx.lineTo(iconCx, iconCy - 5.2);
+        this.ctx.moveTo(iconCx - 3.2, iconCy - 1.2);
+        this.ctx.lineTo(iconCx - 4.8, iconCy - 3);
+        this.ctx.moveTo(iconCx + 3.2, iconCy - 1.2);
+        this.ctx.lineTo(iconCx + 4.8, iconCy - 3);
+        this.ctx.stroke();
+      } else if (type === "afternoon") {
+        this.ctx.fillStyle = "#ffffff";
+        this.ctx.beginPath();
+        this.ctx.arc(iconCx, iconCy, 3.4, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.strokeStyle = "#ffffff";
+        this.ctx.lineWidth = 1.3;
+        this.ctx.lineCap = "round";
+        for (let i = 0; i < 8; i++) {
+          const a = i * Math.PI / 4;
+          this.ctx.beginPath();
+          this.ctx.moveTo(iconCx + Math.cos(a) * 4.4, iconCy + Math.sin(a) * 4.4);
+          this.ctx.lineTo(iconCx + Math.cos(a) * 6.2, iconCy + Math.sin(a) * 6.2);
+          this.ctx.stroke();
+        }
+      } else if (type === "evening") {
+        this.ctx.strokeStyle = "rgba(255, 255, 255, 0.75)";
+        this.ctx.lineWidth = 1.2;
+        this.ctx.lineCap = "round";
+        this.ctx.beginPath();
+        this.ctx.moveTo(iconCx - 5.5, iconCy + 1.2);
+        this.ctx.lineTo(iconCx + 5.5, iconCy + 1.2);
+        this.ctx.stroke();
+        this.ctx.fillStyle = "#ffffff";
+        this.ctx.beginPath();
+        this.ctx.arc(iconCx, iconCy + 1.2, 3.8, Math.PI * 1.05, Math.PI * 1.95, false);
+        this.ctx.fill();
+        this.ctx.strokeStyle = "rgba(255, 255, 255, 0.45)";
+        this.ctx.lineWidth = 1;
+        this.ctx.beginPath();
+        this.ctx.moveTo(iconCx - 3.2, iconCy + 3.4);
+        this.ctx.lineTo(iconCx + 3.2, iconCy + 3.4);
+        this.ctx.moveTo(iconCx - 1.6, iconCy + 5);
+        this.ctx.lineTo(iconCx + 1.6, iconCy + 5);
+        this.ctx.stroke();
+      } else {
+        this.ctx.save();
+        this.ctx.fillStyle = "#ffffff";
+        this.ctx.beginPath();
+        this.ctx.arc(iconCx - 1.2, iconCy + 0.5, 4.4, -Math.PI * 0.45, Math.PI * 0.55, false);
+        this.ctx.bezierCurveTo(iconCx + 1.8, iconCy + 3.6, iconCx + 1.8, iconCy - 2.8, iconCx - 1.2, iconCy - 4);
+        this.ctx.closePath();
+        this.ctx.fill();
+        const starX = iconCx + 4.2;
+        const starY = iconCy - 3.8;
+        this.ctx.strokeStyle = "#a5b4fc";
+        this.ctx.lineWidth = 1.2;
+        this.ctx.lineCap = "round";
+        this.ctx.beginPath();
+        this.ctx.moveTo(starX - 2.2, starY);
+        this.ctx.lineTo(starX + 2.2, starY);
+        this.ctx.moveTo(starX, starY - 2.2);
+        this.ctx.lineTo(starX + 2.2, starY);
+        this.ctx.stroke();
+        this.ctx.fillStyle = "#ffffff";
+        this.ctx.beginPath();
+        this.ctx.arc(starX, starY, 0.8, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.restore();
+      }
+      this.ctx.restore();
+    }
+    drawGreetingPill(cx, topY) {
+      const midY = topY + this.currentHeight / 2;
+      const pillLeft = cx - this.currentWidth / 2;
+      const pillRight = cx + this.currentWidth / 2;
+      const type = this.greetingType;
+      let greetingTitle = `Good Morning, ${this.userName}!`;
+      let greetingSubtitle = "Have a wonderful day";
+      const now = /* @__PURE__ */ new Date();
+      const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      const dayStr = `${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}`;
+      const weatherStr = this.weatherState.temp ? `${this.weatherState.temp} \u2022 ${this.weatherState.condition}` : "Clear";
+      switch (type) {
+        case "morning":
+          greetingTitle = `Good Morning, ${this.userName}!`;
+          greetingSubtitle = `${dayStr} \u2022 ${weatherStr}`;
+          break;
+        case "afternoon":
+          greetingTitle = `Good Afternoon, ${this.userName}!`;
+          greetingSubtitle = `${dayStr} \u2022 High Focus`;
+          break;
+        case "evening":
+          greetingTitle = `Good Evening, ${this.userName}!`;
+          greetingSubtitle = `${dayStr} \u2022 Wind Down`;
+          break;
+        case "night":
+        default:
+          greetingTitle = `Good Night, ${this.userName}!`;
+          greetingSubtitle = `Rest well \u2022 Sleep Mode`;
+          break;
+      }
+      this.drawGreetingIcon(pillLeft + 19, midY, 11, type);
+      this.ctx.save();
+      this.ctx.textAlign = "left";
+      this.ctx.textBaseline = "middle";
+      this.ctx.font = '700 11.5px -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", sans-serif';
+      this.ctx.fillStyle = "#ffffff";
+      this.ctx.fillText(greetingTitle, pillLeft + 37, midY - 4.5);
+      this.ctx.font = '500 10px -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif';
+      this.ctx.fillStyle = "#94a3b8";
+      this.ctx.fillText(greetingSubtitle, pillLeft + 37, midY + 7.5);
+      const sparkX = pillRight - 18;
+      const sparkY = midY;
+      const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 280);
+      this.ctx.fillStyle = type === "night" ? `rgba(165, 180, 252, ${0.4 + 0.4 * pulse})` : `rgba(255, 180, 0, ${0.4 + 0.4 * pulse})`;
+      this.ctx.beginPath();
+      this.ctx.arc(sparkX, sparkY, 3.2, 0, Math.PI * 2);
+      this.ctx.fill();
+      this.ctx.fillStyle = "#ffffff";
+      this.ctx.beginPath();
+      this.ctx.arc(sparkX, sparkY, 1.4, 0, Math.PI * 2);
+      this.ctx.fill();
+      this.ctx.restore();
+    }
+    static parseAppActivityStatic(proc, rawTitle, hwnd) {
+      const p = (proc || "").toLowerCase().trim();
+      const title = (rawTitle || "").trim();
+      let appName = proc;
+      let cleanTitle = title;
+      let kind = "default";
+      if (p === "code" || p === "code - oss" || p === "vscodium") {
+        appName = "Visual Studio Code";
+        kind = "vscode";
+        const parts = title.split(" - ");
+        if (parts.length >= 3) {
+          const file = parts[0].trim();
+          const project = parts[1].trim();
+          cleanTitle = `${project} \u2022 ${file}`;
+        } else if (parts.length === 2) {
+          cleanTitle = parts[0].trim();
+        }
+      } else if (p === "chrome") {
+        appName = "Google Chrome";
+        kind = "chrome";
+        cleanTitle = title.replace(/\s*-\s*Google Chrome\s*$/i, "").trim();
+      } else if (p === "msedge") {
+        appName = "Microsoft Edge";
+        kind = "edge";
+        cleanTitle = title.replace(/\s*-\s*Microsoft\u200b? Edge\s*$/i, "").replace(/\s*-\s*Work\s*$/i, "").trim();
+      } else if (p === "powershell" || p === "pwsh" || p === "cmd" || p === "windowsterminal" || p === "wt" || p === "bash") {
+        appName = "Terminal";
+        kind = "terminal";
+        if (title.toLowerCase().includes("powershell") || title.toLowerCase().includes("cmd.exe")) {
+          cleanTitle = "PowerShell Session";
+        } else {
+          cleanTitle = title.replace(/\s*-\s*Terminal\s*$/i, "").trim();
+        }
+      } else if (p.includes("whatsapp")) {
+        appName = "WhatsApp";
+        kind = "whatsapp";
+        cleanTitle = title.replace(/\s*-\s*WhatsApp\s*$/i, "").trim();
+        if (!cleanTitle || cleanTitle.toLowerCase() === "whatsapp") {
+          cleanTitle = "Active Chat";
+        }
+      } else if (p === "spotify") {
+        appName = "Spotify";
+        kind = "spotify";
+        cleanTitle = title.replace(/\s*-\s*Spotify\s*(Premium|Free)?\s*$/i, "").trim();
+        if (!cleanTitle || cleanTitle.toLowerCase() === "spotify") {
+          cleanTitle = "Playing Audio";
+        }
+      } else if (p === "discord") {
+        appName = "Discord";
+        kind = "discord";
+        cleanTitle = title.replace(/\s*-\s*Discord\s*$/i, "").trim();
+      } else if (p === "slack") {
+        appName = "Slack";
+        kind = "slack";
+        cleanTitle = title.replace(/\s*-\s*Slack\s*$/i, "").trim();
+      } else if (p === "explorer") {
+        appName = "File Explorer";
+        kind = "explorer";
+        cleanTitle = title || "Files";
+      } else if (p.includes("snipping") || p.includes("screensketch")) {
+        appName = "Snipping Tool";
+        kind = "snipping";
+        cleanTitle = "Screen Capture";
+      } else if (p.includes("sechealth") || p.includes("security")) {
+        appName = "Windows Security";
+        kind = "defender";
+        cleanTitle = "Protected";
+      } else if (p.includes("settings")) {
+        appName = "Settings";
+        kind = "settings";
+        cleanTitle = title.replace(/\s*-\s*Settings\s*$/i, "").trim() || "System Preferences";
+      } else if (p === "figma") {
+        appName = "Figma";
+        kind = "figma";
+        cleanTitle = title.replace(/\s*-\s*Figma\s*$/i, "").trim();
+      } else if (p === "blender") {
+        appName = "Blender";
+        kind = "blender";
+        cleanTitle = title.replace(/\s*-\s*Blender\s*$/i, "").trim();
+      } else if (p.includes("photoshop")) {
+        appName = "Photoshop";
+        kind = "photoshop";
+        cleanTitle = title.replace(/\s*@.*$/i, "").trim();
+      } else if (p === "notepad") {
+        appName = "Notepad";
+        kind = "notepad";
+        cleanTitle = title.replace(/\s*-\s*Notepad\s*$/i, "").trim();
+      } else {
+        appName = proc ? proc.charAt(0).toUpperCase() + proc.slice(1) : "Application";
+        cleanTitle = title.replace(new RegExp(`\\s*-\\s*${appName}\\s*$`, "i"), "").trim();
+        kind = p || "default";
+      }
+      if (!cleanTitle) cleanTitle = appName;
+      if (cleanTitle.length > 40) cleanTitle = cleanTitle.slice(0, 38) + "...";
+      return {
+        proc,
+        appName,
+        cleanTitle,
+        kind,
+        timestamp: performance.now(),
+        hwnd
+      };
+    }
+    parseAppActivity(proc, rawTitle, hwnd) {
+      return _CanvasEngine.parseAppActivityStatic(proc, rawTitle, hwnd);
+    }
+    handleAppActivity(act) {
+      if (!act || !act.proc) return;
+      const proc = (act.proc || "").trim();
+      const title = (act.title || "").trim();
+      const lowerProc = proc.toLowerCase();
+      if (lowerProc === "roboisland" || lowerProc === "electron" || lowerProc === "shellexperiencehost" || lowerProc === "searchhost" || lowerProc === "startmenuexperiencehost" || lowerProc === "lockapp" || lowerProc === "idle") {
+        return;
+      }
+      if (!title || title === "Task Switching" || title === "Windows Shell Experience") {
+        return;
+      }
+      const parsed = _CanvasEngine.parseAppActivityStatic(proc, title, act.hwnd);
+      if (!parsed) return;
+      if (this.activeAppActivity && this.activeAppActivity.proc === parsed.proc && this.activeAppActivity.cleanTitle === parsed.cleanTitle) {
+        return;
+      }
+      this.activeAppActivity = parsed;
+      this.appActivityStartTime = performance.now();
+      this.appActivityUntil = performance.now() + 4500;
+      this.kickJelly(0.1, 3.5, 5);
+      this.updateTargetDimensions();
+    }
+    drawCompactAppActivity(cx, topY) {
+      if (!this.activeAppActivity) return;
+      const act = this.activeAppActivity;
+      const midY = topY + this.currentHeight / 2;
+      const pillLeft = cx - this.currentWidth / 2;
+      const pillRight = cx + this.currentWidth / 2;
+      this.drawAppleAppIcon(pillLeft + 19, midY, 11, act.kind, void 0, act.appName);
+      this.ctx.save();
+      this.ctx.textAlign = "left";
+      this.ctx.textBaseline = "middle";
+      this.ctx.font = '700 11.5px -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", sans-serif';
+      this.ctx.fillStyle = "#ffffff";
+      this.ctx.fillText(act.appName, pillLeft + 37, midY - 4.5);
+      this.ctx.font = '500 10px -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif';
+      this.ctx.fillStyle = "#94a3b8";
+      this.ctx.fillText(act.cleanTitle, pillLeft + 37, midY + 7.5);
+      const dotX = pillRight - 18;
+      const dotY = midY;
+      const pulse = (Math.sin(performance.now() / 250) + 1) / 2;
+      const radarR = 4.2 + pulse * 2.5;
+      const radarAlpha = (1 - pulse) * 0.45;
+      this.ctx.strokeStyle = `rgba(34, 197, 94, ${radarAlpha})`;
+      this.ctx.lineWidth = 1.2;
+      this.ctx.beginPath();
+      this.ctx.arc(dotX, dotY, radarR, 0, Math.PI * 2);
+      this.ctx.stroke();
+      this.ctx.fillStyle = "#22c55e";
+      this.ctx.beginPath();
+      this.ctx.arc(dotX, dotY, 3, 0, Math.PI * 2);
+      this.ctx.fill();
+      this.ctx.fillStyle = "#ffffff";
+      this.ctx.beginPath();
+      this.ctx.arc(dotX - 0.7, dotY - 0.7, 0.9, 0, Math.PI * 2);
+      this.ctx.fill();
+      this.ctx.restore();
+    }
+    drawDetachedAppActivityBubble(bubbleCx, bubbleCy, bubbleR, activity) {
+      if (!activity) return;
+      this.ctx.save();
+      this.drawAppleAppIcon(bubbleCx, bubbleCy, 10, activity.kind, void 0, activity.appName);
+      const dotX = bubbleCx + 7;
+      const dotY = bubbleCy + 7;
+      this.ctx.fillStyle = "#22c55e";
+      this.ctx.beginPath();
+      this.ctx.arc(dotX, dotY, 2.2, 0, Math.PI * 2);
+      this.ctx.fill();
+      this.ctx.strokeStyle = "#000000";
+      this.ctx.lineWidth = 1;
+      this.ctx.stroke();
+      this.ctx.restore();
+    }
     /**
      * TwoCode startHello() Windows Startup Entrance Animation
      * Direct parity with TwoCode twocode-fun.js lines 305-397.
@@ -2334,6 +2733,7 @@
       return ms < 0 ? 0 : amp * Math.exp(-damp * ms / 1e3) * Math.sin(2 * Math.PI * hz * ms / 1e3);
     }
     kickJelly(amp = 0.12, hz = 2.6, damp = 5.5) {
+      if (!this.kicks) this.kicks = [];
       this.kicks.push({ at: performance.now(), amp, hz, damp });
       if (this.kicks.length > 6) this.kicks.shift();
     }
@@ -3036,6 +3436,22 @@
             }
           });
         }
+        if (window.roboIsland.onAppActivity) {
+          window.roboIsland.onAppActivity((act) => {
+            this.handleAppActivity(act);
+          });
+        }
+        if (window.roboIsland.onTriggerGreeting) {
+          window.roboIsland.onTriggerGreeting((type) => {
+            this.triggerGreeting(type);
+          });
+        }
+        if (window.roboIsland.getUserName) {
+          window.roboIsland.getUserName().then((name) => {
+            if (name) this.userName = name.split(" ")[0];
+          }).catch(() => {
+          });
+        }
       }
       if (typeof window !== "undefined") {
         window.__roboIslandSetMode = (mode) => this.setMode(mode);
@@ -3051,7 +3467,12 @@
         window.__roboIslandTriggerSpeedometerHud = () => this.triggerSpeedometerHud();
         window.__roboIslandTriggerNotification = (n) => this.triggerNotification(n);
         window.__roboIslandClearNotification = () => this.clearNotification();
+        window.__roboIslandTriggerGreeting = (type) => this.triggerGreeting(type);
+        window.__roboIslandTriggerAppActivity = (act) => this.handleAppActivity(act);
       }
+      setTimeout(() => {
+        this.triggerGreeting();
+      }, 1400);
       let wasFocusActive = false;
       setInterval(() => {
         const f = window.__roboFocus || window.__twocodeFocus;
@@ -3093,6 +3514,10 @@
               });
             }
           }
+        }
+        const currentHour = (/* @__PURE__ */ new Date()).getHours();
+        if (this.lastGreetingHour !== -1 && this.lastGreetingHour !== currentHour) {
+          this.triggerGreeting();
         }
       }, 1e3);
     }
@@ -3304,6 +3729,20 @@
           this.targetRadius = 18;
           return;
         }
+        if (performance.now() < this.greetingUntil) {
+          this.targetWidth = this.isHovered ? 290 : 280;
+          this.targetHeight = 36;
+          this.targetRadius = 18;
+          return;
+        }
+        if (performance.now() < this.appActivityUntil && this.activeAppActivity) {
+          const textLen = (this.activeAppActivity.cleanTitle || "").length;
+          const baseW = Math.max(260, Math.min(360, 110 + textLen * 6.8));
+          this.targetWidth = this.isHovered ? baseW + 6 : baseW;
+          this.targetHeight = 36;
+          this.targetRadius = 18;
+          return;
+        }
         const cfgW = this.config && this.config.restCapsuleWidth || 32;
         const cfgH = this.config && this.config.restCapsuleHeight || 18;
         this.targetWidth = this.isHovered ? cfgW + 6 : cfgW;
@@ -3371,6 +3810,16 @@
           const baseW = Math.max(260, Math.min(340, Math.round(nameLen * 6.5 + 130)));
           this.targetWidth = this.isHovered ? baseW + 8 : baseW;
         }
+        this.targetHeight = 36;
+        this.targetRadius = 18;
+      } else if (performance.now() < this.greetingUntil) {
+        this.targetWidth = this.isHovered ? 290 : 280;
+        this.targetHeight = 36;
+        this.targetRadius = 18;
+      } else if (performance.now() < this.appActivityUntil && this.activeAppActivity) {
+        const textLen = (this.activeAppActivity.cleanTitle || "").length;
+        const baseW = Math.max(260, Math.min(360, 110 + textLen * 6.8));
+        this.targetWidth = this.isHovered ? baseW + 6 : baseW;
         this.targetHeight = 36;
         this.targetRadius = 18;
       } else {
@@ -4053,6 +4502,16 @@
           this.updateTargetDimensions();
           return;
         }
+        if (performance.now() < this.greetingUntil) {
+          this.greetingUntil = 0;
+          this.updateTargetDimensions();
+          return;
+        }
+        if (performance.now() < this.appActivityUntil) {
+          this.appActivityUntil = 0;
+          this.updateTargetDimensions();
+          return;
+        }
         if (inBounds) {
           if (isAlt) {
             this.triggerSpeedometerHud();
@@ -4063,6 +4522,16 @@
         return;
       }
       if (this.mode === "compact") {
+        if (performance.now() < this.greetingUntil) {
+          this.greetingUntil = 0;
+          this.updateTargetDimensions();
+          return;
+        }
+        if (performance.now() < this.appActivityUntil) {
+          this.appActivityUntil = 0;
+          this.updateTargetDimensions();
+          return;
+        }
         if (performance.now() < this.airdropHudUntil) {
           this.airdropHudUntil = 0;
           this.updateTargetDimensions();
@@ -4498,6 +4967,10 @@
           this.drawVolumeHudContent(cx, topY);
         } else if (performance.now() < this.chargerSurgeUntil) {
           this.drawChargerSurgeContent(cx, topY);
+        } else if (performance.now() < this.greetingUntil) {
+          this.drawGreetingPill(cx, topY);
+        } else if (performance.now() < this.appActivityUntil && this.activeAppActivity) {
+          this.drawCompactAppActivity(cx, topY);
         } else {
           this.drawRestContent(cx, topY);
         }
@@ -4818,6 +5291,8 @@
         }
         if (hasDownloads) {
           this.drawDetachedDownloadBubble(bubbleCx, bubbleCy, bubbleR, this.activeDownloadsList);
+        } else if (this.activeAppActivity && performance.now() < this.appActivityUntil) {
+          this.drawDetachedAppActivityBubble(bubbleCx, bubbleCy, bubbleR, this.activeAppActivity);
         } else {
           const d = bubbleSize;
           const ringR = Math.max(7, d / 2 - 9);
@@ -4894,6 +5369,10 @@
         this.drawCompactDownloadContent(pillLeft, midY, topY, this.activeDownloadsList[0]);
       } else if (this.mediaState.active && this.mediaState.title) {
         this.drawCompactMusicIsland(pillLeft, midY, topY);
+      } else if (performance.now() < this.greetingUntil) {
+        this.drawGreetingPill(cx, topY);
+      } else if (performance.now() < this.appActivityUntil && this.activeAppActivity) {
+        this.drawCompactAppActivity(cx, topY);
       } else {
         this.drawCompactRestingDualStructure(cx, topY);
       }

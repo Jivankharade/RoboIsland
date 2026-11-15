@@ -308,6 +308,12 @@ async function runTests() {
   mockEngine.ctx = mockCtx;
   mockEngine.mascot = mascot;
   mockEngine.activeNotification = null;
+  mockEngine.kicks = [];
+  mockEngine.mode = 'compact';
+  mockEngine.mediaState = { active: false, playing: false, title: '' };
+  mockEngine.focusState = { active: false, remainingSeconds: 0, totalSeconds: 0 };
+  mockEngine.aiState = { status: 'idle' };
+  mockEngine.activeDownloadsList = [];
 
   assert('drawAppleAppIcon returns true for WhatsApp', mockEngine.drawAppleAppIcon(0, 0, 11, 'whatsapp') === true);
   assert('drawAppleAppIcon returns true for Chrome', mockEngine.drawAppleAppIcon(0, 0, 11, 'chrome') === true);
@@ -354,6 +360,85 @@ async function runTests() {
 
   assert('drawDetachedDownloadBubble method exists on CanvasEngine', typeof CanvasEngine.prototype.drawDetachedDownloadBubble === 'function');
   assert('drawCompactDownloadContent method exists on CanvasEngine', typeof CanvasEngine.prototype.drawCompactDownloadContent === 'function');
+
+  // 16. Testing Apple macOS / iOS Dynamic Time-of-Day Greetings
+  console.log('\n--- 16. Testing Apple macOS / iOS Dynamic Greetings ---');
+  mockEngine.userName = 'Gaurav';
+  mockEngine.weatherState = { temp: '25°C', condition: 'Clear', city: 'Local' };
+
+  mockEngine.triggerGreeting('morning');
+  assert('triggerGreeting sets morning greetingType', mockEngine.greetingType === 'morning');
+  assert('triggerGreeting sets greetingUntil in the future', mockEngine.greetingUntil > performance.now());
+
+  mockEngine.triggerGreeting('afternoon');
+  assert('triggerGreeting sets afternoon greetingType', mockEngine.greetingType === 'afternoon');
+
+  mockEngine.triggerGreeting('evening');
+  assert('triggerGreeting sets evening greetingType', mockEngine.greetingType === 'evening');
+
+  mockEngine.triggerGreeting('night');
+  assert('triggerGreeting sets night greetingType', mockEngine.greetingType === 'night');
+
+  let drewGreetingIcon = false;
+  try {
+    mockEngine.drawGreetingIcon(100, 100, 11, 'morning');
+    mockEngine.drawGreetingIcon(100, 100, 11, 'afternoon');
+    mockEngine.drawGreetingIcon(100, 100, 11, 'evening');
+    mockEngine.drawGreetingIcon(100, 100, 11, 'night');
+    drewGreetingIcon = true;
+  } catch (e) {
+    console.error(e);
+  }
+  assert('drawGreetingIcon renders all time slots without errors', drewGreetingIcon === true);
+
+  let drewGreetingPill = false;
+  try {
+    mockEngine.currentWidth = 280;
+    mockEngine.currentHeight = 36;
+    mockEngine.drawGreetingPill(140, 10);
+    drewGreetingPill = true;
+  } catch (e) {
+    console.error(e);
+  }
+  assert('drawGreetingPill renders layout and typography without errors', drewGreetingPill === true);
+
+  // 17. Testing Apple macOS / iPhone Live Activity Smart Status
+  console.log('\n--- 17. Testing Live Activity Smart Status Pill ---');
+
+  // Static parsing checks
+  const vsCodeAct = CanvasEngine.parseAppActivityStatic('Code', 'canvas-engine.ts - RoboIsland - Visual Studio Code');
+  assert('parseAppActivity parses VS Code project and file', vsCodeAct.appName === 'Visual Studio Code' && vsCodeAct.cleanTitle === 'RoboIsland • canvas-engine.ts' && vsCodeAct.kind === 'vscode');
+
+  const chromeAct = CanvasEngine.parseAppActivityStatic('chrome', 'GitHub: RoboIsland Repository - Google Chrome');
+  assert('parseAppActivity strips browser suffix from Chrome', chromeAct.appName === 'Google Chrome' && chromeAct.cleanTitle === 'GitHub: RoboIsland Repository' && chromeAct.kind === 'chrome');
+
+  const pwshAct = CanvasEngine.parseAppActivityStatic('powershell', 'Windows PowerShell');
+  assert('parseAppActivity handles PowerShell terminal', pwshAct.appName === 'Terminal' && pwshAct.cleanTitle === 'PowerShell Session' && pwshAct.kind === 'terminal');
+
+  const waAct = CanvasEngine.parseAppActivityStatic('WhatsApp', 'WhatsApp');
+  assert('parseAppActivity handles WhatsApp chat activity', waAct.appName === 'WhatsApp' && waAct.cleanTitle === 'Active Chat' && waAct.kind === 'whatsapp');
+
+  const explorerAct = CanvasEngine.parseAppActivityStatic('explorer', 'Downloads');
+  assert('parseAppActivity handles File Explorer folder', explorerAct.appName === 'File Explorer' && explorerAct.cleanTitle === 'Downloads' && explorerAct.kind === 'explorer');
+
+  // Handle app activity dispatch
+  mockEngine.handleAppActivity({ proc: 'Code', title: 'canvas-engine.ts - RoboIsland - Visual Studio Code' });
+  assert('handleAppActivity sets activeAppActivity and countdown', mockEngine.activeAppActivity !== null && mockEngine.appActivityUntil > performance.now());
+
+  // Split-island activation with active app activity + music
+  mockEngine.mediaState = { active: true, playing: true, title: 'Wanna mess with me?' };
+  mockEngine.activeDownloadsList = [];
+  assert('Split Island activates when music is playing and active app activity occurs', mockEngine.isSplitIslandActive() === true);
+
+  let drewAppActivity = false;
+  try {
+    mockEngine.drawCompactAppActivity(140, 10);
+    mockEngine.drawDetachedAppActivityBubble(260, 20, 18, mockEngine.activeAppActivity);
+    drewAppActivity = true;
+  } catch (e) {
+    console.error(e);
+  }
+  assert('drawCompactAppActivity and drawDetachedAppActivityBubble render without errors', drewAppActivity === true);
 
   // Summary
   console.log('\n====================================================');

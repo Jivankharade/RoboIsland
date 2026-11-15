@@ -294,9 +294,10 @@ export class MediaEngine {
         setTimeout(() => this.startWorker(), 6000);
       });
 
-      // Request initial network & volume state
+      // Request initial network & volume state and enable focus guard
       setTimeout(() => {
         this.sendCommand('net');
+        this.sendCommand('guard 1');
       }, 1500);
     } catch (err) {
       console.error('[MediaEngine] Failed to spawn PowerShell helper:', err);
@@ -332,11 +333,12 @@ export class MediaEngine {
         return;
       }
 
-      // 3. Focus Guard Foreground Window
+      // 3. Focus Guard & Smart Status Foreground Window
       if (data.front) {
         BrowserWindow.getAllWindows().forEach(win => {
           if (!win.isDestroyed()) {
             win.webContents.send('guard:front-changed', data.front);
+            win.webContents.send('island:app-activity', data.front);
           }
         });
         return;
