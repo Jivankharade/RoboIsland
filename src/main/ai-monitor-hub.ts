@@ -313,6 +313,22 @@ export class AiMonitorHub {
         return;
       }
 
+      if (eventType === 'Notification' || eventType === 'island:notify') {
+        const payload = event.payload || event;
+        try {
+          if (typeof BrowserWindow !== 'undefined' && BrowserWindow && typeof BrowserWindow.getAllWindows === 'function') {
+            BrowserWindow.getAllWindows().forEach(win => {
+              if (!win.isDestroyed()) {
+                win.webContents.send('island:notify', payload);
+              }
+            });
+          }
+        } catch {}
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, sent: true }));
+        return;
+      }
+
       if (eventType === 'UserPromptSubmit') {
         this.isStopped = false;
         this.isPaused = false;

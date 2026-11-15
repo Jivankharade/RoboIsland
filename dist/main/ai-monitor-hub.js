@@ -297,6 +297,22 @@ class AiMonitorHub {
                 res.end(JSON.stringify({ ok: false, stopped: true, action: 'stop' }));
                 return;
             }
+            if (eventType === 'Notification' || eventType === 'island:notify') {
+                const payload = event.payload || event;
+                try {
+                    if (typeof electron_1.BrowserWindow !== 'undefined' && electron_1.BrowserWindow && typeof electron_1.BrowserWindow.getAllWindows === 'function') {
+                        electron_1.BrowserWindow.getAllWindows().forEach(win => {
+                            if (!win.isDestroyed()) {
+                                win.webContents.send('island:notify', payload);
+                            }
+                        });
+                    }
+                }
+                catch { }
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ ok: true, sent: true }));
+                return;
+            }
             if (eventType === 'UserPromptSubmit') {
                 this.isStopped = false;
                 this.isPaused = false;
