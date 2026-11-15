@@ -2703,7 +2703,7 @@ export class CanvasEngine {
 
       switch (tab) {
         case 'music':
-          this.targetHeight = 300;
+          this.targetHeight = 330;
           break;
         case 'chat':
           this.targetHeight = 320;
@@ -2712,8 +2712,10 @@ export class CanvasEngine {
           this.targetHeight = 310;
           break;
         case 'tray':
-        case 'notes':
           this.targetHeight = 270;
+          break;
+        case 'notes':
+          this.targetHeight = 290;
           break;
         case 'clipboard':
           this.targetWidth = 560;
@@ -3073,17 +3075,20 @@ export class CanvasEngine {
     return l && l.text ? l.text : null;
   }
 
-  private getLyricNow(): { text: string | null; previous: string | null; k: number; font: string } | null {
+  private getLyricNow(): { text: string | null; previous: string | null; next: string | null; k: number; font: string } | null {
     const rawK = Math.min(1, (performance.now() - this.lyricsChangedAt) / this.LYRICS_SWAP);
     const k = 1 - Math.pow(1 - rawK, 4);
     if (!this.syncedLyrics.length) {
       return this.lyricsLoading && performance.now() < this.lyricsHoldUntil
-        ? { text: null, previous: rawK < 1 ? this.lyricsPrevious : null, k, font: this.LYRICS_FONT }
+        ? { text: null, previous: rawK < 1 ? this.lyricsPrevious : null, next: null, k, font: this.LYRICS_FONT }
         : null;
     }
+    const nextIdx = this.lyricsIndex >= 0 ? this.lyricsIndex + 1 : 0;
+    const nextText = (this.syncedLyrics[nextIdx] && this.syncedLyrics[nextIdx].text) || null;
     return {
       text: this.getCurrentLyricText(),
       previous: rawK < 1 ? this.lyricsPrevious : null,
+      next: nextText,
       k,
       font: this.LYRICS_FONT
     };
@@ -6257,38 +6262,82 @@ export class CanvasEngine {
 
     const trackName = getTrackDisplayName();
     const lyric = this.hasSyncedLyrics() ? this.getLyricNow() : null;
+    const appleFont = '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Inter, sans-serif';
 
-    const line = (s: string | null, dy: number, isActive: boolean = false) => {
-      if (!s) return;
+    const drawLyricLineCombo = (activeS: string | null, nextS: string | null, dy: number, isBright: boolean = true) => {
+      if (!activeS) return;
       const alpha = Math.max(0, 1 - Math.abs(dy) / band);
       if (alpha <= 0.01) return;
+
       this.ctx.save();
       this.ctx.globalAlpha *= alpha;
-      let fontSz = isActive ? 13 : 11.5;
-      const weight = isActive ? '700' : '500';
-      this.ctx.font = `${weight} ${fontSz}px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
-      const full = this.ctx.measureText(s).width;
-      if (full > w) {
-        fontSz = Math.max(10, fontSz * w / full);
-        this.ctx.font = `${weight} ${fontSz.toFixed(1)}px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+      this.ctx.textBaseline = 'middle';
+
+      const activeWeight = isBright ? '700' : '500';
+      const activeFontSz = 13;
+      const inactiveFontSz = 13;
+      const inactiveWeight = '500';
+
+      this.ctx.font = `${activeWeight} ${activeFontSz}px ${appleFont}`;
+      const activeRawW = this.ctx.measureText(activeS).width;
+
+      this.ctx.font = `${inactiveWeight} ${inactiveFontSz}px ${appleFont}`;
+      const spaceW = this.ctx.measureText('  ').width;
+
+      let trimmedActive = activeS;
+      let trimmedNext = (nextS || '').trim();
+
+      if (activeRawW + spaceW + 35 > w) {
+        // Active text takes almost all space: fit active text with ellipsis if needed
+        this.ctx.font = `${activeWeight} ${activeFontSz}px ${appleFont}`;
+        while (trimmedActive.length > 1 && this.ctx.measureText(trimmedActive + '...').width > w) {
+          trimmedActive = trimmedActive.slice(0, -1);
+        }
+        if (trimmedActive !== activeS) trimmedActive += '...';
+        trimmedNext = '';
+      } else if (trimmedNext) {
+        // Active text fits! Show inactive upcoming text preview with ellipsis
+        const availForNext = w - activeRawW - spaceW;
+        this.ctx.font = `${inactiveWeight} ${inactiveFontSz}px ${appleFont}`;
+        while (trimmedNext.length > 1 && this.ctx.measureText(trimmedNext + '...').width > availForNext) {
+          trimmedNext = trimmedNext.slice(0, -1);
+        }
+        if (trimmedNext.length > 0 && trimmedNext !== nextS?.trim()) {
+          trimmedNext += '...';
+        }
       }
-      let text = s;
-      while (text.length > 1 && this.ctx.measureText(text + '...').width > w) {
-        text = text.slice(0, -1);
-      }
-      if (text !== s) text += '...';
-      if (isActive) {
+
+      // Calculate total width to center the full phrase
+      this.ctx.font = `${activeWeight} ${activeFontSz}px ${appleFont}`;
+      const renderedActiveW = this.ctx.measureText(trimmedActive).width;
+
+      this.ctx.font = `${inactiveWeight} ${inactiveFontSz}px ${appleFont}`;
+      const renderedNextW = trimmedNext ? this.ctx.measureText(trimmedNext).width : 0;
+
+      const totalW = renderedActiveW + (trimmedNext ? spaceW + renderedNextW : 0);
+      const startX = x0 + Math.max(0, (w - totalW) / 2);
+
+      // 1. Draw Active Lyric (Bright White Bold with Apple soft glow)
+      this.ctx.textAlign = 'left';
+      this.ctx.font = `${activeWeight} ${activeFontSz}px ${appleFont}`;
+      if (isBright) {
         this.ctx.fillStyle = '#ffffff';
         this.ctx.shadowColor = 'rgba(255, 255, 255, 0.45)';
-        this.ctx.shadowBlur = 8;
+        this.ctx.shadowBlur = 6;
       } else {
-        // Spotify past/upcoming line: dark and faint
         this.ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
         this.ctx.shadowBlur = 0;
       }
-      this.ctx.textAlign = 'center';
-      this.ctx.textBaseline = 'middle';
-      this.ctx.fillText(text, x0 + w / 2, cy + 0.5 + dy);
+      this.ctx.fillText(trimmedActive, startX, cy + 0.5 + dy);
+
+      // 2. Draw Inactive / Upcoming Lyric (Faint Dimmed Semi-Transparent like Image 2)
+      if (trimmedNext) {
+        this.ctx.shadowBlur = 0;
+        this.ctx.font = `${inactiveWeight} ${inactiveFontSz}px ${appleFont}`;
+        this.ctx.fillStyle = isBright ? 'rgba(255, 255, 255, 0.45)' : 'rgba(255, 255, 255, 0.22)';
+        this.ctx.fillText(trimmedNext, startX + renderedActiveW + spaceW, cy + 0.5 + dy);
+      }
+
       this.ctx.restore();
     };
 
@@ -6296,17 +6345,18 @@ export class CanvasEngine {
       const k = lyric.k;
       const prev = lyric.previous || (lyric.text ? trackName : null);
       const curr = lyric.text || trackName;
+      const next = lyric.next || null;
 
       this.ctx.save();
       this.ctx.beginPath();
       this.ctx.rect(x0 - 4, cy - band / 2 - 2, w + 8, band + 4);
       this.ctx.clip();
-      line(prev, -band * k, false); // outgoing/previous: dark and faint
-      line(curr, band * (1 - k), true); // ongoing/active: bright white bold
+      drawLyricLineCombo(prev, null, -band * k, false); // outgoing/previous: dark and faint
+      drawLyricLineCombo(curr, next, band * (1 - k), true); // ongoing/active: bright white bold + next faint
       this.ctx.restore();
     } else {
       // Steady display of Track Name or Ad Name (zero eyes during media playback)
-      line(trackName, 0, true);
+      drawLyricLineCombo(trackName, null, 0, true);
     }
   }
 
@@ -8545,8 +8595,8 @@ export class CanvasEngine {
         const displayTitle = rawTitle.length > 18 ? rawTitle.slice(0, 18) + '…' : rawTitle;
 
         chip.innerHTML = `
-          <span class="note-chip-title" title="${n.title || 'Untitled'}">${displayTitle}</span>
-          <button type="button" class="note-chip-del" data-id="${n.id}" title="Delete note">×</button>
+          <span class="note-chip-title">${displayTitle}</span>
+          <button type="button" class="note-chip-del" data-id="${n.id}" aria-label="Delete note">×</button>
         `;
 
         chip.addEventListener('click', (e) => {

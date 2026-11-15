@@ -563,12 +563,12 @@ async function runTests() {
   const featureTests = [
     { tab: 'home', expectedW: 520, expectedH: 240 },
     { tab: 'ai', expectedW: 520, expectedH: 310 },
-    { tab: 'music', expectedW: 520, expectedH: 300 },
+    { tab: 'music', expectedW: 520, expectedH: 330 },
     { tab: 'chat', expectedW: 520, expectedH: 320 },
     { tab: 'focus', expectedW: 520, expectedH: 270 },
     { tab: 'tray', expectedW: 520, expectedH: 270 },
     { tab: 'clipboard', expectedW: 560, expectedH: 370 },
-    { tab: 'notes', expectedW: 520, expectedH: 270 },
+    { tab: 'notes', expectedW: 520, expectedH: 290 },
     { tab: 'agenda', expectedW: 540, expectedH: 280 },
     { tab: 'settings', expectedW: 520, expectedH: 300 },
   ];

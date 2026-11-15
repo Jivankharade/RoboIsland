@@ -712,26 +712,19 @@
           <div class="notes-header-bar">
             <div class="notes-header-left">
               <span class="notes-badge-icon">
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#ffd60a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#ffd60a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M12 20h9"/>
                   <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
                 </svg>
               </span>
               <span class="notes-header-title">Quick Notes</span>
               <span id="notes-count-badge" class="notes-count-badge">1 Note</span>
-              <span id="notes-status-badge" class="notes-status-badge">Auto-Saved</span>
             </div>
             <div class="notes-header-right">
               <span id="notes-stats-badge" class="notes-stats-badge">0 words • 0 chars</span>
-              <button id="btn-notes-new" class="notes-action-btn" type="button" aria-label="New Note">
-                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                  <line x1="12" y1="5" x2="12" y2="19"/>
-                  <line x1="5" y1="12" x2="19" y2="12"/>
-                </svg>
-                <span>New</span>
-              </button>
+              <span id="notes-status-badge" class="notes-status-badge">Auto-Saved</span>
               <button id="btn-notes-clear" class="notes-action-btn notes-btn-danger" type="button" aria-label="Clear Note">
-                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <polyline points="3 6 5 6 21 6"/>
                   <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
                 </svg>
@@ -752,6 +745,7 @@
               </svg>
               <span>Note</span>
             </button>
+            <button id="btn-notes-new" class="hidden" type="button" aria-hidden="true" style="display:none"></button>
           </div>
 
           <!-- Note Content Area -->
