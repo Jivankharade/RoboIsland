@@ -174,6 +174,7 @@ class CanvasEngine {
     transferProgress = null;
     transferDirection = 'download';
     transferProgressUntil = 0;
+    activeDownloadsList = [];
     isNotificationActive() {
         if (!this.activeNotification)
             return false;
@@ -411,8 +412,27 @@ class CanvasEngine {
     isSplitIslandActive() {
         if (this.isNotificationActive())
             return false;
-        const isDualActive = this.focusState.active && Boolean(this.mediaState.playing || (this.mediaState.active && this.mediaState.title));
-        return this.mode === 'compact' && !this.isTucked && isDualActive && !(performance.now() < this.chargerSurgeUntil) && !(performance.now() < this.volumeHudUntil) && !(performance.now() < this.speedometerHudUntil) && !(performance.now() < this.airdropHudUntil);
+        if (this.mode !== 'compact' || this.isTucked)
+            return false;
+        if (performance.now() < this.chargerSurgeUntil ||
+            performance.now() < this.volumeHudUntil ||
+            performance.now() < this.speedometerHudUntil ||
+            performance.now() < this.airdropHudUntil) {
+            return false;
+        }
+        const isMusicActive = Boolean(this.mediaState.playing || (this.mediaState.active && this.mediaState.title));
+        const hasFocus = this.focusState.active;
+        const hasDownloads = this.activeDownloadsList.length > 0;
+        // 1. Music + Focus dual mode
+        if (hasFocus && isMusicActive)
+            return true;
+        // 2. Music + Downloads (Music playing + Download active -> Apple Dynamic Island Split Dual Bubble)
+        if (hasDownloads && isMusicActive)
+            return true;
+        // 3. Multiple simultaneous downloads (split into primary download pill + detached counter ring bubble)
+        if (this.activeDownloadsList.length > 1)
+            return true;
+        return false;
     }
     triggerChargerSurge(charging = true, level) {
         this.chargerSurgeCharging = charging;
@@ -1391,6 +1411,20 @@ class CanvasEngine {
                     }
                 });
             }
+            if (window.roboIsland.onDownloadsUpdate) {
+                window.roboIsland.onDownloadsUpdate((data) => {
+                    this.activeDownloadsList = data && Array.isArray(data.downloads) ? data.downloads : [];
+                    this.updateTargetDimensions();
+                });
+            }
+            if (window.roboIsland.getActiveDownloads) {
+                window.roboIsland.getActiveDownloads().then((list) => {
+                    if (Array.isArray(list) && list.length > 0) {
+                        this.activeDownloadsList = list;
+                        this.updateTargetDimensions();
+                    }
+                }).catch(() => { });
+            }
             if (window.roboIsland.onMascotMood) {
                 window.roboIsland.onMascotMood((mood) => this.setMascotMood(mood));
             }
@@ -1776,8 +1810,15 @@ class CanvasEngine {
             const isDualActive = Boolean(this.mediaState.playing || (this.mediaState.active && this.mediaState.title));
             if (isDualActive) {
                 // Dual task: Spotify takes the primary pill, Focus takes the 36px detached circle bubble
-                const baseWidth = 250;
-                this.targetWidth = this.isHovered ? baseWidth + 8 : baseWidth;
+                let textLen = (this.mediaState.title || '').length;
+                if (this.hasSyncedLyrics()) {
+                    const lyric = this.getLyricNow();
+                    if (lyric && lyric.text) {
+                        textLen = Math.max(textLen, lyric.text.length);
+                    }
+                }
+                const dynamicMusicW = Math.max(285, Math.min(370, Math.round(textLen * 7.2 + 96)));
+                this.targetWidth = this.isHovered ? dynamicMusicW + 8 : dynamicMusicW;
                 this.targetHeight = 36;
                 this.targetRadius = 18;
             }
@@ -1789,9 +1830,32 @@ class CanvasEngine {
             }
         }
         else if (this.mediaState.active && this.mediaState.title) {
-            // Stable TwoCode compact music pill width (250px) preventing play/pause size jumping
-            const baseWidth = 250;
-            this.targetWidth = this.isHovered ? baseWidth + 8 : baseWidth;
+            // Dynamic music pill width: dynamically expand to accommodate full lyrics/title without truncation
+            let textLen = (this.mediaState.title || '').length;
+            if (this.hasSyncedLyrics()) {
+                const lyric = this.getLyricNow();
+                if (lyric && lyric.text) {
+                    textLen = Math.max(textLen, lyric.text.length);
+                }
+            }
+            const dynamicMusicW = Math.max(285, Math.min(370, Math.round(textLen * 7.2 + 96)));
+            this.targetWidth = this.isHovered ? dynamicMusicW + 8 : dynamicMusicW;
+            this.targetHeight = 36;
+            this.targetRadius = 18;
+        }
+        else if (this.activeDownloadsList.length > 0) {
+            // Active Downloads (Single or Multiple)
+            if (this.activeDownloadsList.length > 1) {
+                // Multiple downloads split island
+                this.targetWidth = this.isHovered ? 268 : 260;
+            }
+            else {
+                // Single download platter
+                const dl = this.activeDownloadsList[0];
+                const nameLen = (dl?.cleanName || '').length;
+                const baseW = Math.max(260, Math.min(340, Math.round(nameLen * 6.5 + 130)));
+                this.targetWidth = this.isHovered ? baseW + 8 : baseW;
+            }
             this.targetHeight = 36;
             this.targetRadius = 18;
         }
@@ -2610,21 +2674,53 @@ class CanvasEngine {
                 const bubbleCx = pillLeft + this.currentWidth + 8 + bubbleSize / 2;
                 const bubbleCy = topY + this.currentHeight / 2;
                 const bubbleR = bubbleSize / 2;
-                // Clicking on the detached circular bubble opens Focus tab directly
+                // Clicking on the detached circular bubble:
                 if (Math.hypot(x - bubbleCx, y - bubbleCy) <= bubbleR + 4) {
+                    if (this.activeDownloadsList.length > 0) {
+                        // Reveal download in Windows Explorer
+                        const dl = this.activeDownloadsList[0];
+                        const target = dl?.finalPath || dl?.tempPath;
+                        if (target && window.roboIsland?.showItemInFolder) {
+                            window.roboIsland.showItemInFolder(target);
+                        }
+                        return;
+                    }
                     this.activeTab = 'focus';
                     this.showDomTab('focus');
                     this.expand();
                     return;
                 }
-                // Clicking on the main Spotify pill opens Media tab
+                // Clicking on the main primary pill
                 if (x >= pillLeft && x <= pillLeft + this.currentWidth && y >= topY && y <= topY + this.currentHeight) {
                     if (this.mediaState.active && this.mediaState.title) {
                         this.activeTab = 'media';
                         this.showDomTab('music');
+                        this.mascot.jump();
+                        this.expand();
+                        return;
+                    }
+                    else if (this.activeDownloadsList.length > 0) {
+                        const dl = this.activeDownloadsList[0];
+                        const target = dl?.finalPath || dl?.tempPath;
+                        if (target && window.roboIsland?.showItemInFolder) {
+                            window.roboIsland.showItemInFolder(target);
+                        }
+                        return;
                     }
                     this.mascot.jump();
                     this.expand();
+                    return;
+                }
+            }
+            // Single active download platter click: reveal in Windows Explorer
+            if (this.activeDownloadsList.length === 1 && !(this.mediaState.active && this.mediaState.title)) {
+                const pillLeft = cx - this.currentWidth / 2;
+                if (x >= pillLeft && x <= pillLeft + this.currentWidth && y >= topY && y <= topY + this.currentHeight) {
+                    const dl = this.activeDownloadsList[0];
+                    const target = dl?.finalPath || dl?.tempPath;
+                    if (target && window.roboIsland?.showItemInFolder) {
+                        window.roboIsland.showItemInFolder(target);
+                    }
                     return;
                 }
             }
@@ -3159,10 +3255,10 @@ class CanvasEngine {
                 this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
             }
             this.ctx.stroke();
-            // 2. Secondary Circular Bubble: Subtle violet specular sheen
+            // 2. Secondary Circular Bubble: Cyan for downloads or violet for focus
             this.ctx.beginPath();
             this.ctx.arc(bubbleCx, bubbleCy, bubbleR - 0.5, 0, Math.PI * 2);
-            this.ctx.strokeStyle = 'rgba(191, 90, 242, 0.35)';
+            this.ctx.strokeStyle = this.activeDownloadsList.length > 0 ? 'rgba(0, 210, 255, 0.40)' : 'rgba(191, 90, 242, 0.35)';
             this.ctx.stroke();
             this.ctx.restore();
             this.ctx.restore();
@@ -3369,7 +3465,7 @@ class CanvasEngine {
             this.drawChargerSurgeContent(cx, topY);
         }
         else if (this.isSplitIslandActive()) {
-            // Feature C: Split-Island Dual Bubble [ Pill ] ( ○ ) for Dual Tasks (Music + Focus)
+            // Feature C: Split-Island Dual Bubble [ Pill ] ( ○ ) for Dual Tasks (Music + Focus, Music + Downloads, or Multiple Downloads)
             const h = this.currentHeight;
             const bubbleSize = h;
             const gap = 8;
@@ -3380,50 +3476,58 @@ class CanvasEngine {
             const bubbleCx = left + mainWidth + gap + bubbleSize / 2;
             const bubbleCy = midY;
             const bubbleR = bubbleSize / 2;
-            // 1. Primary Pill: Render Full Spotify Music Island!
-            // (TwoCode ai-monitor-ui.js line 1156 & lyrics-ui.js line 81: Album art, synced lyrics or track title, visualizer)
-            if (this.mediaState.active && this.mediaState.title) {
+            const hasDownloads = this.activeDownloadsList.length > 0;
+            const isMusicActive = Boolean(this.mediaState.active && this.mediaState.title);
+            // 1. Primary Pill: Render Full Spotify Music Island or Primary Download
+            if (isMusicActive) {
                 this.drawCompactMusicIsland(left, midY, topY);
+            }
+            else if (hasDownloads) {
+                this.drawCompactDownloadContent(left, midY, topY, this.activeDownloadsList[0]);
             }
             else {
                 this.mascot.drawFloatingEyes(this.ctx, pillCx, midY, 0.95);
             }
-            // 2. Detached Bubble: TwoCode Focus Circle (ai-monitor-ui.js lines 1258-1264)
-            // d = UI.BAR_H + 4 (36px circle), ring radius d / 2 - 9 (9px)
-            const d = bubbleSize;
-            const ringR = Math.max(7, d / 2 - 9);
-            const leftFraction = this.focusState.totalSeconds > 0
-                ? Math.max(0, Math.min(1, this.focusState.remainingSeconds / this.focusState.totalSeconds))
-                : 0;
-            this.ctx.save();
-            this.ctx.lineWidth = 3.0;
-            this.ctx.lineCap = 'round';
-            // Background dim track ring (TwoCode: 'rgba(191,90,242,.3)')
-            this.ctx.beginPath();
-            this.ctx.arc(bubbleCx, bubbleCy, ringR, 0, Math.PI * 2);
-            this.ctx.strokeStyle = 'rgba(191, 90, 242, 0.3)';
-            this.ctx.stroke();
-            // Active progress arc running empty (TwoCode: '#bf5af2', -Math.PI / 2 to -Math.PI / 2 + Math.PI * 2 * left)
-            if (leftFraction > 0.001) {
-                this.ctx.beginPath();
-                this.ctx.arc(bubbleCx, bubbleCy, ringR, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * leftFraction);
-                this.ctx.strokeStyle = '#bf5af2';
-                this.ctx.shadowColor = 'rgba(191, 90, 242, 0.5)';
-                this.ctx.shadowBlur = 4;
-                this.ctx.stroke();
+            // 2. Detached Bubble: Downloads Progress Ring or TwoCode Focus Circle
+            if (hasDownloads) {
+                this.drawDetachedDownloadBubble(bubbleCx, bubbleCy, bubbleR, this.activeDownloadsList);
             }
-            this.ctx.restore();
-            // Center: Clean remaining minutes matching Apple HIG & TwoCode
-            const min = Math.floor(this.focusState.remainingSeconds / 60);
-            const sec = this.focusState.remainingSeconds % 60;
-            const minText = min > 0 ? String(min) : `${sec}s`;
-            this.ctx.save();
-            this.ctx.font = '700 9px -apple-system, BlinkMacSystemFont, "SF Pro Rounded", Inter, "Segoe UI", sans-serif';
-            this.ctx.fillStyle = '#ffffff';
-            this.ctx.textAlign = 'center';
-            this.ctx.textBaseline = 'middle';
-            this.ctx.fillText(minText, bubbleCx, bubbleCy + 0.5);
-            this.ctx.restore();
+            else {
+                const d = bubbleSize;
+                const ringR = Math.max(7, d / 2 - 9);
+                const leftFraction = this.focusState.totalSeconds > 0
+                    ? Math.max(0, Math.min(1, this.focusState.remainingSeconds / this.focusState.totalSeconds))
+                    : 0;
+                this.ctx.save();
+                this.ctx.lineWidth = 3.0;
+                this.ctx.lineCap = 'round';
+                // Background dim track ring (TwoCode: 'rgba(191,90,242,.3)')
+                this.ctx.beginPath();
+                this.ctx.arc(bubbleCx, bubbleCy, ringR, 0, Math.PI * 2);
+                this.ctx.strokeStyle = 'rgba(191, 90, 242, 0.3)';
+                this.ctx.stroke();
+                // Active progress arc running empty (TwoCode: '#bf5af2', -Math.PI / 2 to -Math.PI / 2 + Math.PI * 2 * left)
+                if (leftFraction > 0.001) {
+                    this.ctx.beginPath();
+                    this.ctx.arc(bubbleCx, bubbleCy, ringR, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * leftFraction);
+                    this.ctx.strokeStyle = '#bf5af2';
+                    this.ctx.shadowColor = 'rgba(191, 90, 242, 0.5)';
+                    this.ctx.shadowBlur = 4;
+                    this.ctx.stroke();
+                }
+                this.ctx.restore();
+                // Center: Clean remaining minutes matching Apple HIG & TwoCode
+                const min = Math.floor(this.focusState.remainingSeconds / 60);
+                const sec = this.focusState.remainingSeconds % 60;
+                const minText = min > 0 ? String(min) : `${sec}s`;
+                this.ctx.save();
+                this.ctx.font = '700 9px -apple-system, BlinkMacSystemFont, "SF Pro Rounded", Inter, "Segoe UI", sans-serif';
+                this.ctx.fillStyle = '#ffffff';
+                this.ctx.textAlign = 'center';
+                this.ctx.textBaseline = 'middle';
+                this.ctx.fillText(minText, bubbleCx, bubbleCy + 0.5);
+                this.ctx.restore();
+            }
         }
         else if (this.aiState.status === 'running') {
             // AI Task Mode
@@ -3478,6 +3582,10 @@ class CanvasEngine {
             this.ctx.textBaseline = 'middle';
             this.ctx.fillText(timeStr, right, cy + 0.5);
             this.ctx.restore();
+        }
+        else if (this.activeDownloadsList.length === 1 && !(this.mediaState.active && this.mediaState.title)) {
+            // Single compact download platter
+            this.drawCompactDownloadContent(pillLeft, midY, topY, this.activeDownloadsList[0]);
         }
         else if (this.mediaState.active && this.mediaState.title) {
             // Dynamic Album-Tinted Music Island (TwoCode Direct Implementation)
@@ -3572,7 +3680,7 @@ class CanvasEngine {
             this.ctx.fill();
             this.ctx.restore();
             this.ctx.restore();
-            return;
+            return true;
         }
         // 2. Google Chrome Apple Mac / iOS Icon
         if (k === 'chrome') {
@@ -3628,7 +3736,7 @@ class CanvasEngine {
             this.ctx.arc(iconCx, iconCy, 2.3, 0, Math.PI * 2);
             this.ctx.fill();
             this.ctx.restore();
-            return;
+            return true;
         }
         // 3. Apple Mail / Outlook Icon
         if (k === 'mail') {
@@ -3679,7 +3787,7 @@ class CanvasEngine {
             this.ctx.lineTo(iconCx + 2.0, ey + 4.0);
             this.ctx.stroke();
             this.ctx.restore();
-            return;
+            return true;
         }
         // 4. Apple Mac Safari / Downloads Icon
         if (k === 'download') {
@@ -3806,7 +3914,7 @@ class CanvasEngine {
                 this.ctx.stroke();
             }
             this.ctx.restore();
-            return;
+            return true;
         }
         // 5. Telegram Icon
         if (k === 'telegram') {
@@ -3844,7 +3952,7 @@ class CanvasEngine {
             this.ctx.lineTo(iconCx - 0.6, iconCy + 1.2);
             this.ctx.stroke();
             this.ctx.restore();
-            return;
+            return true;
         }
         // 6. Discord Icon
         if (k === 'discord') {
@@ -3877,7 +3985,7 @@ class CanvasEngine {
             this.ctx.arc(iconCx + 2.4, iconCy, 1.2, 0, Math.PI * 2);
             this.ctx.fill();
             this.ctx.restore();
-            return;
+            return true;
         }
         // 7. Microsoft Edge Icon
         if (k === 'edge') {
@@ -3906,7 +4014,7 @@ class CanvasEngine {
             this.ctx.arc(iconCx, iconCy, 4.8, 0.2, Math.PI * 1.4);
             this.ctx.stroke();
             this.ctx.restore();
-            return;
+            return true;
         }
         // 8. Spotify Icon
         if (k === 'spotify') {
@@ -3943,7 +4051,7 @@ class CanvasEngine {
             this.ctx.arc(iconCx, iconCy + 4.4, 3.2, -Math.PI * 0.72, -Math.PI * 0.28);
             this.ctx.stroke();
             this.ctx.restore();
-            return;
+            return true;
         }
         // 9. Done / Checkmark Icon
         if (k === 'done') {
@@ -3974,7 +4082,7 @@ class CanvasEngine {
             this.ctx.lineTo(iconCx + 4.2, iconCy - 2.8);
             this.ctx.stroke();
             this.ctx.restore();
-            return;
+            return true;
         }
         // 10. AI Sparkle / Question Icon
         if (k === 'question') {
@@ -4007,29 +4115,11 @@ class CanvasEngine {
                 this.ctx.stroke();
             }
             this.ctx.restore();
-            return;
+            return true;
         }
-        // 11. Generic / System Notification (Deep macOS Midnight Indigo with Floating Mascot Eyes)
-        const grad = this.ctx.createLinearGradient(sx, sy, sx, sy + size);
-        grad.addColorStop(0, '#4338ca');
-        grad.addColorStop(1, '#312e81');
-        this.ctx.beginPath();
-        this.ctx.roundRect(sx, sy, size, size, cr);
-        this.ctx.fillStyle = grad;
-        this.ctx.fill();
-        const sheen = this.ctx.createLinearGradient(sx, sy, sx, sy + size * 0.5);
-        sheen.addColorStop(0, 'rgba(255, 255, 255, 0.35)');
-        sheen.addColorStop(1, 'rgba(255, 255, 255, 0)');
-        this.ctx.fillStyle = sheen;
-        this.ctx.beginPath();
-        this.ctx.roundRect(sx, sy, size, size * 0.5, [cr, cr, 0, 0]);
-        this.ctx.fill();
-        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
-        this.ctx.lineWidth = 0.8;
-        this.ctx.stroke();
-        // Floating Mascot Eyes centered inside Apple squircle
-        this.mascot.drawFloatingEyes(this.ctx, iconCx, iconCy, 0.65);
+        // Generic notification: no generic robo eye icon drawn, cleanly return false
         this.ctx.restore();
+        return false;
     }
     /**
      * TwoCode & Apple Dynamic Island Notification Content Renderer:
@@ -4169,8 +4259,8 @@ class CanvasEngine {
         const iconR = 11;
         const iconCx = left + 9;
         const iconCy = cy;
-        this.drawAppleAppIcon(iconCx, iconCy, iconR, n.kind, n.status, n.app);
-        const textLeft = left + 27;
+        const hasIcon = this.drawAppleAppIcon(iconCx, iconCy, iconR, n.kind, n.status, n.app);
+        const textLeft = hasIcon ? left + 27 : left + 6;
         // Interactive Action Buttons (e.g. Deny & Allow for Claude Code tool execution)
         const actions = n.actions;
         if (actions && actions.length > 0) {
@@ -4531,6 +4621,154 @@ class CanvasEngine {
             // Steady display of Track Name or Ad Name (zero eyes during media playback)
             line(trackName, 0);
         }
+    }
+    /**
+     * Apple Mac / iOS Style Detached Download Circle Bubble ( ○ )
+     * Features:
+     * - 36px circular platter with continuous rim stroke
+     * - Progress ring with glowing cyan arc (#00d2ff)
+     * - Single download: Bobbing downward arrow + platter tray
+     * - Multiple downloads: Centered bold download count badge (e.g. "2") + mini downward arrow
+     */
+    drawDetachedDownloadBubble(bubbleCx, bubbleCy, bubbleR, downloads) {
+        const ringR = Math.max(7, bubbleR - 8);
+        const count = downloads.length;
+        this.ctx.save();
+        // 1. Dim track ring (Apple Mac Safari download style)
+        this.ctx.lineWidth = 2.4;
+        this.ctx.lineCap = 'round';
+        this.ctx.beginPath();
+        this.ctx.arc(bubbleCx, bubbleCy, ringR, 0, Math.PI * 2);
+        this.ctx.strokeStyle = 'rgba(0, 210, 255, 0.22)';
+        this.ctx.stroke();
+        // 2. Active cyan progress arc
+        let hasKnownProgress = false;
+        let avgProgress = 0;
+        let knownCount = 0;
+        for (const d of downloads) {
+            if (typeof d.percent === 'number' && d.percent > 0) {
+                avgProgress += d.percent;
+                knownCount++;
+            }
+        }
+        if (knownCount > 0) {
+            avgProgress /= knownCount;
+            hasKnownProgress = true;
+        }
+        this.ctx.beginPath();
+        if (hasKnownProgress) {
+            const startAngle = -Math.PI / 2;
+            const endAngle = startAngle + Math.PI * 2 * Math.min(1, Math.max(0.05, avgProgress));
+            this.ctx.arc(bubbleCx, bubbleCy, ringR, startAngle, endAngle);
+        }
+        else {
+            // Indeterminate smooth Apple Safari rotation
+            const rot = (performance.now() / 450) % (Math.PI * 2);
+            this.ctx.arc(bubbleCx, bubbleCy, ringR, rot, rot + Math.PI * 0.95);
+        }
+        this.ctx.strokeStyle = '#00d2ff';
+        this.ctx.shadowColor = 'rgba(0, 210, 255, 0.65)';
+        this.ctx.shadowBlur = 5;
+        this.ctx.stroke();
+        this.ctx.restore();
+        // 3. Inside Content: Bobbing arrow or download count
+        if (count > 1) {
+            // Multiple simultaneous downloads: Show bold badge count
+            this.ctx.save();
+            this.ctx.font = '700 11px -apple-system, BlinkMacSystemFont, "SF Pro Rounded", Inter, "Segoe UI", sans-serif';
+            this.ctx.fillStyle = '#ffffff';
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'middle';
+            this.ctx.fillText(String(count), bubbleCx, bubbleCy - 1.5);
+            // Mini downward arrowhead below the count
+            this.ctx.strokeStyle = '#00d2ff';
+            this.ctx.lineWidth = 1.3;
+            this.ctx.lineCap = 'round';
+            this.ctx.lineJoin = 'round';
+            this.ctx.beginPath();
+            this.ctx.moveTo(bubbleCx - 2.5, bubbleCy + 5.0);
+            this.ctx.lineTo(bubbleCx, bubbleCy + 7.5);
+            this.ctx.lineTo(bubbleCx + 2.5, bubbleCy + 5.0);
+            this.ctx.stroke();
+            this.ctx.restore();
+        }
+        else {
+            // Single download: Apple Mac Safari bobbing downward arrow + tray platter
+            const arrowBob = Math.sin(performance.now() / 240) * 0.7;
+            this.ctx.save();
+            this.ctx.strokeStyle = '#00d2ff';
+            this.ctx.lineWidth = 1.4;
+            this.ctx.lineCap = 'round';
+            this.ctx.lineJoin = 'round';
+            // Downward Arrow
+            this.ctx.beginPath();
+            this.ctx.moveTo(bubbleCx, bubbleCy - 3.4 + arrowBob);
+            this.ctx.lineTo(bubbleCx, bubbleCy + 1.8 + arrowBob);
+            this.ctx.moveTo(bubbleCx - 2.4, bubbleCy - 0.2 + arrowBob);
+            this.ctx.lineTo(bubbleCx, bubbleCy + 2.0 + arrowBob);
+            this.ctx.lineTo(bubbleCx + 2.4, bubbleCy - 0.2 + arrowBob);
+            this.ctx.stroke();
+            // Platter tray line
+            this.ctx.beginPath();
+            this.ctx.moveTo(bubbleCx - 3.4, bubbleCy + 4.2);
+            this.ctx.lineTo(bubbleCx + 3.4, bubbleCy + 4.2);
+            this.ctx.stroke();
+            this.ctx.restore();
+        }
+    }
+    /**
+     * Compact Single Download Platter (When No Music is Playing)
+     * Left: Apple Safari Download Icon Squircle with Progress Ring
+     * Center: Real filename + Formatted Size & Speed
+     * Right: Clean Folder Reveal Glyph
+     */
+    drawCompactDownloadContent(pillLeft, midY, topY, dl) {
+        if (!dl)
+            return;
+        const cy = midY;
+        const left = pillLeft + 14;
+        const right = pillLeft + this.currentWidth - 14;
+        // Left: Apple Mac Safari Download App Icon
+        const iconR = 11;
+        const iconCx = left + 9;
+        this.drawAppleAppIcon(iconCx, cy, iconR, 'download', dl.status);
+        // Center: Filename & Transfer Metric
+        const textLeft = left + 27;
+        const textRight = right - 24;
+        const maxW = Math.max(60, textRight - textLeft);
+        const titleFont = '600 12px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
+        const subFont = '400 10.5px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
+        const cleanTitle = dl.cleanName || 'Downloading File...';
+        const truncTitle = this.truncateText(cleanTitle, maxW, titleFont);
+        const sizeStr = typeof dl.bytes === 'number' ? this.formatBytes(dl.bytes) : '';
+        const speedStr = dl.speedStr ? ` • ${dl.speedStr}` : '';
+        const metricStr = `${sizeStr}${speedStr}` || 'Downloading...';
+        this.ctx.save();
+        this.ctx.textAlign = 'left';
+        this.ctx.textBaseline = 'middle';
+        // Title line
+        this.ctx.font = titleFont;
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.fillText(truncTitle, textLeft, cy - 6);
+        // Subtitle / Speed line
+        this.ctx.font = subFont;
+        this.ctx.fillStyle = 'rgba(0, 210, 255, 0.9)';
+        this.ctx.fillText(metricStr, textLeft, cy + 7);
+        // Right: Folder reveal icon (Apple style folder glyph)
+        const folderX = right - 10;
+        const folderY = cy;
+        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.65)';
+        this.ctx.lineWidth = 1.2;
+        this.ctx.beginPath();
+        this.ctx.roundRect(folderX - 7, folderY - 5, 14, 10, 1.5);
+        this.ctx.stroke();
+        this.ctx.beginPath();
+        this.ctx.moveTo(folderX - 5, folderY - 5);
+        this.ctx.lineTo(folderX - 2, folderY - 7);
+        this.ctx.lineTo(folderX + 1, folderY - 7);
+        this.ctx.lineTo(folderX + 2, folderY - 5);
+        this.ctx.stroke();
+        this.ctx.restore();
     }
     /**
      * TwoCode Compact Resting Island (matching Screenshot 2):

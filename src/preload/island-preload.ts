@@ -177,6 +177,13 @@ const api = {
     ipcRenderer.on('island:notify', handler);
     return () => ipcRenderer.removeListener('island:notify', handler);
   },
+  onDownloadsUpdate: (callback: (data: { count: number; downloads: any[] }) => void) => {
+    const handler = (_event: any, data: any) => callback(data);
+    ipcRenderer.on('island:downloads-update', handler);
+    return () => ipcRenderer.removeListener('island:downloads-update', handler);
+  },
+  getActiveDownloads: () => ipcRenderer.invoke('downloads:get-active'),
+  simulateDownloads: (count: number = 2) => ipcRenderer.invoke('system:simulate-downloads', count),
   postNotification: (payload: any) => {
     ipcRenderer.send('island:notify', payload);
   },

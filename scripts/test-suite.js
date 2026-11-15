@@ -269,8 +269,76 @@ async function runTests() {
   const testFilename = 'VSCodeUserSetup-x64.exe.crdownload';
   const cleanName = testFilename.replace(/\.(crdownload|part)$/i, '');
   assert('Exact clean filename extracted without .crdownload', cleanName === 'VSCodeUserSetup-x64.exe');
-  assert('Unconfirmed placeholder is detected and ignored', /^unconfirmed/i.test('Unconfirmed 83921.crdownload'));
+  assert('Unconfirmed placeholder is detected by regex', /^unconfirmed/i.test('Unconfirmed 83921.crdownload'));
+  assert('tryResolveChromeTargetName method exists on DownloadMonitor', typeof dm.tryResolveChromeTargetName === 'function');
+  assert('scanDownloadsDir method exists on DownloadMonitor', typeof dm.scanDownloadsDir === 'function');
   dm.dispose();
+
+  // 13. Testing Generic Notification Clean Layout (No Generic Robo Eye Squircle)
+  console.log('\n--- 13. Testing Generic Notification Clean Layout ---');
+  // Create a minimal mock ctx for CanvasEngine
+  const mockCtx = {
+    save: () => {},
+    restore: () => {},
+    beginPath: () => {},
+    roundRect: () => {},
+    fill: () => {},
+    stroke: () => {},
+    arc: () => {},
+    moveTo: () => {},
+    lineTo: () => {},
+    closePath: () => {},
+    translate: () => {},
+    rotate: () => {},
+    createLinearGradient: () => ({ addColorStop: () => {} })
+  };
+  const mockEngine = Object.create(CanvasEngine.prototype);
+  mockEngine.ctx = mockCtx;
+  mockEngine.mascot = mascot;
+  mockEngine.activeNotification = null;
+
+  assert('drawAppleAppIcon returns true for WhatsApp', mockEngine.drawAppleAppIcon(0, 0, 11, 'whatsapp') === true);
+  assert('drawAppleAppIcon returns true for Chrome', mockEngine.drawAppleAppIcon(0, 0, 11, 'chrome') === true);
+  assert('drawAppleAppIcon returns true for Mail', mockEngine.drawAppleAppIcon(0, 0, 11, 'mail') === true);
+  assert('drawAppleAppIcon returns true for Download', mockEngine.drawAppleAppIcon(0, 0, 11, 'download') === true);
+  assert('drawAppleAppIcon returns false for Snipping Tool / Unknown (Zero generic mascot eyes)', mockEngine.drawAppleAppIcon(0, 0, 11, 'info', undefined, 'Snipping Tool') === false);
+
+  // 14. Testing Dynamic Compact Music Lyric Expansion
+  console.log('\n--- 14. Testing Dynamic Music Pill Lyric Expansion ---');
+  mockEngine.mode = 'compact';
+  mockEngine.isTucked = false;
+  mockEngine.isHovered = false;
+  mockEngine.focusState = { active: false, remainingSeconds: 0, totalSeconds: 0 };
+  mockEngine.aiState = { status: 'idle' };
+  mockEngine.hasSyncedLyrics = () => false;
+  mockEngine.activeDownloadsList = [];
+  mockEngine.mediaState = { active: true, playing: true, title: 'Better hang with me, huh (Part 1)' };
+  mockEngine.updateTargetDimensions();
+
+  assert('Compact music pill expands beyond 250px for lyrics', mockEngine.targetWidth > 280);
+  assert('Dynamic width fits full 33-char lyrics without truncation', mockEngine.targetWidth >= 330 && mockEngine.targetWidth <= 370);
+
+  // Short track title
+  mockEngine.mediaState.title = 'Song';
+  mockEngine.updateTargetDimensions();
+  assert('Short track title scales to comfortable base width', mockEngine.targetWidth >= 285 && mockEngine.targetWidth <= 310);
+
+  // 15. Testing Split-Island Dual Bubble for Downloads & Ring
+  console.log('\n--- 15. Testing Split-Island Dual Bubble for Downloads ---');
+  mockEngine.mediaState = { active: true, playing: true, title: 'Spotify Track' };
+  mockEngine.activeDownloadsList = [{ filename: 'test.zip.crdownload', cleanName: 'test.zip', bytes: 1024, status: 'downloading' }];
+  assert('Split Island activates when music is active and download is active', mockEngine.isSplitIslandActive() === true);
+
+  // Multiple downloads without music
+  mockEngine.mediaState = { active: false, playing: false, title: '' };
+  mockEngine.activeDownloadsList = [
+    { filename: 'dl1.crdownload', cleanName: 'dl1.zip', bytes: 1024, status: 'downloading' },
+    { filename: 'dl2.crdownload', cleanName: 'dl2.zip', bytes: 2048, status: 'downloading' }
+  ];
+  assert('Split Island activates when multiple downloads are running', mockEngine.isSplitIslandActive() === true);
+
+  assert('drawDetachedDownloadBubble method exists on CanvasEngine', typeof CanvasEngine.prototype.drawDetachedDownloadBubble === 'function');
+  assert('drawCompactDownloadContent method exists on CanvasEngine', typeof CanvasEngine.prototype.drawCompactDownloadContent === 'function');
 
   // Summary
   console.log('\n====================================================');
