@@ -522,6 +522,23 @@ async function runTests() {
   assert('Agenda tab sets targetWidth to 540px', mockEngine.targetWidth === 540);
   assert('Agenda tab sets targetHeight to 280px', mockEngine.targetHeight === 280);
 
+  // --- 20. Testing Apple Notes Pad & Deterministic Ambient Feature Glow ---
+  console.log('\n--- 20. Testing Apple Notes Pad & Deterministic Ambient Feature Glow ---');
+  assert('index.html contains #panel-notes section', indexHtml.includes('id="panel-notes"'));
+  assert('index.html contains #notes-title-input', indexHtml.includes('id="notes-title-input"'));
+  assert('index.html contains #notes-textarea', indexHtml.includes('id="notes-textarea"'));
+  assert('index.html contains #btn-notes-new button', indexHtml.includes('id="btn-notes-new"'));
+  assert('index.html contains #btn-notes-clear button', indexHtml.includes('id="btn-notes-clear"'));
+  assert('index.html contains #btn-notes-todo checklist tool', indexHtml.includes('id="btn-notes-todo"'));
+  assert('index.html contains #btn-notes-timestamp tool', indexHtml.includes('id="btn-notes-timestamp"'));
+  assert('index.html contains #btn-notes-copy tool', indexHtml.includes('id="btn-notes-copy"'));
+  assert('index.html removed disruptive native title tooltips on dock items', !indexHtml.includes('<button class="nav-item active" data-tab="home" title='));
+  assert('island.css contains deterministic glow for focus', islandCss.includes('data-active-tab="focus"'));
+  assert('island.css contains deterministic glow for notes', islandCss.includes('data-active-tab="notes"'));
+  assert('island.css contains deterministic glow for music', islandCss.includes('data-active-tab="music"'));
+  assert('island.css contains #panel-notes styling', islandCss.includes('#panel-notes'));
+  assert('initNotesUI method exists on CanvasEngine prototype', typeof mockEngine.initNotesUI === 'function');
+
   // Summary
   console.log('\n====================================================');
   console.log(`TEST SUMMARY: ${passed} PASSED, ${failed} FAILED`);

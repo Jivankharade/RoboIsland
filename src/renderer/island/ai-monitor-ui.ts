@@ -73,22 +73,30 @@ export class AIMonitorUI {
   }
 
   private setupEventListeners(): void {
-    // Intercept Bottom Nav [data-tab="ai"] click to open embedded #panel-ai
+    // Intercept Bottom Nav [data-tab="ai"] click to open embedded #panel-ai via CanvasEngine
     const aiNavBtn = document.querySelector('.nav-item[data-tab="ai"]');
     if (aiNavBtn) {
-      aiNavBtn.addEventListener('click', (e) => {
-        e.stopImmediatePropagation();
-        this.activatePanel();
-      }, true);
+      aiNavBtn.addEventListener('click', () => {
+        const engine = (window as any).__canvasEngine;
+        if (engine && typeof engine.showDomTab === 'function') {
+          engine.showDomTab('ai');
+        } else {
+          this.activatePanel();
+        }
+      });
     }
 
     // Intercept Claude Code card click on home dashboard
     const cardClaude = document.getElementById('card-claude');
     if (cardClaude) {
-      cardClaude.addEventListener('click', (e) => {
-        e.stopImmediatePropagation();
-        this.activatePanel();
-      }, true);
+      cardClaude.addEventListener('click', () => {
+        const engine = (window as any).__canvasEngine;
+        if (engine && typeof engine.showDomTab === 'function') {
+          engine.showDomTab('ai');
+        } else {
+          this.activatePanel();
+        }
+      });
     }
 
     // Listen to other nav tabs to deactivate panel-ai
@@ -169,6 +177,12 @@ export class AIMonitorUI {
   }
 
   public activatePanel(): void {
+    const engine = (window as any).__canvasEngine;
+    if (engine && typeof engine.showDomTab === 'function') {
+      engine.showDomTab('ai');
+      return;
+    }
+
     if (!this.panel) return;
 
     // Deactivate all sibling panels

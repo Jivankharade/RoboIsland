@@ -2472,10 +2472,10 @@ class CanvasEngine {
         this.basePositionMs = state.positionMs || 0;
         this.lastMediaSampleTime = performance.now();
         const cover = state.coverUrl || state.albumArtUrl || '';
-        if (cover) {
+        if (state.active && state.title && cover) {
             this.extractAlbumColor(cover);
         }
-        else if (state.title && !cover) {
+        else {
             this.extractAlbumColor('');
         }
         this.mascot.isDancing = Boolean(state.playing && state.active);
@@ -7623,10 +7623,24 @@ class CanvasEngine {
         else if (tab === 'tray') {
             this.activeTab = 'tray';
         }
+        else if (tab === 'notes') {
+            this.activeTab = 'notes';
+        }
+        else if (tab === 'chat') {
+            this.activeTab = 'chat';
+        }
+        else if (tab === 'clipboard') {
+            this.activeTab = 'clipboard';
+        }
+        else if (tab === 'agenda') {
+            this.activeTab = 'agenda';
+        }
         this.updateTargetDimensions();
         this.updateAmbientGlow(tab);
         if (!this.domOverlayEl)
             return;
+        // Set deterministic active tab attribute on overlay for CSS glow bindings
+        this.domOverlayEl.setAttribute('data-active-tab', tab);
         // Update active nav button
         const navItems = this.domOverlayEl.querySelectorAll('.nav-item');
         navItems.forEach((item) => {
@@ -7640,6 +7654,9 @@ class CanvasEngine {
         // Title & Phone button logic (TwoCode Two-Tone Header Titles)
         const titleEl = document.getElementById('status-title');
         const phoneBtn = document.getElementById('btn-phone-quick');
+        // Hide phone button unconditionally by default (only File Tray reveals it)
+        if (phoneBtn)
+            phoneBtn.classList.add('hidden');
         this.setPopover('none');
         // Hide all panels
         const panels = this.domOverlayEl.querySelectorAll('.island-panel');
@@ -7652,21 +7669,16 @@ class CanvasEngine {
         if (tab === 'home') {
             if (titleEl)
                 titleEl.textContent = '';
-            if (phoneBtn)
-                phoneBtn.classList.add('hidden');
             document.getElementById('panel-home')?.classList.add('active');
         }
         else if (tab === 'ai') {
             setTwoToneTitle('Claude ', 'Code', '#d97757');
-            if (phoneBtn)
-                phoneBtn.classList.add('hidden');
             document.getElementById('panel-ai')?.classList.add('active');
         }
         else if (tab === 'music') {
-            const tint = this.albumAccentColor || '#ff375f';
+            const isMediaActive = Boolean(this.mediaState.active && this.mediaState.title);
+            const tint = isMediaActive ? (this.albumAccentColor || '#1ed760') : '#1ed760';
             setTwoToneTitle('Music ', 'Player', tint);
-            if (phoneBtn)
-                phoneBtn.classList.add('hidden');
             document.getElementById('panel-music')?.classList.add('active');
         }
         else if (tab === 'tray') {
@@ -7676,17 +7688,18 @@ class CanvasEngine {
             document.getElementById('panel-tray')?.classList.add('active');
             this.loadTrayShelf();
         }
+        else if (tab === 'notes') {
+            setTwoToneTitle('Apple ', 'Notes', '#ffd60a');
+            document.getElementById('panel-notes')?.classList.add('active');
+            this.initNotesUI();
+        }
         else if (tab === 'clipboard') {
             setTwoToneTitle('Clip', 'board', '#64d2ff');
-            if (phoneBtn)
-                phoneBtn.classList.add('hidden');
             document.getElementById('panel-clipboard')?.classList.add('active');
             this.loadClipboardList();
         }
         else if (tab === 'chat') {
             setTwoToneTitle('Robo ', 'Chat', '#30d158');
-            if (phoneBtn)
-                phoneBtn.classList.add('hidden');
             document.getElementById('panel-chat')?.classList.add('active');
             const input = document.getElementById('chat-input');
             if (input)
@@ -7694,8 +7707,6 @@ class CanvasEngine {
         }
         else if (tab === 'focus') {
             setTwoToneTitle('Focus ', 'Timer', '#bf5af2');
-            if (phoneBtn)
-                phoneBtn.classList.add('hidden');
             const focusPanel = document.getElementById('panel-focus');
             if (focusPanel) {
                 focusPanel.classList.add('active');
@@ -7706,8 +7717,6 @@ class CanvasEngine {
         }
         else if (tab === 'agenda') {
             setTwoToneTitle('Age', 'nda', '#0070f3');
-            if (phoneBtn)
-                phoneBtn.classList.add('hidden');
             document.getElementById('panel-agenda')?.classList.add('active');
             this.initAgendaUI();
         }
@@ -7731,6 +7740,7 @@ class CanvasEngine {
         const overlay = this.domOverlayEl || document.getElementById('expanded-island-overlay');
         if (!overlay)
             return;
+        overlay.setAttribute('data-active-tab', tab);
         let primary = 'rgba(255, 255, 255, 0.16)';
         let secondary = 'rgba(140, 140, 160, 0.08)';
         let accent = '#ffffff';
@@ -7743,12 +7753,20 @@ class CanvasEngine {
                 break;
             case 'music': {
                 // Spotify / Apple Music emerald green or dynamic album artwork tint
-                const r = this.currentTintR || 30;
-                const g = this.currentTintG || 215;
-                const b = this.currentTintB || 96;
-                primary = `rgba(${r}, ${g}, ${b}, 0.50)`;
-                secondary = `rgba(${Math.round(r * 0.65)}, ${Math.round(g * 0.65)}, ${Math.round(b * 0.65)}, 0.22)`;
-                accent = this.albumAccentColor || '#1ed760';
+                const isMediaActive = Boolean(this.mediaState.active && this.mediaState.title);
+                if (isMediaActive) {
+                    const r = this.currentTintR || 30;
+                    const g = this.currentTintG || 215;
+                    const b = this.currentTintB || 96;
+                    primary = `rgba(${r}, ${g}, ${b}, 0.50)`;
+                    secondary = `rgba(${Math.round(r * 0.65)}, ${Math.round(g * 0.65)}, ${Math.round(b * 0.65)}, 0.22)`;
+                    accent = this.albumAccentColor || '#1ed760';
+                }
+                else {
+                    primary = 'rgba(30, 215, 96, 0.50)';
+                    secondary = 'rgba(20, 140, 62, 0.22)';
+                    accent = '#1ed760';
+                }
                 break;
             }
             case 'ai':
@@ -7794,6 +7812,161 @@ class CanvasEngine {
         overlay.style.setProperty('--feature-glow-primary', primary);
         overlay.style.setProperty('--feature-glow-secondary', secondary);
         overlay.style.setProperty('--feature-glow-accent', accent);
+    }
+    isNotesInitialized = false;
+    /**
+     * Apple Notes Pad Experience (#panel-notes)
+     * Real quick-note editor with persistence, word/char counts, checklist, and timestamps
+     */
+    initNotesUI() {
+        if (!this.domOverlayEl)
+            return;
+        const titleInput = document.getElementById('notes-title-input');
+        const textArea = document.getElementById('notes-textarea');
+        const statsBadge = document.getElementById('notes-stats-badge');
+        const statusBadge = document.getElementById('notes-status-badge');
+        const lastEditedEl = document.getElementById('notes-last-edited');
+        const updateStats = () => {
+            const text = (textArea?.value || '') + ' ' + (titleInput?.value || '');
+            const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+            const chars = (textArea?.value?.length || 0) + (titleInput?.value?.length || 0);
+            if (statsBadge) {
+                statsBadge.textContent = `${words} ${words === 1 ? 'word' : 'words'} • ${chars} ${chars === 1 ? 'char' : 'chars'}`;
+            }
+        };
+        let saveTimer = null;
+        const triggerSave = () => {
+            if (statusBadge) {
+                statusBadge.textContent = 'Saving...';
+                statusBadge.style.color = '#ff9f0a';
+                statusBadge.style.borderColor = 'rgba(255, 159, 10, 0.35)';
+            }
+            clearTimeout(saveTimer);
+            saveTimer = setTimeout(() => {
+                try {
+                    const noteData = {
+                        title: titleInput?.value || '',
+                        body: textArea?.value || '',
+                        updatedAt: Date.now()
+                    };
+                    localStorage.setItem('roboisland_apple_note', JSON.stringify(noteData));
+                    if (statusBadge) {
+                        statusBadge.textContent = 'Auto-Saved';
+                        statusBadge.style.color = '#ffd60a';
+                        statusBadge.style.borderColor = 'rgba(255, 214, 10, 0.25)';
+                    }
+                    if (lastEditedEl) {
+                        const now = new Date();
+                        const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                        lastEditedEl.textContent = `Last edited today at ${timeStr}`;
+                    }
+                }
+                catch { }
+            }, 300);
+        };
+        // Load saved note on first load if inputs are empty
+        try {
+            const raw = localStorage.getItem('roboisland_apple_note');
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (titleInput && !titleInput.value)
+                    titleInput.value = parsed.title || '';
+                if (textArea && !textArea.value)
+                    textArea.value = parsed.body || '';
+                if (parsed.updatedAt && lastEditedEl) {
+                    const dt = new Date(parsed.updatedAt);
+                    lastEditedEl.textContent = `Last edited ${dt.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+                }
+            }
+        }
+        catch { }
+        updateStats();
+        if (this.isNotesInitialized)
+            return;
+        this.isNotesInitialized = true;
+        titleInput?.addEventListener('input', () => {
+            updateStats();
+            triggerSave();
+        });
+        textArea?.addEventListener('input', () => {
+            updateStats();
+            triggerSave();
+        });
+        // Helper: + New Note
+        const btnNew = document.getElementById('btn-notes-new');
+        btnNew?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (titleInput)
+                titleInput.value = '';
+            if (textArea)
+                textArea.value = '';
+            triggerSave();
+            updateStats();
+            titleInput?.focus();
+        });
+        // Helper: Clear
+        const btnClear = document.getElementById('btn-notes-clear');
+        btnClear?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (!titleInput?.value && !textArea?.value)
+                return;
+            if (window.confirm('Are you sure you want to clear this note?')) {
+                if (titleInput)
+                    titleInput.value = '';
+                if (textArea)
+                    textArea.value = '';
+                triggerSave();
+                updateStats();
+            }
+        });
+        // Helper: Checklist button
+        const btnTodo = document.getElementById('btn-notes-todo');
+        btnTodo?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (!textArea)
+                return;
+            const start = textArea.selectionStart || 0;
+            const end = textArea.selectionEnd || 0;
+            const val = textArea.value;
+            const prefix = (start === 0 || val[start - 1] === '\n') ? '- [ ] ' : '\n- [ ] ';
+            textArea.value = val.substring(0, start) + prefix + val.substring(end);
+            textArea.selectionStart = textArea.selectionEnd = start + prefix.length;
+            textArea.focus();
+            triggerSave();
+            updateStats();
+        });
+        // Helper: Timestamp button
+        const btnTimestamp = document.getElementById('btn-notes-timestamp');
+        btnTimestamp?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (!textArea)
+                return;
+            const start = textArea.selectionStart || 0;
+            const end = textArea.selectionEnd || 0;
+            const val = textArea.value;
+            const now = new Date();
+            const ts = `[${now.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}] `;
+            textArea.value = val.substring(0, start) + ts + val.substring(end);
+            textArea.selectionStart = textArea.selectionEnd = start + ts.length;
+            textArea.focus();
+            triggerSave();
+            updateStats();
+        });
+        // Helper: Copy button
+        const btnCopy = document.getElementById('btn-notes-copy');
+        btnCopy?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const textToCopy = [titleInput?.value, textArea?.value].filter(Boolean).join('\n\n');
+            if (!textToCopy.trim())
+                return;
+            navigator.clipboard?.writeText(textToCopy);
+            const span = btnCopy.querySelector('span');
+            if (span) {
+                const orig = span.textContent;
+                span.textContent = '✓ Copied';
+                setTimeout(() => { span.textContent = orig; }, 1500);
+            }
+        });
     }
     initAgendaUI() {
         if (!this.domOverlayEl)

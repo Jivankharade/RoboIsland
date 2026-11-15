@@ -401,13 +401,18 @@ class FocusUI {
     setupEventListeners() {
         if (!this.panelEl)
             return;
-        // 1. Navigation Tab [data-tab="focus"]
+        // 1. Navigation Tab [data-tab="focus"] - Delegated to CanvasEngine.showDomTab('focus')
         const navFocusBtn = document.querySelector('.nav-item[data-tab="focus"]');
         if (navFocusBtn) {
-            navFocusBtn.addEventListener('click', (e) => {
-                e.stopImmediatePropagation();
-                this.activatePanel();
-            }, true);
+            navFocusBtn.addEventListener('click', () => {
+                const engine = window.__canvasEngine;
+                if (engine && typeof engine.showDomTab === 'function') {
+                    engine.showDomTab('focus');
+                }
+                else {
+                    this.activatePanel();
+                }
+            });
         }
         // 2. Home Dashboard #card-focus click
         const cardFocus = document.getElementById('card-focus');
@@ -415,7 +420,13 @@ class FocusUI {
             cardFocus.addEventListener('click', (e) => {
                 if (e.target.closest('#btn-focus-toggle'))
                     return;
-                this.activatePanel();
+                const engine = window.__canvasEngine;
+                if (engine && typeof engine.showDomTab === 'function') {
+                    engine.showDomTab('focus');
+                }
+                else {
+                    this.activatePanel();
+                }
             });
         }
         // 3. Sub-View Switcher between Timer and Guard
@@ -607,6 +618,11 @@ class FocusUI {
      * PANEL ACTIVATION & NAVIGATION
      * ------------------------------------------------------------------------ */
     activatePanel() {
+        const engine = window.__canvasEngine;
+        if (engine && typeof engine.showDomTab === 'function') {
+            engine.showDomTab('focus');
+            return;
+        }
         if (!this.panelEl)
             return;
         const panels = document.querySelectorAll('.island-panel');

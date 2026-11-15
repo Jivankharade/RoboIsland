@@ -133,6 +133,36 @@ html, body {
   transition: background 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.35s ease;
 }
 
+/* Deterministic Ambient Feature Glow per active tab (Guarantees exact color matching and zero leak) */
+#expanded-island-overlay[data-active-tab="focus"]::after {
+  background: radial-gradient(ellipse 92% 76% at 50% 100%, rgba(191, 90, 242, 0.52) 0%, rgba(142, 68, 173, 0.22) 50%, rgba(0, 0, 0, 0) 85%) !important;
+}
+#expanded-island-overlay[data-active-tab="notes"]::after {
+  background: radial-gradient(ellipse 92% 76% at 50% 100%, rgba(255, 214, 10, 0.50) 0%, rgba(245, 158, 11, 0.22) 50%, rgba(0, 0, 0, 0) 85%) !important;
+}
+#expanded-island-overlay[data-active-tab="music"]::after {
+  background: radial-gradient(ellipse 92% 76% at 50% 100%, rgba(var(--album-tint-rgb, 30, 215, 96), 0.50) 0%, rgba(var(--album-tint-rgb, 30, 215, 96), 0.22) 50%, rgba(0, 0, 0, 0) 85%) !important;
+}
+#expanded-island-overlay[data-active-tab="chat"]::after {
+  background: radial-gradient(ellipse 92% 76% at 50% 100%, rgba(48, 209, 88, 0.50) 0%, rgba(52, 199, 89, 0.22) 50%, rgba(0, 0, 0, 0) 85%) !important;
+}
+#expanded-island-overlay[data-active-tab="ai"]::after {
+  background: radial-gradient(ellipse 92% 76% at 50% 100%, rgba(217, 119, 87, 0.52) 0%, rgba(245, 158, 11, 0.22) 50%, rgba(0, 0, 0, 0) 85%) !important;
+}
+#expanded-island-overlay[data-active-tab="tray"]::after {
+  background: radial-gradient(ellipse 92% 76% at 50% 100%, rgba(255, 214, 10, 0.48) 0%, rgba(245, 158, 11, 0.22) 50%, rgba(0, 0, 0, 0) 85%) !important;
+}
+#expanded-island-overlay[data-active-tab="clipboard"]::after {
+  background: radial-gradient(ellipse 92% 76% at 50% 100%, rgba(100, 210, 255, 0.50) 0%, rgba(0, 150, 255, 0.22) 50%, rgba(0, 0, 0, 0) 85%) !important;
+}
+#expanded-island-overlay[data-active-tab="agenda"]::after {
+  background: radial-gradient(ellipse 92% 76% at 50% 100%, rgba(0, 112, 243, 0.52) 0%, rgba(2, 132, 199, 0.24) 50%, rgba(0, 0, 0, 0) 85%) !important;
+}
+#expanded-island-overlay[data-active-tab="home"]::after,
+#expanded-island-overlay[data-active-tab="settings"]::after {
+  background: radial-gradient(ellipse 92% 76% at 50% 100%, rgba(255, 255, 255, 0.16) 0%, rgba(140, 140, 160, 0.08) 50%, rgba(0, 0, 0, 0) 85%) !important;
+}
+
 #expanded-island-overlay.hidden {
   display: none !important;
 }
@@ -4733,6 +4763,220 @@ html, body {
   background: rgba(255, 255, 255, 0.12);
   color: rgba(255, 255, 255, 0.7);
 }
+
+/* ==========================================================================
+   APPLE NOTES PANEL PARITY (#panel-notes)
+   Mac Sonoma & iOS 18 Apple Notes Textured Notepad Experience
+   ========================================================================== */
+#panel-notes {
+  padding: 6px 14px 4px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+#panel-notes.active {
+  display: flex !important;
+}
+
+.notes-panel-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  background: rgba(26, 26, 30, 0.65);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border: 1px solid rgba(255, 214, 10, 0.16);
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.notes-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 214, 10, 0.03);
+}
+
+.notes-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.notes-badge-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: rgba(255, 214, 10, 0.15);
+  border: 1px solid rgba(255, 214, 10, 0.3);
+}
+
+.notes-header-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.01em;
+}
+
+.notes-status-badge {
+  font-size: 10px;
+  font-weight: 600;
+  color: #ffd60a;
+  background: rgba(255, 214, 10, 0.12);
+  padding: 2px 7px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 214, 10, 0.25);
+  transition: all 0.25s ease;
+}
+
+.notes-header-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.notes-stats-badge {
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.45);
+  margin-right: 4px;
+}
+
+.notes-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.notes-action-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.notes-btn-danger:hover {
+  background: rgba(255, 69, 58, 0.2);
+  border-color: rgba(255, 69, 58, 0.4);
+  color: #ff453a;
+}
+
+.notes-card-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  padding: 8px 12px 6px;
+  overflow: hidden;
+}
+
+.notes-title-input {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 3px 0 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #ffffff;
+  outline: none;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.notes-title-input::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+  font-weight: 500;
+}
+
+.notes-editor-wrap {
+  flex: 1;
+  display: flex;
+  margin-top: 6px;
+  min-height: 85px;
+}
+
+.notes-textarea {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 13px;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.9);
+  padding: 0;
+}
+
+.notes-textarea::selection,
+.notes-title-input::selection {
+  background: rgba(255, 214, 10, 0.38);
+  color: #ffffff;
+}
+
+.notes-textarea::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.notes-footer-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+}
+
+.notes-tools {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.notes-tool-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.notes-tool-pill:hover {
+  background: rgba(255, 214, 10, 0.15);
+  border-color: rgba(255, 214, 10, 0.35);
+  color: #ffd60a;
+}
+
+.notes-last-edited {
+  font-size: 10.5px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.35);
+}
+
 
 
 

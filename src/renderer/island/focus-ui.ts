@@ -460,13 +460,17 @@ export class FocusUI {
   private setupEventListeners(): void {
     if (!this.panelEl) return;
 
-    // 1. Navigation Tab [data-tab="focus"]
+    // 1. Navigation Tab [data-tab="focus"] - Delegated to CanvasEngine.showDomTab('focus')
     const navFocusBtn = document.querySelector('.nav-item[data-tab="focus"]');
     if (navFocusBtn) {
-      navFocusBtn.addEventListener('click', (e) => {
-        e.stopImmediatePropagation();
-        this.activatePanel();
-      }, true);
+      navFocusBtn.addEventListener('click', () => {
+        const engine = (window as any).__canvasEngine;
+        if (engine && typeof engine.showDomTab === 'function') {
+          engine.showDomTab('focus');
+        } else {
+          this.activatePanel();
+        }
+      });
     }
 
     // 2. Home Dashboard #card-focus click
@@ -474,7 +478,12 @@ export class FocusUI {
     if (cardFocus) {
       cardFocus.addEventListener('click', (e) => {
         if ((e.target as HTMLElement).closest('#btn-focus-toggle')) return;
-        this.activatePanel();
+        const engine = (window as any).__canvasEngine;
+        if (engine && typeof engine.showDomTab === 'function') {
+          engine.showDomTab('focus');
+        } else {
+          this.activatePanel();
+        }
       });
     }
 
@@ -677,6 +686,12 @@ export class FocusUI {
    * ------------------------------------------------------------------------ */
 
   public activatePanel(): void {
+    const engine = (window as any).__canvasEngine;
+    if (engine && typeof engine.showDomTab === 'function') {
+      engine.showDomTab('focus');
+      return;
+    }
+
     if (!this.panelEl) return;
 
     const panels = document.querySelectorAll('.island-panel');

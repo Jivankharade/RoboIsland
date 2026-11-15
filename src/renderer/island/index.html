@@ -181,11 +181,11 @@
           </div>
 
           <!-- Card 2: Music -->
-          <div class="dash-card music-card" id="card-music" title="Music Player">
+          <div class="dash-card music-card" id="card-music">
             <div class="card-header">
               <div class="card-title-wrap">
                 <span class="card-title">Music</span>
-                <div id="card-music-viz" class="card-mini-viz hidden" title="Playing">
+                <div id="card-music-viz" class="card-mini-viz hidden">
                   <span></span><span></span><span></span><span></span>
                 </div>
               </div>
@@ -205,7 +205,7 @@
                 <h3 id="card-music-title">Quiet</h3>
                 <p id="card-music-sub">Nothing playing</p>
               </div>
-              <button class="home-play-btn" id="btn-home-music-play" title="Play / Pause">
+              <button class="home-play-btn" id="btn-home-music-play">
                 <svg id="home-music-play-icon" viewBox="0 0 24 24" width="12" height="12" fill="#000000">
                   <polygon points="6 3 20 12 6 21 6 3"/>
                 </svg>
@@ -214,11 +214,11 @@
           </div>
 
           <!-- Card 3: Focus -->
-          <div class="dash-card focus-card" id="card-focus" title="Focus Timer">
+          <div class="dash-card focus-card" id="card-focus">
             <div class="card-header">
               <span class="card-title">Focus</span>
               <div class="focus-btn-slot">
-                <button class="focus-action-btn" id="btn-focus-toggle" title="Start / Stop Focus">
+                <button class="focus-action-btn" id="btn-focus-toggle">
                   <svg id="focus-btn-svg" viewBox="0 0 36 36" width="36" height="36">
                     <circle cx="18" cy="18" r="18" fill="#ffffff"/>
                     <polygon points="14 11 26 18 14 25" fill="#bf5af2"/>
@@ -396,31 +396,31 @@
             </div>
           </div>
           <div class="media-controls-row">
-            <button id="btn-media-prev" class="media-ctrl-btn" title="Previous Track">
+            <button id="btn-media-prev" class="media-ctrl-btn" aria-label="Previous Track">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <polygon points="19 20 9 12 19 4 19 20"/>
                 <line x1="5" y1="19" x2="5" y2="5"/>
               </svg>
             </button>
-            <button id="btn-media-play" class="media-play-btn" title="Play / Pause">
+            <button id="btn-media-play" class="media-play-btn" aria-label="Play / Pause">
               <svg id="media-play-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
                 <polygon points="5 3 19 12 5 21 5 3"/>
               </svg>
             </button>
-            <button id="btn-media-next" class="media-ctrl-btn" title="Next Track">
+            <button id="btn-media-next" class="media-ctrl-btn" aria-label="Next Track">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <polygon points="5 4 15 12 5 20 5 4"/>
                 <line x1="19" y1="5" x2="19" y2="19"/>
               </svg>
             </button>
             <div class="media-volume-wrap">
-              <button id="btn-media-mute" class="media-ctrl-btn" title="Mute">
+              <button id="btn-media-mute" class="media-ctrl-btn" aria-label="Mute">
                 <svg id="media-vol-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
                   <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
                 </svg>
               </button>
-              <input type="range" id="media-vol-slider" min="0" max="100" value="50" class="media-vol-slider" title="Volume">
+              <input type="range" id="media-vol-slider" min="0" max="100" value="50" class="media-vol-slider" aria-label="Volume">
             </div>
           </div>
         </div>
@@ -698,6 +698,77 @@
           </div>
         </div>
       </section>
+
+      <!-- 8. Apple Notes Pad View (#panel-notes) -->
+      <section id="panel-notes" class="island-panel">
+        <div class="notes-panel-container">
+          <!-- Top Header Bar -->
+          <div class="notes-header-bar">
+            <div class="notes-header-left">
+              <span class="notes-badge-icon">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#ffd60a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 20h9"/>
+                  <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+                </svg>
+              </span>
+              <span class="notes-header-title">Apple Notes</span>
+              <span id="notes-status-badge" class="notes-status-badge">Auto-Saved</span>
+            </div>
+            <div class="notes-header-right">
+              <span id="notes-stats-badge" class="notes-stats-badge">0 words • 0 chars</span>
+              <button id="btn-notes-new" class="notes-action-btn" type="button" aria-label="New Note">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19"/>
+                  <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                <span>New</span>
+              </button>
+              <button id="btn-notes-clear" class="notes-action-btn notes-btn-danger" type="button" aria-label="Clear Note">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="3 6 5 6 21 6"/>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                </svg>
+                <span>Clear</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Note Content Area -->
+          <div class="notes-card-body">
+            <input id="notes-title-input" class="notes-title-input" type="text" placeholder="Title..." maxlength="80" spellcheck="false" autocomplete="off" />
+            <div class="notes-editor-wrap">
+              <textarea id="notes-textarea" class="notes-textarea" placeholder="Jot down quick thoughts, checklist items, links, or draft ideas..."></textarea>
+            </div>
+            <!-- Quick Helper Footer -->
+            <div class="notes-footer-bar">
+              <div class="notes-tools">
+                <button id="btn-notes-todo" class="notes-tool-pill" type="button">
+                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="9 11 12 14 22 4"/>
+                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                  </svg>
+                  <span>Checklist</span>
+                </button>
+                <button id="btn-notes-timestamp" class="notes-tool-pill" type="button">
+                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polyline points="12 6 12 12 16 14"/>
+                  </svg>
+                  <span>Timestamp</span>
+                </button>
+                <button id="btn-notes-copy" class="notes-tool-pill" type="button">
+                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+                    <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+                  </svg>
+                  <span>Copy</span>
+                </button>
+              </div>
+              <span id="notes-last-edited" class="notes-last-edited">Last edited today</span>
+            </div>
+          </div>
+        </div>
+      </section>
     </main>
 
     <!-- 6. Windows Drag-and-Drop Overlay Target (Screenshot 08) -->
@@ -730,7 +801,7 @@
 
       <!-- Center: Clean & Centered Dock Row (Icons only; active tab expands into uppercase pill) -->
       <div class="nav-dock-center" id="nav-dock-center">
-        <button class="nav-item active" data-tab="home" title="Home">
+        <button class="nav-item active" data-tab="home" aria-label="Home">
           <span class="nav-icon">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
@@ -739,7 +810,7 @@
           </span>
           <span class="nav-label">Home</span>
         </button>
-        <button class="nav-item" data-tab="ai" title="AI / Claude Code">
+        <button class="nav-item" data-tab="ai" aria-label="AI Claude Code">
           <span class="nav-icon">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
@@ -747,7 +818,7 @@
           </span>
           <span class="nav-label">AI</span>
         </button>
-        <button class="nav-item" data-tab="music" title="Music">
+        <button class="nav-item" data-tab="music" aria-label="Music Player">
           <span class="nav-icon">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M9 18V5l12-2v13"/>
@@ -757,7 +828,7 @@
           </span>
           <span class="nav-label">Music</span>
         </button>
-        <button class="nav-item" data-tab="chat" title="Chat">
+        <button class="nav-item" data-tab="chat" aria-label="Robo Chat">
           <span class="nav-icon">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
@@ -765,7 +836,7 @@
           </span>
           <span class="nav-label">Chat</span>
         </button>
-        <button class="nav-item" data-tab="focus" title="Focus Timer">
+        <button class="nav-item" data-tab="focus" aria-label="Focus Timer">
           <span class="nav-icon">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="10"/>
@@ -774,7 +845,7 @@
           </span>
           <span class="nav-label">Focus</span>
         </button>
-        <button class="nav-item" data-tab="tray" title="File Tray">
+        <button class="nav-item" data-tab="tray" aria-label="File Tray">
           <span class="nav-icon">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/>
@@ -783,7 +854,7 @@
           </span>
           <span class="nav-label">Tray</span>
         </button>
-        <button class="nav-item" data-tab="clipboard" title="Clipboard">
+        <button class="nav-item" data-tab="clipboard" aria-label="Clipboard">
           <span class="nav-icon">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect width="8" height="4" x="8" y="2" rx="1" ry="1"/>
@@ -792,7 +863,7 @@
           </span>
           <span class="nav-label">Clipboard</span>
         </button>
-        <button class="nav-item" data-tab="notes" title="Notes">
+        <button class="nav-item" data-tab="notes" aria-label="Apple Notes">
           <span class="nav-icon">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M12 20h9"/>
@@ -801,7 +872,7 @@
           </span>
           <span class="nav-label">Notes</span>
         </button>
-        <button class="nav-item" data-tab="agenda" title="Agenda &amp; Schedule">
+        <button class="nav-item" data-tab="agenda" aria-label="Agenda Schedule">
           <span class="nav-icon">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
@@ -812,7 +883,7 @@
           </span>
           <span class="nav-label">Agenda</span>
         </button>
-        <button class="nav-item" data-tab="settings" title="Settings">
+        <button class="nav-item" data-tab="settings" aria-label="Settings">
           <span class="nav-icon">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="3"/>

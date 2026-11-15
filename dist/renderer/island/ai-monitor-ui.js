@@ -56,17 +56,25 @@
     setupEventListeners() {
       const aiNavBtn = document.querySelector('.nav-item[data-tab="ai"]');
       if (aiNavBtn) {
-        aiNavBtn.addEventListener("click", (e) => {
-          e.stopImmediatePropagation();
-          this.activatePanel();
-        }, true);
+        aiNavBtn.addEventListener("click", () => {
+          const engine = window.__canvasEngine;
+          if (engine && typeof engine.showDomTab === "function") {
+            engine.showDomTab("ai");
+          } else {
+            this.activatePanel();
+          }
+        });
       }
       const cardClaude = document.getElementById("card-claude");
       if (cardClaude) {
-        cardClaude.addEventListener("click", (e) => {
-          e.stopImmediatePropagation();
-          this.activatePanel();
-        }, true);
+        cardClaude.addEventListener("click", () => {
+          const engine = window.__canvasEngine;
+          if (engine && typeof engine.showDomTab === "function") {
+            engine.showDomTab("ai");
+          } else {
+            this.activatePanel();
+          }
+        });
       }
       const allNavTabs = document.querySelectorAll(".nav-item[data-tab]");
       allNavTabs.forEach((tabBtn) => {
@@ -132,6 +140,11 @@
       }
     }
     activatePanel() {
+      const engine = window.__canvasEngine;
+      if (engine && typeof engine.showDomTab === "function") {
+        engine.showDomTab("ai");
+        return;
+      }
       if (!this.panel) return;
       const panels = document.querySelectorAll(".island-panel");
       panels.forEach((p) => p.classList.remove("active"));
