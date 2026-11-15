@@ -2046,11 +2046,9 @@
       const isMusicActive = Boolean(this.mediaState.playing || this.mediaState.active && this.mediaState.title);
       const hasFocus = this.focusState.active;
       const hasDownloads = this.activeDownloadsList.length > 0;
-      const hasAppActivity = Boolean(this.activeAppActivity && performance.now() < this.appActivityUntil);
       if (hasFocus && isMusicActive) return true;
       if (hasDownloads && isMusicActive) return true;
       if (this.activeDownloadsList.length > 1) return true;
-      if (hasAppActivity && isMusicActive) return true;
       return false;
     }
     triggerChargerSurge(charging = true, level) {
@@ -3436,11 +3434,6 @@
             }
           });
         }
-        if (window.roboIsland.onAppActivity) {
-          window.roboIsland.onAppActivity((act) => {
-            this.handleAppActivity(act);
-          });
-        }
         if (window.roboIsland.onTriggerGreeting) {
           window.roboIsland.onTriggerGreeting((type) => {
             this.triggerGreeting(type);
@@ -3735,14 +3728,6 @@
           this.targetRadius = 18;
           return;
         }
-        if (performance.now() < this.appActivityUntil && this.activeAppActivity) {
-          const textLen = (this.activeAppActivity.cleanTitle || "").length;
-          const baseW = Math.max(260, Math.min(360, 110 + textLen * 6.8));
-          this.targetWidth = this.isHovered ? baseW + 6 : baseW;
-          this.targetHeight = 36;
-          this.targetRadius = 18;
-          return;
-        }
         const cfgW = this.config && this.config.restCapsuleWidth || 32;
         const cfgH = this.config && this.config.restCapsuleHeight || 18;
         this.targetWidth = this.isHovered ? cfgW + 6 : cfgW;
@@ -3814,12 +3799,6 @@
         this.targetRadius = 18;
       } else if (performance.now() < this.greetingUntil) {
         this.targetWidth = this.isHovered ? 290 : 280;
-        this.targetHeight = 36;
-        this.targetRadius = 18;
-      } else if (performance.now() < this.appActivityUntil && this.activeAppActivity) {
-        const textLen = (this.activeAppActivity.cleanTitle || "").length;
-        const baseW = Math.max(260, Math.min(360, 110 + textLen * 6.8));
-        this.targetWidth = this.isHovered ? baseW + 6 : baseW;
         this.targetHeight = 36;
         this.targetRadius = 18;
       } else {
@@ -4507,11 +4486,6 @@
           this.updateTargetDimensions();
           return;
         }
-        if (performance.now() < this.appActivityUntil) {
-          this.appActivityUntil = 0;
-          this.updateTargetDimensions();
-          return;
-        }
         if (inBounds) {
           if (isAlt) {
             this.triggerSpeedometerHud();
@@ -4524,11 +4498,6 @@
       if (this.mode === "compact") {
         if (performance.now() < this.greetingUntil) {
           this.greetingUntil = 0;
-          this.updateTargetDimensions();
-          return;
-        }
-        if (performance.now() < this.appActivityUntil) {
-          this.appActivityUntil = 0;
           this.updateTargetDimensions();
           return;
         }
@@ -4969,8 +4938,6 @@
           this.drawChargerSurgeContent(cx, topY);
         } else if (performance.now() < this.greetingUntil) {
           this.drawGreetingPill(cx, topY);
-        } else if (performance.now() < this.appActivityUntil && this.activeAppActivity) {
-          this.drawCompactAppActivity(cx, topY);
         } else {
           this.drawRestContent(cx, topY);
         }
@@ -5291,8 +5258,6 @@
         }
         if (hasDownloads) {
           this.drawDetachedDownloadBubble(bubbleCx, bubbleCy, bubbleR, this.activeDownloadsList);
-        } else if (this.activeAppActivity && performance.now() < this.appActivityUntil) {
-          this.drawDetachedAppActivityBubble(bubbleCx, bubbleCy, bubbleR, this.activeAppActivity);
         } else {
           const d = bubbleSize;
           const ringR = Math.max(7, d / 2 - 9);
@@ -5371,8 +5336,6 @@
         this.drawCompactMusicIsland(pillLeft, midY, topY);
       } else if (performance.now() < this.greetingUntil) {
         this.drawGreetingPill(cx, topY);
-      } else if (performance.now() < this.appActivityUntil && this.activeAppActivity) {
-        this.drawCompactAppActivity(cx, topY);
       } else {
         this.drawCompactRestingDualStructure(cx, topY);
       }

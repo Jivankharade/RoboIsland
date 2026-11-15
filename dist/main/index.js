@@ -223,9 +223,6 @@ function setupAppIPC() {
     electron_1.ipcMain.on('island:trigger-greeting', (_event, type) => {
         islandWindow?.getWindow()?.webContents.send('island:trigger-greeting', type);
     });
-    electron_1.ipcMain.on('island:trigger-app-activity', (_event, act) => {
-        islandWindow?.getWindow()?.webContents.send('island:app-activity', act);
-    });
     electron_1.ipcMain.handle('license:get-status', () => {
         return license_manager_1.LicenseManager.getInstance().getLicenseStatus();
     });

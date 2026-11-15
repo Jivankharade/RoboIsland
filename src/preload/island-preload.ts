@@ -197,12 +197,6 @@ const api = {
     ipcRenderer.on('island:trigger-greeting', handler);
     return () => ipcRenderer.removeListener('island:trigger-greeting', handler);
   },
-  onAppActivity: (callback: (activity: any) => void) => {
-    const handler = (_event: any, act: any) => callback(act);
-    ipcRenderer.on('island:app-activity', handler);
-    return () => ipcRenderer.removeListener('island:app-activity', handler);
-  },
-  triggerAppActivity: (act: any) => ipcRenderer.send('island:trigger-app-activity', act),
   replyWhatsApp: (payload: { contact?: string; text: string }) =>
     ipcRenderer.invoke('whatsapp:reply', payload),
   onCollapseRequested: (callback: () => void) => {

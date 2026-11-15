@@ -215,10 +215,6 @@ function setupAppIPC(): void {
     islandWindow?.getWindow()?.webContents.send('island:trigger-greeting', type);
   });
 
-  ipcMain.on('island:trigger-app-activity', (_event, act?: any) => {
-    islandWindow?.getWindow()?.webContents.send('island:app-activity', act);
-  });
-
   ipcMain.handle('license:get-status', () => {
     return LicenseManager.getInstance().getLicenseStatus();
   });

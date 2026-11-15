@@ -587,7 +587,6 @@ export class CanvasEngine {
     const isMusicActive = Boolean(this.mediaState.playing || (this.mediaState.active && this.mediaState.title));
     const hasFocus = this.focusState.active;
     const hasDownloads = this.activeDownloadsList.length > 0;
-    const hasAppActivity = Boolean(this.activeAppActivity && performance.now() < this.appActivityUntil);
 
     // 1. Music + Focus dual mode
     if (hasFocus && isMusicActive) return true;
@@ -597,9 +596,6 @@ export class CanvasEngine {
 
     // 3. Multiple simultaneous downloads (split into primary download pill + detached counter ring bubble)
     if (this.activeDownloadsList.length > 1) return true;
-
-    // 4. Music + Live App Activity (Music playing + App switch -> Apple Dynamic Island Split Dual Bubble)
-    if (hasAppActivity && isMusicActive) return true;
 
     return false;
   }
@@ -2237,11 +2233,6 @@ export class CanvasEngine {
           }
         });
       }
-      if ((window.roboIsland as any).onAppActivity) {
-        (window.roboIsland as any).onAppActivity((act: any) => {
-          this.handleAppActivity(act);
-        });
-      }
       if ((window.roboIsland as any).onTriggerGreeting) {
         (window.roboIsland as any).onTriggerGreeting((type?: string) => {
           this.triggerGreeting(type as any);
@@ -2555,14 +2546,6 @@ export class CanvasEngine {
         this.targetRadius = 18;
         return;
       }
-      if (performance.now() < this.appActivityUntil && this.activeAppActivity) {
-        const textLen = (this.activeAppActivity.cleanTitle || '').length;
-        const baseW = Math.max(260, Math.min(360, 110 + textLen * 6.8));
-        this.targetWidth = this.isHovered ? baseW + 6 : baseW;
-        this.targetHeight = 36;
-        this.targetRadius = 18;
-        return;
-      }
       // Rest Mode: Minimal 32×18 px capsule (radius = 9px)
       const cfgW = (this.config && this.config.restCapsuleWidth) || 32;
       const cfgH = (this.config && this.config.restCapsuleHeight) || 18;
@@ -2648,12 +2631,6 @@ export class CanvasEngine {
       this.targetRadius = 18;
     } else if (performance.now() < this.greetingUntil) {
       this.targetWidth = this.isHovered ? 290 : 280;
-      this.targetHeight = 36;
-      this.targetRadius = 18;
-    } else if (performance.now() < this.appActivityUntil && this.activeAppActivity) {
-      const textLen = (this.activeAppActivity.cleanTitle || '').length;
-      const baseW = Math.max(260, Math.min(360, 110 + textLen * 6.8));
-      this.targetWidth = this.isHovered ? baseW + 6 : baseW;
       this.targetHeight = 36;
       this.targetRadius = 18;
     } else {
@@ -3443,11 +3420,6 @@ export class CanvasEngine {
         this.updateTargetDimensions();
         return;
       }
-      if (performance.now() < this.appActivityUntil) {
-        this.appActivityUntil = 0;
-        this.updateTargetDimensions();
-        return;
-      }
       // In rest mode: click restores cleanly to compact (or Alt+click triggers speedometer HUD)
       if (inBounds) {
         if (isAlt) {
@@ -3462,11 +3434,6 @@ export class CanvasEngine {
     if (this.mode === 'compact') {
       if (performance.now() < this.greetingUntil) {
         this.greetingUntil = 0;
-        this.updateTargetDimensions();
-        return;
-      }
-      if (performance.now() < this.appActivityUntil) {
-        this.appActivityUntil = 0;
         this.updateTargetDimensions();
         return;
       }
@@ -4001,8 +3968,6 @@ export class CanvasEngine {
         this.drawChargerSurgeContent(cx, topY);
       } else if (performance.now() < this.greetingUntil) {
         this.drawGreetingPill(cx, topY);
-      } else if (performance.now() < this.appActivityUntil && this.activeAppActivity) {
-        this.drawCompactAppActivity(cx, topY);
       } else {
         this.drawRestContent(cx, topY);
       }
@@ -4387,11 +4352,9 @@ export class CanvasEngine {
         this.mascot.drawFloatingEyes(this.ctx, pillCx, midY, 0.95);
       }
 
-      // 2. Detached Bubble: Downloads Progress Ring, Live App Activity, or TwoCode Focus Circle
+      // 2. Detached Bubble: Downloads Progress Ring or TwoCode Focus Circle
       if (hasDownloads) {
         this.drawDetachedDownloadBubble(bubbleCx, bubbleCy, bubbleR, this.activeDownloadsList);
-      } else if (this.activeAppActivity && performance.now() < this.appActivityUntil) {
-        this.drawDetachedAppActivityBubble(bubbleCx, bubbleCy, bubbleR, this.activeAppActivity);
       } else {
         const d = bubbleSize;
         const ringR = Math.max(7, d / 2 - 9);
@@ -4495,8 +4458,6 @@ export class CanvasEngine {
       this.drawCompactMusicIsland(pillLeft, midY, topY);
     } else if (performance.now() < this.greetingUntil) {
       this.drawGreetingPill(cx, topY);
-    } else if (performance.now() < this.appActivityUntil && this.activeAppActivity) {
-      this.drawCompactAppActivity(cx, topY);
     } else {
       // TRUE RESTING MODE (98 x 26 px TwoCode Visual Calibration matching Screenshot 2):
       this.drawCompactRestingDualStructure(cx, topY);

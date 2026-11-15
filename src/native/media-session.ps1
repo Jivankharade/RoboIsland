@@ -188,7 +188,7 @@ try { Add-Type -Namespace TwoCode -Name Front -MemberDefinition @'
 [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
 [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);
 '@ } catch {}
-$guardOn = $true; $frontAt = [DateTime]::MinValue; $lastFront = ''; $procNames = @{}
+$guardOn = $false; $frontAt = [DateTime]::MinValue; $lastFront = ''; $procNames = @{}
 function CheckFront {
   try {
     $h = [TwoCode.Front]::GetForegroundWindow(); if ($h -eq [IntPtr]::Zero) { return }

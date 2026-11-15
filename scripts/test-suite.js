@@ -425,10 +425,15 @@ async function runTests() {
   mockEngine.handleAppActivity({ proc: 'Code', title: 'canvas-engine.ts - RoboIsland - Visual Studio Code' });
   assert('handleAppActivity sets activeAppActivity and countdown', mockEngine.activeAppActivity !== null && mockEngine.appActivityUntil > performance.now());
 
-  // Split-island activation with active app activity + music
+  // Split-island does not intrusively trigger on app activity
   mockEngine.mediaState = { active: true, playing: true, title: 'Wanna mess with me?' };
   mockEngine.activeDownloadsList = [];
-  assert('Split Island activates when music is playing and active app activity occurs', mockEngine.isSplitIslandActive() === true);
+  assert('Split Island does not activate for background app activity', mockEngine.isSplitIslandActive() === false);
+
+  mockEngine.mode = 'rest';
+  mockEngine.greetingUntil = 0;
+  mockEngine.updateTargetDimensions();
+  assert('Rest mode capsule does not auto-expand on app activity', mockEngine.targetWidth <= 98);
 
   let drewAppActivity = false;
   try {

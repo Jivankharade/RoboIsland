@@ -250,10 +250,9 @@ class MediaEngine {
                 this.child = null;
                 setTimeout(() => this.startWorker(), 6000);
             });
-            // Request initial network & volume state and enable focus guard
+            // Request initial network & volume state
             setTimeout(() => {
                 this.sendCommand('net');
-                this.sendCommand('guard 1');
             }, 1500);
         }
         catch (err) {
@@ -286,12 +285,11 @@ class MediaEngine {
                 });
                 return;
             }
-            // 3. Focus Guard & Smart Status Foreground Window
+            // 3. Focus Guard Foreground Window
             if (data.front) {
                 electron_1.BrowserWindow.getAllWindows().forEach(win => {
                     if (!win.isDestroyed()) {
                         win.webContents.send('guard:front-changed', data.front);
-                        win.webContents.send('island:app-activity', data.front);
                     }
                 });
                 return;
