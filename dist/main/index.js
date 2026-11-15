@@ -52,6 +52,7 @@ const license_manager_1 = require("./license-manager");
 const gotTheLock = electron_1.app.requestSingleInstanceLock();
 if (!gotTheLock) {
     electron_1.app.quit();
+    process.exit(0);
 }
 process.on('uncaughtException', (err) => {
     console.error('[RoboIsland] Uncaught exception:', err);

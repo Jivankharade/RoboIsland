@@ -18,6 +18,7 @@ import { LicenseManager } from './license-manager';
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
   app.quit();
+  process.exit(0);
 }
 
 process.on('uncaughtException', (err) => {

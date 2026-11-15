@@ -61,6 +61,7 @@ class CanvasEngine {
     isHovered = false;
     isInteractive = false;
     collapseTimer = null;
+    hoverOpenTimer = null;
     compactClickTimer = null;
     isDraggingOver = false;
     justRestoredFromRest = false;
@@ -1467,7 +1468,7 @@ class CanvasEngine {
             const isMusicWithLyrics = (tab === 'music' || this.activeTab === 'media') && this.hasSyncedLyrics();
             switch (tab) {
                 case 'music':
-                    this.targetHeight = isMusicWithLyrics ? 354 : 280;
+                    this.targetHeight = 280;
                     break;
                 case 'chat':
                     this.targetHeight = 320;
@@ -1570,10 +1571,7 @@ class CanvasEngine {
             const isDualActive = Boolean(this.mediaState.playing || (this.mediaState.active && this.mediaState.title));
             if (isDualActive) {
                 // Dual task: Spotify takes the primary pill, Focus takes the 36px detached circle bubble
-                const hasLyrics = this.hasSyncedLyrics();
-                const baseWidth = hasLyrics
-                    ? Math.round(Math.max(280, Math.min(380, (this.lyricsWidest || 140) + 106)))
-                    : 250;
+                const baseWidth = 250;
                 this.targetWidth = this.isHovered ? baseWidth + 8 : baseWidth;
                 this.targetHeight = 36;
                 this.targetRadius = 18;
@@ -1586,16 +1584,11 @@ class CanvasEngine {
             }
         }
         else if (this.mediaState.active && this.mediaState.title) {
-            // TwoCode ai-monitor-ui.js line 960 & lyrics-ui.js line 81:
-            // const compactWidth = () => needsAnswer() ? 440 : lyricsWide() ? window.__twocodeLyrics.width() : musicOnly() ? 250 : 300;
-            // width: () => Math.round(Math.max(280, Math.min(380, widest + 106)))
-            const hasLyrics = this.hasSyncedLyrics();
-            const baseWidth = hasLyrics
-                ? Math.round(Math.max(280, Math.min(380, (this.lyricsWidest || 140) + 106)))
-                : 250;
+            // Stable TwoCode compact music pill width (250px) preventing play/pause size jumping
+            const baseWidth = 250;
             this.targetWidth = this.isHovered ? baseWidth + 8 : baseWidth;
             this.targetHeight = 36;
-            this.targetRadius = 16;
+            this.targetRadius = 18;
         }
         else {
             // True Resting Pill (98 x 26 px, TwoCode compact calibration matching Screenshot 2)
@@ -1890,34 +1883,65 @@ class CanvasEngine {
             this.isHovered = inBounds;
             this.updateTargetDimensions();
         }
-        // Option B (Two-Stage Dynamic Island Model):
-        // Hovering peeks to compact (medium); hovering over compact stays in compact (medium).
-        // The Island never auto-expands into the Large card on hover.
-        // Expanding to the full Large Hub requires a deliberate user click.
-        if (inBounds && this.mode === 'rest') {
-            this.restoreFromRest('compact');
+        if (inBounds) {
             if (this.collapseTimer) {
                 clearTimeout(this.collapseTimer);
                 this.collapseTimer = null;
             }
-        }
-        else if (inBounds && this.mode === 'compact') {
-            if (this.collapseTimer) {
-                clearTimeout(this.collapseTimer);
-                this.collapseTimer = null;
+            if (this.mode === 'rest') {
+                this.restoreFromRest('compact');
+            }
+            // Hover to open: when hovering over compact (or after restoring from rest),
+            // wait 300ms (TwoCode NORMAL_PEEK_DELAY) then auto-expand into the card.
+            if (this.mode === 'compact') {
+                if (!this.hoverOpenTimer) {
+                    this.hoverOpenTimer = window.setTimeout(() => {
+                        this.hoverOpenTimer = null;
+                        if (this.isHovered && this.mode === 'compact') {
+                            if (this.mediaState.active && this.mediaState.title) {
+                                this.activeTab = 'media';
+                                this.showDomTab('music');
+                            }
+                            else if (this.focusState.active) {
+                                this.activeTab = 'focus';
+                                this.showDomTab('focus');
+                            }
+                            else {
+                                this.activeTab = 'home';
+                                this.showDomTab('home');
+                            }
+                            this.mascot.jump();
+                            this.expand();
+                        }
+                    }, 300);
+                }
+            }
+            else if (this.mode === 'expanded') {
+                if (this.hoverOpenTimer) {
+                    clearTimeout(this.hoverOpenTimer);
+                    this.hoverOpenTimer = null;
+                }
             }
         }
-        else if (!inBounds) {
+        else {
+            // Not in bounds: cancel hover-to-open
             this.justRestoredFromRest = false;
-            // Auto-collapse when dragging/moving mouse outside expanded island
+            if (this.hoverOpenTimer) {
+                clearTimeout(this.hoverOpenTimer);
+                this.hoverOpenTimer = null;
+            }
+            // Hover-to-close outside: auto-collapse when mouse moves outside expanded island
             if (this.mode === 'expanded' && this.canAutoCollapse()) {
                 if (!this.collapseTimer) {
                     this.collapseTimer = window.setTimeout(() => {
                         this.collapseTimer = null;
                         if (this.mode === 'expanded' && !this.isHovered && this.canAutoCollapse()) {
                             this.collapse();
+                            if (this.config?.restModeEnabled && !this.mediaState.active && !this.focusState.active) {
+                                this.enterRest();
+                            }
                         }
-                    }, 350);
+                    }, 380);
                 }
             }
             else if (this.mode === 'compact' && this.config?.restModeEnabled && !this.mediaState.active && !this.focusState.active) {
@@ -1928,13 +1952,9 @@ class CanvasEngine {
                         if (this.mode === 'compact' && !this.isHovered && !this.mediaState.active && !this.focusState.active) {
                             this.enterRest();
                         }
-                    }, 400);
+                    }, 350);
                 }
             }
-        }
-        else if (inBounds && this.collapseTimer) {
-            clearTimeout(this.collapseTimer);
-            this.collapseTimer = null;
         }
         const shouldBeInteractive = inBounds || this.mode === 'expanded' || this.isDraggingOver;
         if (shouldBeInteractive !== this.isInteractive) {
@@ -1993,6 +2013,10 @@ class CanvasEngine {
         if (this.collapseTimer) {
             clearTimeout(this.collapseTimer);
             this.collapseTimer = null;
+        }
+        if (this.hoverOpenTimer) {
+            clearTimeout(this.hoverOpenTimer);
+            this.hoverOpenTimer = null;
         }
         this.mode = 'rest';
         this.mascot.setMood('sleepy');
@@ -2065,6 +2089,10 @@ class CanvasEngine {
             clearTimeout(this.collapseTimer);
             this.collapseTimer = null;
         }
+        if (this.hoverOpenTimer) {
+            clearTimeout(this.hoverOpenTimer);
+            this.hoverOpenTimer = null;
+        }
         this.mode = 'expanded';
         this.setPopover('none');
         this.updateTargetDimensions();
@@ -2081,9 +2109,16 @@ class CanvasEngine {
             clearTimeout(this.collapseTimer);
             this.collapseTimer = null;
         }
+        if (this.hoverOpenTimer) {
+            clearTimeout(this.hoverOpenTimer);
+            this.hoverOpenTimer = null;
+        }
         this.mode = 'compact';
         this.isHovered = false;
         this.setPopover('none');
+        if (this.domOverlayEl) {
+            this.domOverlayEl.classList.add('hidden');
+        }
         this.updateTargetDimensions();
         if (playSound) {
             this.mascot.sounds.playChirp();
@@ -2183,7 +2218,7 @@ class CanvasEngine {
         // Desktop/margin outside-click collapses expanded island immediately
         if (!inBounds && this.mode === 'expanded') {
             if (this.canAutoCollapse()) {
-                if (this.config && this.config.restModeEnabled) {
+                if (this.config && this.config.restModeEnabled && !this.mediaState.active && !this.focusState.active) {
                     this.enterRest();
                 }
                 else {

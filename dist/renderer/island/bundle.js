@@ -1547,6 +1547,7 @@
     isHovered = false;
     isInteractive = false;
     collapseTimer = null;
+    hoverOpenTimer = null;
     compactClickTimer = null;
     isDraggingOver = false;
     justRestoredFromRest = false;
@@ -2835,7 +2836,7 @@
         const isMusicWithLyrics = (tab === "music" || this.activeTab === "media") && this.hasSyncedLyrics();
         switch (tab) {
           case "music":
-            this.targetHeight = isMusicWithLyrics ? 354 : 280;
+            this.targetHeight = 280;
             break;
           case "chat":
             this.targetHeight = 320;
@@ -2925,8 +2926,7 @@
       } else if (this.focusState.active) {
         const isDualActive = Boolean(this.mediaState.playing || this.mediaState.active && this.mediaState.title);
         if (isDualActive) {
-          const hasLyrics = this.hasSyncedLyrics();
-          const baseWidth = hasLyrics ? Math.round(Math.max(280, Math.min(380, (this.lyricsWidest || 140) + 106))) : 250;
+          const baseWidth = 250;
           this.targetWidth = this.isHovered ? baseWidth + 8 : baseWidth;
           this.targetHeight = 36;
           this.targetRadius = 18;
@@ -2936,11 +2936,10 @@
           this.targetRadius = 18;
         }
       } else if (this.mediaState.active && this.mediaState.title) {
-        const hasLyrics = this.hasSyncedLyrics();
-        const baseWidth = hasLyrics ? Math.round(Math.max(280, Math.min(380, (this.lyricsWidest || 140) + 106))) : 250;
+        const baseWidth = 250;
         this.targetWidth = this.isHovered ? baseWidth + 8 : baseWidth;
         this.targetHeight = 36;
-        this.targetRadius = 16;
+        this.targetRadius = 18;
       } else {
         const hasTelemetry = this.config?.restLeft && this.config.restLeft !== "none" || this.config?.restRight && this.config.restRight !== "none";
         const baseW = hasTelemetry ? this.calculateRestWidth() : 98;
@@ -3197,27 +3196,57 @@
         this.isHovered = inBounds;
         this.updateTargetDimensions();
       }
-      if (inBounds && this.mode === "rest") {
-        this.restoreFromRest("compact");
+      if (inBounds) {
         if (this.collapseTimer) {
           clearTimeout(this.collapseTimer);
           this.collapseTimer = null;
         }
-      } else if (inBounds && this.mode === "compact") {
-        if (this.collapseTimer) {
-          clearTimeout(this.collapseTimer);
-          this.collapseTimer = null;
+        if (this.mode === "rest") {
+          this.restoreFromRest("compact");
         }
-      } else if (!inBounds) {
+        if (this.mode === "compact") {
+          if (!this.hoverOpenTimer) {
+            this.hoverOpenTimer = window.setTimeout(() => {
+              this.hoverOpenTimer = null;
+              if (this.isHovered && this.mode === "compact") {
+                if (this.mediaState.active && this.mediaState.title) {
+                  this.activeTab = "media";
+                  this.showDomTab("music");
+                } else if (this.focusState.active) {
+                  this.activeTab = "focus";
+                  this.showDomTab("focus");
+                } else {
+                  this.activeTab = "home";
+                  this.showDomTab("home");
+                }
+                this.mascot.jump();
+                this.expand();
+              }
+            }, 300);
+          }
+        } else if (this.mode === "expanded") {
+          if (this.hoverOpenTimer) {
+            clearTimeout(this.hoverOpenTimer);
+            this.hoverOpenTimer = null;
+          }
+        }
+      } else {
         this.justRestoredFromRest = false;
+        if (this.hoverOpenTimer) {
+          clearTimeout(this.hoverOpenTimer);
+          this.hoverOpenTimer = null;
+        }
         if (this.mode === "expanded" && this.canAutoCollapse()) {
           if (!this.collapseTimer) {
             this.collapseTimer = window.setTimeout(() => {
               this.collapseTimer = null;
               if (this.mode === "expanded" && !this.isHovered && this.canAutoCollapse()) {
                 this.collapse();
+                if (this.config?.restModeEnabled && !this.mediaState.active && !this.focusState.active) {
+                  this.enterRest();
+                }
               }
-            }, 350);
+            }, 380);
           }
         } else if (this.mode === "compact" && this.config?.restModeEnabled && !this.mediaState.active && !this.focusState.active) {
           if (!this.collapseTimer) {
@@ -3226,12 +3255,9 @@
               if (this.mode === "compact" && !this.isHovered && !this.mediaState.active && !this.focusState.active) {
                 this.enterRest();
               }
-            }, 400);
+            }, 350);
           }
         }
-      } else if (inBounds && this.collapseTimer) {
-        clearTimeout(this.collapseTimer);
-        this.collapseTimer = null;
       }
       const shouldBeInteractive = inBounds || this.mode === "expanded" || this.isDraggingOver;
       if (shouldBeInteractive !== this.isInteractive) {
@@ -3288,6 +3314,10 @@
       if (this.collapseTimer) {
         clearTimeout(this.collapseTimer);
         this.collapseTimer = null;
+      }
+      if (this.hoverOpenTimer) {
+        clearTimeout(this.hoverOpenTimer);
+        this.hoverOpenTimer = null;
       }
       this.mode = "rest";
       this.mascot.setMood("sleepy");
@@ -3353,6 +3383,10 @@
         clearTimeout(this.collapseTimer);
         this.collapseTimer = null;
       }
+      if (this.hoverOpenTimer) {
+        clearTimeout(this.hoverOpenTimer);
+        this.hoverOpenTimer = null;
+      }
       this.mode = "expanded";
       this.setPopover("none");
       this.updateTargetDimensions();
@@ -3369,9 +3403,16 @@
         clearTimeout(this.collapseTimer);
         this.collapseTimer = null;
       }
+      if (this.hoverOpenTimer) {
+        clearTimeout(this.hoverOpenTimer);
+        this.hoverOpenTimer = null;
+      }
       this.mode = "compact";
       this.isHovered = false;
       this.setPopover("none");
+      if (this.domOverlayEl) {
+        this.domOverlayEl.classList.add("hidden");
+      }
       this.updateTargetDimensions();
       if (playSound) {
         this.mascot.sounds.playChirp();
@@ -3460,7 +3501,7 @@
       const inBounds = x >= cx - halfW && x <= cx + halfW && y >= topY && y <= topY + effectiveH;
       if (!inBounds && this.mode === "expanded") {
         if (this.canAutoCollapse()) {
-          if (this.config && this.config.restModeEnabled) {
+          if (this.config && this.config.restModeEnabled && !this.mediaState.active && !this.focusState.active) {
             this.enterRest();
           } else {
             this.collapse();
