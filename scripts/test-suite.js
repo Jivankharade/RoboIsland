@@ -302,7 +302,8 @@ async function runTests() {
     bezierCurveTo: () => {},
     fillText: () => {},
     measureText: () => ({ width: 10 }),
-    createLinearGradient: () => ({ addColorStop: () => {} })
+    createLinearGradient: () => ({ addColorStop: () => {} }),
+    createRadialGradient: () => ({ addColorStop: () => {} })
   };
   const mockEngine = Object.create(CanvasEngine.prototype);
   mockEngine.ctx = mockCtx;
@@ -393,7 +394,7 @@ async function runTests() {
 
   let drewGreetingPill = false;
   try {
-    mockEngine.currentWidth = 280;
+    mockEngine.currentWidth = 304;
     mockEngine.currentHeight = 36;
     mockEngine.drawGreetingPill(140, 10);
     drewGreetingPill = true;
@@ -401,6 +402,14 @@ async function runTests() {
     console.error(e);
   }
   assert('drawGreetingPill renders layout and typography without errors', drewGreetingPill === true);
+
+  // Test auto-relax when greeting duration expires
+  mockEngine.greetingUntil = performance.now() - 10; // expired
+  mockEngine.mode = 'compact';
+  mockEngine.mediaState = { active: false, playing: false, title: '' };
+  mockEngine.activeDownloadsList = [];
+  mockEngine.updateTargetDimensions();
+  assert('After greeting expires, capsule relaxes back to rest width (<= 98px)', mockEngine.targetWidth <= 98);
 
   // 17. Testing Apple macOS / iPhone Live Activity Smart Status
   console.log('\n--- 17. Testing Live Activity Smart Status Pill ---');

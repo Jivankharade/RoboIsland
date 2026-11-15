@@ -2276,131 +2276,200 @@
       this.kickJelly(0.12, 3.2, 4.8);
       this.updateTargetDimensions();
     }
-    drawGreetingIcon(iconCx, iconCy, iconR = 11, type) {
+    safeRadialGradient(x0, y0, r0, x1, y1, r1) {
+      if (this.ctx && typeof this.ctx.createRadialGradient === "function") {
+        return this.ctx.createRadialGradient(x0, y0, r0, x1, y1, r1);
+      }
+      return this.ctx.createLinearGradient(x0 - r1, y0, x1 + r1, y1);
+    }
+    drawGreetingIcon(iconCx, iconCy, iconR = 12, type) {
       const size = iconR * 2;
       const sx = iconCx - iconR;
       const sy = iconCy - iconR;
-      const cr = iconR * 0.48;
+      const cr = iconR * 0.52;
       this.ctx.save();
       let grad = this.ctx.createLinearGradient(sx, sy, sx, sy + size);
-      let borderRgba = "rgba(255, 255, 255, 0.28)";
+      let borderRgba = "rgba(255, 255, 255, 0.35)";
       switch (type) {
         case "morning":
-          grad.addColorStop(0, "#ff9500");
-          grad.addColorStop(1, "#ffcc00");
-          borderRgba = "rgba(255, 245, 200, 0.45)";
+          grad.addColorStop(0, "#ff5722");
+          grad.addColorStop(0.48, "#ff9800");
+          grad.addColorStop(1, "#ffc107");
+          borderRgba = "rgba(255, 240, 215, 0.55)";
           break;
         case "afternoon":
-          grad.addColorStop(0, "#ff9500");
-          grad.addColorStop(1, "#ff5e3a");
-          borderRgba = "rgba(255, 230, 200, 0.40)";
+          grad.addColorStop(0, "#0070eb");
+          grad.addColorStop(0.55, "#1ea1f2");
+          grad.addColorStop(1, "#5ac8fa");
+          borderRgba = "rgba(215, 245, 255, 0.60)";
           break;
         case "evening":
-          grad.addColorStop(0, "#ff5e3a");
-          grad.addColorStop(1, "#d93baf");
-          borderRgba = "rgba(255, 220, 240, 0.40)";
+          grad.addColorStop(0, "#4a148c");
+          grad.addColorStop(0.48, "#c2185b");
+          grad.addColorStop(1, "#ff6f00");
+          borderRgba = "rgba(255, 215, 245, 0.55)";
           break;
         case "night":
         default:
-          grad.addColorStop(0, "#312e81");
-          grad.addColorStop(0.6, "#1e1b4b");
-          grad.addColorStop(1, "#0f172a");
-          borderRgba = "rgba(165, 180, 252, 0.40)";
+          grad.addColorStop(0, "#090d16");
+          grad.addColorStop(0.55, "#1e1b4b");
+          grad.addColorStop(1, "#312e81");
+          borderRgba = "rgba(199, 210, 254, 0.45)";
           break;
       }
+      this.ctx.shadowColor = "rgba(0, 0, 0, 0.42)";
+      this.ctx.shadowBlur = 4;
+      this.ctx.shadowOffsetY = 1.2;
       this.ctx.beginPath();
       this.ctx.roundRect(sx, sy, size, size, cr);
       this.ctx.fillStyle = grad;
       this.ctx.fill();
-      const sheen = this.ctx.createLinearGradient(sx, sy, sx, sy + size * 0.5);
+      this.ctx.shadowColor = "transparent";
+      this.ctx.shadowBlur = 0;
+      this.ctx.shadowOffsetY = 0;
+      const sheen = this.ctx.createLinearGradient(sx, sy, sx, sy + size * 0.48);
       sheen.addColorStop(0, "rgba(255, 255, 255, 0.45)");
-      sheen.addColorStop(1, "rgba(255, 255, 255, 0)");
+      sheen.addColorStop(1, "rgba(255, 255, 255, 0.0)");
       this.ctx.fillStyle = sheen;
       this.ctx.beginPath();
-      this.ctx.roundRect(sx, sy, size, size * 0.5, [cr, cr, 0, 0]);
+      this.ctx.roundRect(sx, sy, size, size * 0.48, [cr, cr, 0, 0]);
       this.ctx.fill();
       this.ctx.strokeStyle = borderRgba;
-      this.ctx.lineWidth = 0.8;
+      this.ctx.lineWidth = 0.85;
       this.ctx.stroke();
-      if (type === "morning") {
-        this.ctx.strokeStyle = "rgba(255, 255, 255, 0.8)";
-        this.ctx.lineWidth = 1.2;
-        this.ctx.lineCap = "round";
+      if (type === "morning" || type === "afternoon") {
+        const sunX = iconCx + 3.2;
+        const sunY = iconCy - 2.8;
+        const sunGlow = this.safeRadialGradient(sunX, sunY, 1, sunX, sunY, 7.5);
+        sunGlow.addColorStop(0, "rgba(255, 220, 50, 0.65)");
+        sunGlow.addColorStop(1, "rgba(255, 149, 0, 0)");
+        this.ctx.fillStyle = sunGlow;
         this.ctx.beginPath();
-        this.ctx.moveTo(iconCx - 5.5, iconCy + 2.5);
-        this.ctx.lineTo(iconCx + 5.5, iconCy + 2.5);
-        this.ctx.stroke();
-        this.ctx.fillStyle = "#ffffff";
-        this.ctx.beginPath();
-        this.ctx.arc(iconCx, iconCy + 2.5, 3.5, Math.PI, 0, false);
+        this.ctx.arc(sunX, sunY, 7.5, 0, Math.PI * 2);
         this.ctx.fill();
-        this.ctx.beginPath();
-        this.ctx.moveTo(iconCx, iconCy - 2.5);
-        this.ctx.lineTo(iconCx, iconCy - 5.2);
-        this.ctx.moveTo(iconCx - 3.2, iconCy - 1.2);
-        this.ctx.lineTo(iconCx - 4.8, iconCy - 3);
-        this.ctx.moveTo(iconCx + 3.2, iconCy - 1.2);
-        this.ctx.lineTo(iconCx + 4.8, iconCy - 3);
-        this.ctx.stroke();
-      } else if (type === "afternoon") {
-        this.ctx.fillStyle = "#ffffff";
-        this.ctx.beginPath();
-        this.ctx.arc(iconCx, iconCy, 3.4, 0, Math.PI * 2);
-        this.ctx.fill();
-        this.ctx.strokeStyle = "#ffffff";
-        this.ctx.lineWidth = 1.3;
+        this.ctx.strokeStyle = "rgba(255, 240, 140, 0.75)";
+        this.ctx.lineWidth = 1.1;
         this.ctx.lineCap = "round";
-        for (let i = 0; i < 8; i++) {
-          const a = i * Math.PI / 4;
+        const rayAngles = [0, -Math.PI / 4, -Math.PI / 2, Math.PI / 4];
+        for (const a of rayAngles) {
           this.ctx.beginPath();
-          this.ctx.moveTo(iconCx + Math.cos(a) * 4.4, iconCy + Math.sin(a) * 4.4);
-          this.ctx.lineTo(iconCx + Math.cos(a) * 6.2, iconCy + Math.sin(a) * 6.2);
+          this.ctx.moveTo(sunX + Math.cos(a) * 4.6, sunY + Math.sin(a) * 4.6);
+          this.ctx.lineTo(sunX + Math.cos(a) * 6.4, sunY + Math.sin(a) * 6.4);
           this.ctx.stroke();
         }
+        const sunGrad = this.safeRadialGradient(sunX - 1, sunY - 1, 0.4, sunX, sunY, 4);
+        sunGrad.addColorStop(0, "#ffffff");
+        sunGrad.addColorStop(0.35, "#ffea79");
+        sunGrad.addColorStop(0.75, "#ffb800");
+        sunGrad.addColorStop(1, "#ff8800");
+        this.ctx.fillStyle = sunGrad;
+        this.ctx.beginPath();
+        this.ctx.arc(sunX, sunY, 3.8, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.save();
+        this.ctx.shadowColor = "rgba(0, 0, 0, 0.35)";
+        this.ctx.shadowBlur = 3;
+        this.ctx.shadowOffsetY = 1.2;
+        const cloudGrad = this.ctx.createLinearGradient(iconCx - 6, iconCy - 4, iconCx - 6, iconCy + 6);
+        cloudGrad.addColorStop(0, "#ffffff");
+        cloudGrad.addColorStop(0.48, "#f8fafc");
+        cloudGrad.addColorStop(1, "#cbd5e1");
+        this.ctx.fillStyle = cloudGrad;
+        this.ctx.beginPath();
+        this.ctx.arc(iconCx - 4.2, iconCy + 1.8, 3.2, 0, Math.PI * 2);
+        this.ctx.arc(iconCx - 1.2, iconCy - 0.2, 4.3, 0, Math.PI * 2);
+        this.ctx.arc(iconCx + 2.5, iconCy + 1.6, 3.3, 0, Math.PI * 2);
+        this.ctx.roundRect(iconCx - 5.8, iconCy + 1.4, 9.8, 4, 2);
+        this.ctx.fill();
+        this.ctx.shadowColor = "transparent";
+        this.ctx.strokeStyle = "rgba(255, 255, 255, 0.85)";
+        this.ctx.lineWidth = 0.7;
+        this.ctx.beginPath();
+        this.ctx.arc(iconCx - 1.2, iconCy - 0.2, 4.3, -Math.PI * 0.85, -Math.PI * 0.15);
+        this.ctx.stroke();
+        this.ctx.restore();
       } else if (type === "evening") {
+        const sunX = iconCx;
+        const sunY = iconCy + 1;
+        const sunGrad = this.safeRadialGradient(sunX - 0.8, sunY - 0.8, 0.4, sunX, sunY, 4.6);
+        sunGrad.addColorStop(0, "#ffffff");
+        sunGrad.addColorStop(0.35, "#ffea79");
+        sunGrad.addColorStop(0.75, "#ff8000");
+        sunGrad.addColorStop(1, "#d84315");
+        this.ctx.fillStyle = sunGrad;
+        this.ctx.beginPath();
+        this.ctx.arc(sunX, sunY, 4.4, 0, Math.PI * 2);
+        this.ctx.fill();
         this.ctx.strokeStyle = "rgba(255, 255, 255, 0.75)";
-        this.ctx.lineWidth = 1.2;
+        this.ctx.lineWidth = 1.1;
         this.ctx.lineCap = "round";
         this.ctx.beginPath();
-        this.ctx.moveTo(iconCx - 5.5, iconCy + 1.2);
-        this.ctx.lineTo(iconCx + 5.5, iconCy + 1.2);
+        this.ctx.moveTo(iconCx - 6.2, iconCy + 2.4);
+        this.ctx.lineTo(iconCx + 6.2, iconCy + 2.4);
         this.ctx.stroke();
-        this.ctx.fillStyle = "#ffffff";
+        this.ctx.strokeStyle = "rgba(255, 220, 180, 0.50)";
+        this.ctx.lineWidth = 0.9;
         this.ctx.beginPath();
-        this.ctx.arc(iconCx, iconCy + 1.2, 3.8, Math.PI * 1.05, Math.PI * 1.95, false);
+        this.ctx.moveTo(iconCx - 3.8, iconCy + 4.2);
+        this.ctx.lineTo(iconCx + 3.8, iconCy + 4.2);
+        this.ctx.moveTo(iconCx - 1.8, iconCy + 5.6);
+        this.ctx.lineTo(iconCx + 1.8, iconCy + 5.6);
+        this.ctx.stroke();
+        const cloudGrad = this.ctx.createLinearGradient(iconCx, iconCy - 5, iconCx, iconCy);
+        cloudGrad.addColorStop(0, "rgba(255, 255, 255, 0.92)");
+        cloudGrad.addColorStop(1, "rgba(253, 216, 178, 0.70)");
+        this.ctx.fillStyle = cloudGrad;
+        this.ctx.beginPath();
+        this.ctx.arc(iconCx - 2.8, iconCy - 1.8, 2.5, 0, Math.PI * 2);
+        this.ctx.arc(iconCx - 0.6, iconCy - 3, 3, 0, Math.PI * 2);
+        this.ctx.arc(iconCx + 2, iconCy - 1.8, 2.2, 0, Math.PI * 2);
         this.ctx.fill();
-        this.ctx.strokeStyle = "rgba(255, 255, 255, 0.45)";
-        this.ctx.lineWidth = 1;
-        this.ctx.beginPath();
-        this.ctx.moveTo(iconCx - 3.2, iconCy + 3.4);
-        this.ctx.lineTo(iconCx + 3.2, iconCy + 3.4);
-        this.ctx.moveTo(iconCx - 1.6, iconCy + 5);
-        this.ctx.lineTo(iconCx + 1.6, iconCy + 5);
-        this.ctx.stroke();
       } else {
-        this.ctx.save();
-        this.ctx.fillStyle = "#ffffff";
+        const moonX = iconCx - 1.4;
+        const moonY = iconCy + 0.5;
+        const moonGlow = this.safeRadialGradient(moonX, moonY, 1, moonX, moonY, 7.5);
+        moonGlow.addColorStop(0, "rgba(199, 210, 254, 0.55)");
+        moonGlow.addColorStop(1, "rgba(99, 102, 241, 0)");
+        this.ctx.fillStyle = moonGlow;
         this.ctx.beginPath();
-        this.ctx.arc(iconCx - 1.2, iconCy + 0.5, 4.4, -Math.PI * 0.45, Math.PI * 0.55, false);
-        this.ctx.bezierCurveTo(iconCx + 1.8, iconCy + 3.6, iconCx + 1.8, iconCy - 2.8, iconCx - 1.2, iconCy - 4);
+        this.ctx.arc(moonX, moonY, 7.5, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.save();
+        const moonGrad = this.ctx.createLinearGradient(moonX - 4, moonY - 5, moonX + 4, moonY + 5);
+        moonGrad.addColorStop(0, "#ffffff");
+        moonGrad.addColorStop(0.5, "#e2e8f0");
+        moonGrad.addColorStop(1, "#94a3b8");
+        this.ctx.fillStyle = moonGrad;
+        this.ctx.beginPath();
+        this.ctx.arc(moonX, moonY, 4.8, -Math.PI * 0.45, Math.PI * 0.55, false);
+        this.ctx.bezierCurveTo(moonX + 3, moonY + 3.8, moonX + 3, moonY - 3.2, moonX, moonY - 4.4);
         this.ctx.closePath();
         this.ctx.fill();
-        const starX = iconCx + 4.2;
-        const starY = iconCy - 3.8;
-        this.ctx.strokeStyle = "#a5b4fc";
-        this.ctx.lineWidth = 1.2;
+        this.ctx.strokeStyle = "rgba(255, 255, 255, 0.85)";
+        this.ctx.lineWidth = 0.7;
+        this.ctx.stroke();
+        this.ctx.restore();
+        const star1X = iconCx + 4.4;
+        const star1Y = iconCy - 3.6;
+        this.ctx.strokeStyle = "#c7d2fe";
+        this.ctx.lineWidth = 1.1;
         this.ctx.lineCap = "round";
         this.ctx.beginPath();
-        this.ctx.moveTo(starX - 2.2, starY);
-        this.ctx.lineTo(starX + 2.2, starY);
-        this.ctx.moveTo(starX, starY - 2.2);
-        this.ctx.lineTo(starX + 2.2, starY);
+        this.ctx.moveTo(star1X - 2.5, star1Y);
+        this.ctx.lineTo(star1X + 2.5, star1Y);
+        this.ctx.moveTo(star1X, star1Y - 2.5);
+        this.ctx.lineTo(star1X, star1Y + 2.5);
         this.ctx.stroke();
         this.ctx.fillStyle = "#ffffff";
         this.ctx.beginPath();
-        this.ctx.arc(starX, starY, 0.8, 0, Math.PI * 2);
+        this.ctx.arc(star1X, star1Y, 0.9, 0, Math.PI * 2);
         this.ctx.fill();
-        this.ctx.restore();
+        const star2X = iconCx + 5;
+        const star2Y = iconCy + 3.8;
+        this.ctx.fillStyle = "#a5b4fc";
+        this.ctx.beginPath();
+        this.ctx.arc(star2X, star2Y, 0.8, 0, Math.PI * 2);
+        this.ctx.fill();
       }
       this.ctx.restore();
     }
@@ -2409,53 +2478,85 @@
       const pillLeft = cx - this.currentWidth / 2;
       const pillRight = cx + this.currentWidth / 2;
       const type = this.greetingType;
-      let greetingTitle = `Good Morning, ${this.userName}!`;
-      let greetingSubtitle = "Have a wonderful day";
       const now = /* @__PURE__ */ new Date();
       const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
       const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
       const dayStr = `${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}`;
-      const weatherStr = this.weatherState.temp ? `${this.weatherState.temp} \u2022 ${this.weatherState.condition}` : "Clear";
+      let greetingTitle = `Good Morning, ${this.userName || "Gaurav"}!`;
+      let auraColor = "rgba(255, 149, 0, 0.12)";
+      let weatherCond = this.weatherState.condition && this.weatherState.condition !== "Checking..." ? this.weatherState.condition : "Sunny";
       switch (type) {
         case "morning":
-          greetingTitle = `Good Morning, ${this.userName}!`;
-          greetingSubtitle = `${dayStr} \u2022 ${weatherStr}`;
+          greetingTitle = `Good Morning, ${this.userName || "Gaurav"}!`;
+          auraColor = "rgba(255, 149, 0, 0.12)";
           break;
         case "afternoon":
-          greetingTitle = `Good Afternoon, ${this.userName}!`;
-          greetingSubtitle = `${dayStr} \u2022 High Focus`;
+          greetingTitle = `Good Afternoon, ${this.userName || "Gaurav"}!`;
+          auraColor = "rgba(14, 165, 233, 0.12)";
           break;
         case "evening":
-          greetingTitle = `Good Evening, ${this.userName}!`;
-          greetingSubtitle = `${dayStr} \u2022 Wind Down`;
+          greetingTitle = `Good Evening, ${this.userName || "Gaurav"}!`;
+          auraColor = "rgba(192, 38, 211, 0.12)";
+          weatherCond = this.weatherState.condition && this.weatherState.condition !== "Checking..." ? this.weatherState.condition : "Clear";
           break;
         case "night":
         default:
-          greetingTitle = `Good Night, ${this.userName}!`;
-          greetingSubtitle = `Rest well \u2022 Sleep Mode`;
+          greetingTitle = `Good Night, ${this.userName || "Gaurav"}!`;
+          auraColor = "rgba(99, 102, 241, 0.12)";
+          weatherCond = this.weatherState.condition && this.weatherState.condition !== "Checking..." ? this.weatherState.condition : "Clear Night";
           break;
       }
-      this.drawGreetingIcon(pillLeft + 19, midY, 11, type);
+      const greetingSubtitle = `${dayStr} \u2022 ${weatherCond}`;
       this.ctx.save();
+      const auraGrad = this.safeRadialGradient(pillLeft + 22, midY, 4, pillLeft + 60, midY, 110);
+      auraGrad.addColorStop(0, auraColor);
+      auraGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
+      this.ctx.fillStyle = auraGrad;
+      this.ctx.beginPath();
+      this.ctx.roundRect(pillLeft, topY, this.currentWidth, this.currentHeight, this.currentRadius);
+      this.ctx.fill();
+      this.drawGreetingIcon(pillLeft + 22, midY, 12, type);
       this.ctx.textAlign = "left";
       this.ctx.textBaseline = "middle";
-      this.ctx.font = '700 11.5px -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", sans-serif';
+      this.ctx.font = '600 12px -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", sans-serif';
       this.ctx.fillStyle = "#ffffff";
-      this.ctx.fillText(greetingTitle, pillLeft + 37, midY - 4.5);
+      this.ctx.fillText(greetingTitle, pillLeft + 42, midY - 4.5);
       this.ctx.font = '500 10px -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif';
-      this.ctx.fillStyle = "#94a3b8";
-      this.ctx.fillText(greetingSubtitle, pillLeft + 37, midY + 7.5);
-      const sparkX = pillRight - 18;
-      const sparkY = midY;
-      const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 280);
-      this.ctx.fillStyle = type === "night" ? `rgba(165, 180, 252, ${0.4 + 0.4 * pulse})` : `rgba(255, 180, 0, ${0.4 + 0.4 * pulse})`;
+      this.ctx.fillStyle = "rgba(255, 255, 255, 0.65)";
+      this.ctx.fillText(greetingSubtitle, pillLeft + 42, midY + 7.5);
+      const badgeW = 46;
+      const badgeH = 20;
+      const badgeR = 10;
+      const bx = pillRight - badgeW - 12;
+      const by = midY - badgeH / 2;
+      const bGrad = this.ctx.createLinearGradient(bx, by, bx, by + badgeH);
+      bGrad.addColorStop(0, "rgba(255, 255, 255, 0.15)");
+      bGrad.addColorStop(1, "rgba(255, 255, 255, 0.06)");
+      this.ctx.fillStyle = bGrad;
       this.ctx.beginPath();
-      this.ctx.arc(sparkX, sparkY, 3.2, 0, Math.PI * 2);
+      this.ctx.roundRect(bx, by, badgeW, badgeH, badgeR);
       this.ctx.fill();
+      this.ctx.strokeStyle = "rgba(255, 255, 255, 0.22)";
+      this.ctx.lineWidth = 0.8;
+      this.ctx.stroke();
+      const tempRaw = this.weatherState.temp || "25\xB0";
+      const tempClean = tempRaw.replace("C", "").trim();
+      if (type === "night") {
+        this.ctx.fillStyle = "#e2e8f0";
+        this.ctx.beginPath();
+        this.ctx.arc(bx + 9, midY, 2.2, -Math.PI * 0.4, Math.PI * 0.6, false);
+        this.ctx.closePath();
+        this.ctx.fill();
+      } else {
+        this.ctx.fillStyle = "#ffcc00";
+        this.ctx.beginPath();
+        this.ctx.arc(bx + 9, midY, 2.4, 0, Math.PI * 2);
+        this.ctx.fill();
+      }
+      this.ctx.font = '700 10.5px -apple-system, BlinkMacSystemFont, "SF Pro Rounded", "SF Pro Text", "Segoe UI", sans-serif';
       this.ctx.fillStyle = "#ffffff";
-      this.ctx.beginPath();
-      this.ctx.arc(sparkX, sparkY, 1.4, 0, Math.PI * 2);
-      this.ctx.fill();
+      this.ctx.textAlign = "left";
+      this.ctx.fillText(tempClean, bx + 16, midY);
       this.ctx.restore();
     }
     static parseAppActivityStatic(proc, rawTitle, hwnd) {
@@ -3745,7 +3846,7 @@
           return;
         }
         if (performance.now() < this.greetingUntil) {
-          this.targetWidth = this.isHovered ? 290 : 280;
+          this.targetWidth = this.isHovered ? 312 : 304;
           this.targetHeight = 36;
           this.targetRadius = 18;
           return;
@@ -3820,7 +3921,7 @@
         this.targetHeight = 36;
         this.targetRadius = 18;
       } else if (performance.now() < this.greetingUntil) {
-        this.targetWidth = this.isHovered ? 290 : 280;
+        this.targetWidth = this.isHovered ? 312 : 304;
         this.targetHeight = 36;
         this.targetRadius = 18;
       } else {
@@ -4932,6 +5033,18 @@
           this.speedometerHudUntil = 0;
           this.updateTargetDimensions();
         }
+      }
+      if (this.greetingUntil > 0 && performance.now() >= this.greetingUntil) {
+        this.greetingUntil = 0;
+        this.updateTargetDimensions();
+        if (this.config?.restModeEnabled && !this.mediaState.active && !this.focusState.active) {
+          this.enterRest();
+        }
+      }
+      if (this.appActivityUntil > 0 && performance.now() >= this.appActivityUntil) {
+        this.appActivityUntil = 0;
+        this.activeAppActivity = null;
+        this.updateTargetDimensions();
       }
       if (this.mediaState.playing && this.mediaState.durationMs > 0) {
         const elapsed = performance.now() - this.lastMediaSampleTime;

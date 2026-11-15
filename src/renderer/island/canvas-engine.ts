@@ -864,157 +864,261 @@ export class CanvasEngine {
     this.updateTargetDimensions();
   }
 
-  public drawGreetingIcon(iconCx: number, iconCy: number, iconR: number = 11, type: string): void {
+  private safeRadialGradient(x0: number, y0: number, r0: number, x1: number, y1: number, r1: number): CanvasGradient {
+    if (this.ctx && typeof this.ctx.createRadialGradient === 'function') {
+      return this.ctx.createRadialGradient(x0, y0, r0, x1, y1, r1);
+    }
+    return this.ctx.createLinearGradient(x0 - r1, y0, x1 + r1, y1);
+  }
+
+  public drawGreetingIcon(iconCx: number, iconCy: number, iconR: number = 12, type: string): void {
     const size = iconR * 2;
     const sx = iconCx - iconR;
     const sy = iconCy - iconR;
-    const cr = iconR * 0.48;
+    const cr = iconR * 0.52; // Continuous Apple squircle corner radius
 
     this.ctx.save();
 
-    // 1. Apple Continuous Squircle Platter with Time-of-Day Gradient
+    // 1. Apple Continuous Squircle Platter with Realistic Sky Gradient
     let grad = this.ctx.createLinearGradient(sx, sy, sx, sy + size);
-    let borderRgba = 'rgba(255, 255, 255, 0.28)';
+    let borderRgba = 'rgba(255, 255, 255, 0.35)';
 
     switch (type) {
       case 'morning':
-        grad.addColorStop(0, '#ff9500'); // Radiant amber sunrise
-        grad.addColorStop(1, '#ffcc00'); // Golden sunbeam
-        borderRgba = 'rgba(255, 245, 200, 0.45)';
+        // Apple Dawn Sky: Coral rose fading to golden sunrise amber
+        grad.addColorStop(0, '#ff5722');
+        grad.addColorStop(0.48, '#ff9800');
+        grad.addColorStop(1, '#ffc107');
+        borderRgba = 'rgba(255, 240, 215, 0.55)';
         break;
       case 'afternoon':
-        grad.addColorStop(0, '#ff9500'); // Midday amber
-        grad.addColorStop(1, '#ff5e3a'); // Solar flame
-        borderRgba = 'rgba(255, 230, 200, 0.40)';
+        // Apple Weather Vivid Cerulean: Deep sky blue fading into light azure
+        grad.addColorStop(0, '#0070eb');
+        grad.addColorStop(0.55, '#1ea1f2');
+        grad.addColorStop(1, '#5ac8fa');
+        borderRgba = 'rgba(215, 245, 255, 0.60)';
         break;
       case 'evening':
-        grad.addColorStop(0, '#ff5e3a'); // Sunset coral
-        grad.addColorStop(1, '#d93baf'); // Twilight violet
-        borderRgba = 'rgba(255, 220, 240, 0.40)';
+        // Apple Sunset Twilight: Velvet plum to orchid magenta to horizon amber
+        grad.addColorStop(0, '#4a148c');
+        grad.addColorStop(0.48, '#c2185b');
+        grad.addColorStop(1, '#ff6f00');
+        borderRgba = 'rgba(255, 215, 245, 0.55)';
         break;
       case 'night':
       default:
-        grad.addColorStop(0, '#312e81'); // Midnight indigo
-        grad.addColorStop(0.6, '#1e1b4b'); // Deep cosmic night
-        grad.addColorStop(1, '#0f172a'); // Starlit sky
-        borderRgba = 'rgba(165, 180, 252, 0.40)';
+        // Apple Cosmic Midnight: Deep space navy to rich cosmic indigo
+        grad.addColorStop(0, '#090d16');
+        grad.addColorStop(0.55, '#1e1b4b');
+        grad.addColorStop(1, '#312e81');
+        borderRgba = 'rgba(199, 210, 254, 0.45)';
         break;
     }
+
+    // Ambient drop shadow beneath the squircle plinth
+    this.ctx.shadowColor = 'rgba(0, 0, 0, 0.42)';
+    this.ctx.shadowBlur = 4;
+    this.ctx.shadowOffsetY = 1.2;
 
     this.ctx.beginPath();
     this.ctx.roundRect(sx, sy, size, size, cr);
     this.ctx.fillStyle = grad;
     this.ctx.fill();
 
-    // Specular glass top reflection
-    const sheen = this.ctx.createLinearGradient(sx, sy, sx, sy + size * 0.5);
+    // Reset shadow for crisp inner elements
+    this.ctx.shadowColor = 'transparent';
+    this.ctx.shadowBlur = 0;
+    this.ctx.shadowOffsetY = 0;
+
+    // Specular glass top reflection (Apple HIG glassmorphic luster)
+    const sheen = this.ctx.createLinearGradient(sx, sy, sx, sy + size * 0.48);
     sheen.addColorStop(0, 'rgba(255, 255, 255, 0.45)');
-    sheen.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    sheen.addColorStop(1, 'rgba(255, 255, 255, 0.0)');
     this.ctx.fillStyle = sheen;
     this.ctx.beginPath();
-    this.ctx.roundRect(sx, sy, size, size * 0.5, [cr, cr, 0, 0]);
+    this.ctx.roundRect(sx, sy, size, size * 0.48, [cr, cr, 0, 0]);
     this.ctx.fill();
 
+    // Inner rim stroke
     this.ctx.strokeStyle = borderRgba;
-    this.ctx.lineWidth = 0.8;
+    this.ctx.lineWidth = 0.85;
     this.ctx.stroke();
 
-    // 2. Vector Glyphs
-    if (type === 'morning') {
-      // Golden Sunrise: Horizon line + Rising Sun + 3 Sunbeams
-      this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
-      this.ctx.lineWidth = 1.2;
-      this.ctx.lineCap = 'round';
-      this.ctx.beginPath();
-      this.ctx.moveTo(iconCx - 5.5, iconCy + 2.5);
-      this.ctx.lineTo(iconCx + 5.5, iconCy + 2.5);
-      this.ctx.stroke();
+    // 2. 3D Layered Apple Weather Vector Glyphs
+    if (type === 'morning' || type === 'afternoon') {
+      // 3D Apple Sun & Volumetric Cumulus Cloud
+      const sunX = iconCx + 3.2;
+      const sunY = iconCy - 2.8;
 
-      // Rising Sun Disc
-      this.ctx.fillStyle = '#ffffff';
+      // Soft sun corona bloom
+      const sunGlow = this.safeRadialGradient(sunX, sunY, 1, sunX, sunY, 7.5);
+      sunGlow.addColorStop(0, 'rgba(255, 220, 50, 0.65)');
+      sunGlow.addColorStop(1, 'rgba(255, 149, 0, 0)');
+      this.ctx.fillStyle = sunGlow;
       this.ctx.beginPath();
-      this.ctx.arc(iconCx, iconCy + 2.5, 3.5, Math.PI, 0, false);
+      this.ctx.arc(sunX, sunY, 7.5, 0, Math.PI * 2);
       this.ctx.fill();
 
-      // 3 Morning Sunrays
-      this.ctx.beginPath();
-      this.ctx.moveTo(iconCx, iconCy - 2.5);
-      this.ctx.lineTo(iconCx, iconCy - 5.2);
-      this.ctx.moveTo(iconCx - 3.2, iconCy - 1.2);
-      this.ctx.lineTo(iconCx - 4.8, iconCy - 3.0);
-      this.ctx.moveTo(iconCx + 3.2, iconCy - 1.2);
-      this.ctx.lineTo(iconCx + 4.8, iconCy - 3.0);
-      this.ctx.stroke();
-    } else if (type === 'afternoon') {
-      // Bright Midday Sun with 8 Corona Rays
-      this.ctx.fillStyle = '#ffffff';
-      this.ctx.beginPath();
-      this.ctx.arc(iconCx, iconCy, 3.4, 0, Math.PI * 2);
-      this.ctx.fill();
-
-      this.ctx.strokeStyle = '#ffffff';
-      this.ctx.lineWidth = 1.3;
+      // 4 Apple micro corona rays
+      this.ctx.strokeStyle = 'rgba(255, 240, 140, 0.75)';
+      this.ctx.lineWidth = 1.1;
       this.ctx.lineCap = 'round';
-      for (let i = 0; i < 8; i++) {
-        const a = (i * Math.PI) / 4;
+      const rayAngles = [0, -Math.PI / 4, -Math.PI / 2, Math.PI / 4];
+      for (const a of rayAngles) {
         this.ctx.beginPath();
-        this.ctx.moveTo(iconCx + Math.cos(a) * 4.4, iconCy + Math.sin(a) * 4.4);
-        this.ctx.lineTo(iconCx + Math.cos(a) * 6.2, iconCy + Math.sin(a) * 6.2);
+        this.ctx.moveTo(sunX + Math.cos(a) * 4.6, sunY + Math.sin(a) * 4.6);
+        this.ctx.lineTo(sunX + Math.cos(a) * 6.4, sunY + Math.sin(a) * 6.4);
         this.ctx.stroke();
       }
-    } else if (type === 'evening') {
-      // Sunset on Horizon with Setting Sun & Twilight Glow
-      this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
-      this.ctx.lineWidth = 1.2;
-      this.ctx.lineCap = 'round';
-      this.ctx.beginPath();
-      this.ctx.moveTo(iconCx - 5.5, iconCy + 1.2);
-      this.ctx.lineTo(iconCx + 5.5, iconCy + 1.2);
-      this.ctx.stroke();
 
-      // Setting Sun Disc (partially submerged)
-      this.ctx.fillStyle = '#ffffff';
+      // 3D Spherical Sun Orb with specular highlight
+      const sunGrad = this.safeRadialGradient(sunX - 1.0, sunY - 1.0, 0.4, sunX, sunY, 4.0);
+      sunGrad.addColorStop(0, '#ffffff');
+      sunGrad.addColorStop(0.35, '#ffea79');
+      sunGrad.addColorStop(0.75, '#ffb800');
+      sunGrad.addColorStop(1, '#ff8800');
+      this.ctx.fillStyle = sunGrad;
       this.ctx.beginPath();
-      this.ctx.arc(iconCx, iconCy + 1.2, 3.8, Math.PI * 1.05, Math.PI * 1.95, false);
+      this.ctx.arc(sunX, sunY, 3.8, 0, Math.PI * 2);
       this.ctx.fill();
 
-      // Lower Water Ripple Reflection
-      this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
-      this.ctx.lineWidth = 1.0;
-      this.ctx.beginPath();
-      this.ctx.moveTo(iconCx - 3.2, iconCy + 3.4);
-      this.ctx.lineTo(iconCx + 3.2, iconCy + 3.4);
-      this.ctx.moveTo(iconCx - 1.6, iconCy + 5.0);
-      this.ctx.lineTo(iconCx + 1.6, iconCy + 5.0);
-      this.ctx.stroke();
-    } else {
-      // Cosmic Midnight: Silver Crescent Moon & 4-Point Star Sparkle
+      // 3D Volumetric Cumulus Cloud (Layered in front of the sun)
       this.ctx.save();
-      this.ctx.fillStyle = '#ffffff';
+      // Drop shadow from cloud onto squircle
+      this.ctx.shadowColor = 'rgba(0, 0, 0, 0.35)';
+      this.ctx.shadowBlur = 3;
+      this.ctx.shadowOffsetY = 1.2;
+
+      // Cloud composite path: flat pill base + 3 organic rounded puffs
+      const cloudGrad = this.ctx.createLinearGradient(iconCx - 6, iconCy - 4, iconCx - 6, iconCy + 6);
+      cloudGrad.addColorStop(0, '#ffffff');
+      cloudGrad.addColorStop(0.48, '#f8fafc');
+      cloudGrad.addColorStop(1, '#cbd5e1'); // Soft silver underside shadow
+
+      this.ctx.fillStyle = cloudGrad;
       this.ctx.beginPath();
-      this.ctx.arc(iconCx - 1.2, iconCy + 0.5, 4.4, -Math.PI * 0.45, Math.PI * 0.55, false);
-      this.ctx.bezierCurveTo(iconCx + 1.8, iconCy + 3.6, iconCx + 1.8, iconCy - 2.8, iconCx - 1.2, iconCy - 4.0);
+      // Left puff
+      this.ctx.arc(iconCx - 4.2, iconCy + 1.8, 3.2, 0, Math.PI * 2);
+      // Main tall puff
+      this.ctx.arc(iconCx - 1.2, iconCy - 0.2, 4.3, 0, Math.PI * 2);
+      // Right puff
+      this.ctx.arc(iconCx + 2.5, iconCy + 1.6, 3.3, 0, Math.PI * 2);
+      // Flat bottom pill
+      this.ctx.roundRect(iconCx - 5.8, iconCy + 1.4, 9.8, 4.0, 2.0);
+      this.ctx.fill();
+
+      // Cloud crest specular rim
+      this.ctx.shadowColor = 'transparent';
+      this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+      this.ctx.lineWidth = 0.7;
+      this.ctx.beginPath();
+      this.ctx.arc(iconCx - 1.2, iconCy - 0.2, 4.3, -Math.PI * 0.85, -Math.PI * 0.15);
+      this.ctx.stroke();
+
+      this.ctx.restore();
+    } else if (type === 'evening') {
+      // Golden Sunset Horizon with Warm Shimmer
+      const sunX = iconCx;
+      const sunY = iconCy + 1.0;
+
+      // Descending golden sunset sun orb
+      const sunGrad = this.safeRadialGradient(sunX - 0.8, sunY - 0.8, 0.4, sunX, sunY, 4.6);
+      sunGrad.addColorStop(0, '#ffffff');
+      sunGrad.addColorStop(0.35, '#ffea79');
+      sunGrad.addColorStop(0.75, '#ff8000');
+      sunGrad.addColorStop(1, '#d84315');
+      this.ctx.fillStyle = sunGrad;
+      this.ctx.beginPath();
+      this.ctx.arc(sunX, sunY, 4.4, 0, Math.PI * 2);
+      this.ctx.fill();
+
+      // Sunset horizon water/atmosphere shimmer lines
+      this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
+      this.ctx.lineWidth = 1.1;
+      this.ctx.lineCap = 'round';
+      this.ctx.beginPath();
+      this.ctx.moveTo(iconCx - 6.2, iconCy + 2.4);
+      this.ctx.lineTo(iconCx + 6.2, iconCy + 2.4);
+      this.ctx.stroke();
+
+      this.ctx.strokeStyle = 'rgba(255, 220, 180, 0.50)';
+      this.ctx.lineWidth = 0.9;
+      this.ctx.beginPath();
+      this.ctx.moveTo(iconCx - 3.8, iconCy + 4.2);
+      this.ctx.lineTo(iconCx + 3.8, iconCy + 4.2);
+      this.ctx.moveTo(iconCx - 1.8, iconCy + 5.6);
+      this.ctx.lineTo(iconCx + 1.8, iconCy + 5.6);
+      this.ctx.stroke();
+
+      // Soft twilight cloud puff drifting above
+      const cloudGrad = this.ctx.createLinearGradient(iconCx, iconCy - 5, iconCx, iconCy);
+      cloudGrad.addColorStop(0, 'rgba(255, 255, 255, 0.92)');
+      cloudGrad.addColorStop(1, 'rgba(253, 216, 178, 0.70)');
+      this.ctx.fillStyle = cloudGrad;
+      this.ctx.beginPath();
+      this.ctx.arc(iconCx - 2.8, iconCy - 1.8, 2.5, 0, Math.PI * 2);
+      this.ctx.arc(iconCx - 0.6, iconCy - 3.0, 3.0, 0, Math.PI * 2);
+      this.ctx.arc(iconCx + 2.0, iconCy - 1.8, 2.2, 0, Math.PI * 2);
+      this.ctx.fill();
+    } else {
+      // Cosmic Midnight: 3D Silver Crescent Moon & Diamond Stars
+      const moonX = iconCx - 1.4;
+      const moonY = iconCy + 0.5;
+
+      // Soft lunar aura
+      const moonGlow = this.safeRadialGradient(moonX, moonY, 1, moonX, moonY, 7.5);
+      moonGlow.addColorStop(0, 'rgba(199, 210, 254, 0.55)');
+      moonGlow.addColorStop(1, 'rgba(99, 102, 241, 0)');
+      this.ctx.fillStyle = moonGlow;
+      this.ctx.beginPath();
+      this.ctx.arc(moonX, moonY, 7.5, 0, Math.PI * 2);
+      this.ctx.fill();
+
+      // 3D Silver Crescent Moon Path
+      this.ctx.save();
+      const moonGrad = this.ctx.createLinearGradient(moonX - 4, moonY - 5, moonX + 4, moonY + 5);
+      moonGrad.addColorStop(0, '#ffffff');
+      moonGrad.addColorStop(0.5, '#e2e8f0');
+      moonGrad.addColorStop(1, '#94a3b8');
+      this.ctx.fillStyle = moonGrad;
+
+      this.ctx.beginPath();
+      this.ctx.arc(moonX, moonY, 4.8, -Math.PI * 0.45, Math.PI * 0.55, false);
+      this.ctx.bezierCurveTo(moonX + 3.0, moonY + 3.8, moonX + 3.0, moonY - 3.2, moonX, moonY - 4.4);
       this.ctx.closePath();
       this.ctx.fill();
 
-      // 4-Point Star Sparkle at top right
-      const starX = iconCx + 4.2;
-      const starY = iconCy - 3.8;
-      this.ctx.strokeStyle = '#a5b4fc';
-      this.ctx.lineWidth = 1.2;
+      // Specular crest line on the moon's outer rim
+      this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+      this.ctx.lineWidth = 0.7;
+      this.ctx.stroke();
+      this.ctx.restore();
+
+      // 4-Point Diamond Sparkle Star (Primary)
+      const star1X = iconCx + 4.4;
+      const star1Y = iconCy - 3.6;
+      this.ctx.strokeStyle = '#c7d2fe';
+      this.ctx.lineWidth = 1.1;
       this.ctx.lineCap = 'round';
       this.ctx.beginPath();
-      this.ctx.moveTo(starX - 2.2, starY);
-      this.ctx.lineTo(starX + 2.2, starY);
-      this.ctx.moveTo(starX, starY - 2.2);
-      this.ctx.lineTo(starX + 2.2, starY);
+      this.ctx.moveTo(star1X - 2.5, star1Y);
+      this.ctx.lineTo(star1X + 2.5, star1Y);
+      this.ctx.moveTo(star1X, star1Y - 2.5);
+      this.ctx.lineTo(star1X, star1Y + 2.5);
       this.ctx.stroke();
-
+      // Center brilliant glint
       this.ctx.fillStyle = '#ffffff';
       this.ctx.beginPath();
-      this.ctx.arc(starX, starY, 0.8, 0, Math.PI * 2);
+      this.ctx.arc(star1X, star1Y, 0.9, 0, Math.PI * 2);
       this.ctx.fill();
-      this.ctx.restore();
+
+      // Micro twinkle star (Secondary)
+      const star2X = iconCx + 5.0;
+      const star2Y = iconCy + 3.8;
+      this.ctx.fillStyle = '#a5b4fc';
+      this.ctx.beginPath();
+      this.ctx.arc(star2X, star2Y, 0.8, 0, Math.PI * 2);
+      this.ctx.fill();
     }
 
     this.ctx.restore();
@@ -1026,66 +1130,117 @@ export class CanvasEngine {
     const pillRight = cx + this.currentWidth / 2;
 
     const type = this.greetingType;
-    let greetingTitle = `Good Morning, ${this.userName}!`;
-    let greetingSubtitle = 'Have a wonderful day';
-
     const now = new Date();
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const dayStr = `${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}`;
-    const weatherStr = this.weatherState.temp ? `${this.weatherState.temp} • ${this.weatherState.condition}` : 'Clear';
+
+    let greetingTitle = `Good Morning, ${this.userName || 'Gaurav'}!`;
+    let auraColor = 'rgba(255, 149, 0, 0.12)';
+    let weatherCond = this.weatherState.condition && this.weatherState.condition !== 'Checking...'
+      ? this.weatherState.condition
+      : 'Sunny';
 
     switch (type) {
       case 'morning':
-        greetingTitle = `Good Morning, ${this.userName}!`;
-        greetingSubtitle = `${dayStr} • ${weatherStr}`;
+        greetingTitle = `Good Morning, ${this.userName || 'Gaurav'}!`;
+        auraColor = 'rgba(255, 149, 0, 0.12)';
         break;
       case 'afternoon':
-        greetingTitle = `Good Afternoon, ${this.userName}!`;
-        greetingSubtitle = `${dayStr} • High Focus`;
+        greetingTitle = `Good Afternoon, ${this.userName || 'Gaurav'}!`;
+        auraColor = 'rgba(14, 165, 233, 0.12)';
         break;
       case 'evening':
-        greetingTitle = `Good Evening, ${this.userName}!`;
-        greetingSubtitle = `${dayStr} • Wind Down`;
+        greetingTitle = `Good Evening, ${this.userName || 'Gaurav'}!`;
+        auraColor = 'rgba(192, 38, 211, 0.12)';
+        weatherCond = this.weatherState.condition && this.weatherState.condition !== 'Checking...'
+          ? this.weatherState.condition
+          : 'Clear';
         break;
       case 'night':
       default:
-        greetingTitle = `Good Night, ${this.userName}!`;
-        greetingSubtitle = `Rest well • Sleep Mode`;
+        greetingTitle = `Good Night, ${this.userName || 'Gaurav'}!`;
+        auraColor = 'rgba(99, 102, 241, 0.12)';
+        weatherCond = this.weatherState.condition && this.weatherState.condition !== 'Checking...'
+          ? this.weatherState.condition
+          : 'Clear Night';
         break;
     }
 
-    // 1. Draw Apple Continuous Squircle Time-of-Day Icon
-    this.drawGreetingIcon(pillLeft + 19, midY, 11, type);
+    const greetingSubtitle = `${dayStr} • ${weatherCond}`;
 
-    // 2. Title & Subtitle Typography (SF Pro Display / Text)
     this.ctx.save();
+
+    // 1. Subtle Apple Ambient Background Glow inside the Pill
+    const auraGrad = this.safeRadialGradient(pillLeft + 22, midY, 4, pillLeft + 60, midY, 110);
+    auraGrad.addColorStop(0, auraColor);
+    auraGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    this.ctx.fillStyle = auraGrad;
+    this.ctx.beginPath();
+    this.ctx.roundRect(pillLeft, topY, this.currentWidth, this.currentHeight, this.currentRadius);
+    this.ctx.fill();
+
+    // 2. Draw Apple Continuous Squircle Time-of-Day Weather Icon
+    this.drawGreetingIcon(pillLeft + 22, midY, 12, type);
+
+    // 3. Title & Subtitle Typography (Apple SF Pro Display / Text)
     this.ctx.textAlign = 'left';
     this.ctx.textBaseline = 'middle';
 
     // Title
-    this.ctx.font = '700 11.5px -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", sans-serif';
+    this.ctx.font = '600 12px -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", sans-serif';
     this.ctx.fillStyle = '#ffffff';
-    this.ctx.fillText(greetingTitle, pillLeft + 37, midY - 4.5);
+    this.ctx.fillText(greetingTitle, pillLeft + 42, midY - 4.5);
 
     // Subtitle
     this.ctx.font = '500 10px -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif';
-    this.ctx.fillStyle = '#94a3b8';
-    this.ctx.fillText(greetingSubtitle, pillLeft + 37, midY + 7.5);
+    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
+    this.ctx.fillText(greetingSubtitle, pillLeft + 42, midY + 7.5);
 
-    // 3. Right Apple Sparkle / Warm Glow
-    const sparkX = pillRight - 18;
-    const sparkY = midY;
-    const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 280);
-    this.ctx.fillStyle = type === 'night' ? `rgba(165, 180, 252, ${0.4 + 0.4 * pulse})` : `rgba(255, 180, 0, ${0.4 + 0.4 * pulse})`;
+    // 4. Right Side: Apple Live Weather Temperature Badge
+    const badgeW = 46;
+    const badgeH = 20;
+    const badgeR = 10;
+    const bx = pillRight - badgeW - 12;
+    const by = midY - badgeH / 2;
+
+    // Frosted glass background
+    const bGrad = this.ctx.createLinearGradient(bx, by, bx, by + badgeH);
+    bGrad.addColorStop(0, 'rgba(255, 255, 255, 0.15)');
+    bGrad.addColorStop(1, 'rgba(255, 255, 255, 0.06)');
+    this.ctx.fillStyle = bGrad;
     this.ctx.beginPath();
-    this.ctx.arc(sparkX, sparkY, 3.2, 0, Math.PI * 2);
+    this.ctx.roundRect(bx, by, badgeW, badgeH, badgeR);
     this.ctx.fill();
 
+    // Subtle glass border
+    this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+    this.ctx.lineWidth = 0.8;
+    this.ctx.stroke();
+
+    // Temperature text & weather micro pip
+    const tempRaw = this.weatherState.temp || '25°';
+    const tempClean = tempRaw.replace('C', '').trim();
+
+    if (type === 'night') {
+      // Mini silver moon pip
+      this.ctx.fillStyle = '#e2e8f0';
+      this.ctx.beginPath();
+      this.ctx.arc(bx + 9, midY, 2.2, -Math.PI * 0.4, Math.PI * 0.6, false);
+      this.ctx.closePath();
+      this.ctx.fill();
+    } else {
+      // Mini golden sun pip
+      this.ctx.fillStyle = '#ffcc00';
+      this.ctx.beginPath();
+      this.ctx.arc(bx + 9, midY, 2.4, 0, Math.PI * 2);
+      this.ctx.fill();
+    }
+
+    this.ctx.font = '700 10.5px -apple-system, BlinkMacSystemFont, "SF Pro Rounded", "SF Pro Text", "Segoe UI", sans-serif';
     this.ctx.fillStyle = '#ffffff';
-    this.ctx.beginPath();
-    this.ctx.arc(sparkX, sparkY, 1.4, 0, Math.PI * 2);
-    this.ctx.fill();
+    this.ctx.textAlign = 'left';
+    this.ctx.fillText(tempClean, bx + 16, midY);
 
     this.ctx.restore();
   }
@@ -2566,7 +2721,7 @@ export class CanvasEngine {
         return;
       }
       if (performance.now() < this.greetingUntil) {
-        this.targetWidth = this.isHovered ? 290 : 280;
+        this.targetWidth = this.isHovered ? 312 : 304;
         this.targetHeight = 36;
         this.targetRadius = 18;
         return;
@@ -2655,7 +2810,7 @@ export class CanvasEngine {
       this.targetHeight = 36;
       this.targetRadius = 18;
     } else if (performance.now() < this.greetingUntil) {
-      this.targetWidth = this.isHovered ? 290 : 280;
+      this.targetWidth = this.isHovered ? 312 : 304;
       this.targetHeight = 36;
       this.targetRadius = 18;
     } else {
@@ -3949,6 +4104,22 @@ export class CanvasEngine {
         this.speedometerHudUntil = 0;
         this.updateTargetDimensions();
       }
+    }
+
+    // Apple macOS / iOS Dynamic Time-of-Day Greeting Pill: Auto-relax to rest/compact dimensions when expired
+    if (this.greetingUntil > 0 && performance.now() >= this.greetingUntil) {
+      this.greetingUntil = 0;
+      this.updateTargetDimensions();
+      if (this.config?.restModeEnabled && !this.mediaState.active && !this.focusState.active) {
+        this.enterRest();
+      }
+    }
+
+    // Apple Live Activity Smart Status: Auto-relax when expired
+    if (this.appActivityUntil > 0 && performance.now() >= this.appActivityUntil) {
+      this.appActivityUntil = 0;
+      this.activeAppActivity = null;
+      this.updateTargetDimensions();
     }
 
     // Interpolate live playback position
