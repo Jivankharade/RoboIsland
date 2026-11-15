@@ -576,9 +576,18 @@ class RoboMascot {
     drawFloatingEyes(ctx, cx, cy, size = 1.0) {
         const skin = this.getActivePalette();
         const isCustomEye = Boolean(this.eyeColorKey && this.eyeColorKey !== 'mint' && this.eyeColorKey !== 'classic');
-        const eyeCoreColor = isCustomEye ? skin.eyeColor : '#ffffff';
-        const eyeGlowColor = isCustomEye ? skin.eyeGlow : 'rgba(0, 229, 255, 0.40)';
+        let eyeCoreColor = isCustomEye ? skin.eyeColor : '#ffffff';
+        let eyeGlowColor = isCustomEye ? skin.eyeGlow : 'rgba(0, 229, 255, 0.40)';
         const effectiveMood = this.idleLife(performance.now(), this.mood);
+        // Dynamic green smile on download complete / happy, and vibrant red frown on cancel / error
+        if (effectiveMood === 'happy') {
+            eyeCoreColor = '#22e05a';
+            eyeGlowColor = 'rgba(34, 224, 90, 0.60)';
+        }
+        else if (effectiveMood === 'sad') {
+            eyeCoreColor = '#ff3b3b';
+            eyeGlowColor = 'rgba(255, 59, 59, 0.60)';
+        }
         // Cursor tracking gaze — damped to stay subtle in the pill (clamped to ±1.8px X, ±1.0px Y)
         const lookX = Math.max(-1, Math.min(1, this.lookX)) * 1.8 * size;
         const lookY = Math.max(-1, Math.min(1, this.lookY)) * 1.0 * size;
@@ -628,11 +637,18 @@ class RoboMascot {
                 ctx.arc(0, -2, 5, Math.PI * 0.15, Math.PI * 0.85);
                 ctx.stroke();
             }
-            // 2. HAPPY: cheerful upward arc (smile)
+            // 2. HAPPY: cheerful upward arc (green smile)
             else if (effectiveMood === 'happy') {
                 ctx.scale(eyeScale, eyeScale);
                 ctx.beginPath();
                 ctx.arc(0, 3, 5, Math.PI * 1.15, Math.PI * 1.85);
+                ctx.stroke();
+            }
+            // 2b. SAD: drooping downward arc (red frown on download cancelled/error)
+            else if (effectiveMood === 'sad') {
+                ctx.scale(eyeScale, eyeScale);
+                ctx.beginPath();
+                ctx.arc(0, -1, 5, Math.PI * 0.15, Math.PI * 0.85);
                 ctx.stroke();
             }
             // 3. HEART: pink heart
@@ -832,10 +848,20 @@ class RoboMascot {
         const eyeRadius = 3.6;
         const gazeX = this.lookX * 1.5;
         const gazeY = this.lookY * 1.5;
-        ctx.fillStyle = skin.eyeColor;
-        ctx.shadowColor = skin.eyeGlow;
+        let eyeColor = skin.eyeColor;
+        let eyeGlow = skin.eyeGlow;
+        if (this.mood === 'happy') {
+            eyeColor = '#22e05a';
+            eyeGlow = 'rgba(34, 224, 90, 0.60)';
+        }
+        else if (this.mood === 'sad') {
+            eyeColor = '#ff3b3b';
+            eyeGlow = 'rgba(255, 59, 59, 0.60)';
+        }
+        ctx.fillStyle = eyeColor;
+        ctx.shadowColor = eyeGlow;
         ctx.shadowBlur = 8;
-        ctx.strokeStyle = skin.eyeColor;
+        ctx.strokeStyle = eyeColor;
         if (this.mood === 'dizzy') {
             [-eyeOffsetX, eyeOffsetX].forEach(ex => {
                 ctx.save();
@@ -873,6 +899,13 @@ class RoboMascot {
                 ctx.beginPath();
                 ctx.lineWidth = 1.8;
                 ctx.arc(0, 1.2, eyeRadius, Math.PI * 1.15, Math.PI * 1.85, false);
+                ctx.stroke();
+            }
+            else if (this.mood === 'sad') {
+                // Sad drooping frown
+                ctx.beginPath();
+                ctx.lineWidth = 1.8;
+                ctx.arc(0, -0.6, eyeRadius, Math.PI * 0.15, Math.PI * 0.85, false);
                 ctx.stroke();
             }
             else if (this.mood === 'sleepy') {

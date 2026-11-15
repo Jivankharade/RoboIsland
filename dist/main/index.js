@@ -221,6 +221,23 @@ function setupAppIPC() {
         const key = license_manager_1.LicenseManager.getInstance().generateCustomerKey(customer);
         return { success: true, key };
     });
+    electron_1.ipcMain.handle('whatsapp:reply', async (_event, payload) => {
+        const text = payload?.text || '';
+        if (!text)
+            return false;
+        try {
+            electron_1.clipboard.writeText(text);
+            const url = `whatsapp://send?text=${encodeURIComponent(text)}`;
+            await electron_1.shell.openExternal(url).catch(() => {
+                electron_1.shell.openExternal(`https://web.whatsapp.com/send?text=${encodeURIComponent(text)}`);
+            });
+            return true;
+        }
+        catch (err) {
+            console.warn('[WhatsAppReply] Failed to dispatch reply:', err);
+            return false;
+        }
+    });
     electron_1.ipcMain.handle('system:open-external', (_event, url) => {
         if (typeof url === 'string' && (url.startsWith('https://') || url.startsWith('http://') || url.startsWith('ms-settings:'))) {
             electron_1.shell.openExternal(url).catch(() => { });

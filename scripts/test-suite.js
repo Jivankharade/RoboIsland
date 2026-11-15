@@ -244,7 +244,29 @@ async function runTests() {
   const getColor = CanvasEngine.prototype.getNotificationColor;
   assert('Notification color for WhatsApp matches #25d366', getColor('whatsapp') === '#25d366');
   assert('Notification color for Mail matches #0078d4', getColor('mail') === '#0078d4');
-  assert('Notification color for Download matches #00d2ff', getColor('download') === '#00d2ff');
+  assert('Notification color for active Download matches #00d2ff', getColor('download') === '#00d2ff');
+  assert('Download complete notification color matches #22e05a (Green Smile)', getColor('download', 'complete') === '#22e05a');
+  assert('Download error/cancelled notification color matches #ff3b3b (Red Frown)', getColor('download', 'error') === '#ff3b3b');
+
+  // 11. Testing Mascot Happy Green Smile & Sad Red Reactions
+  console.log('\n--- 11. Testing Mascot Moods: Green Smile & Red Sad Frown ---');
+  const mascot = new RoboMascot();
+  mascot.setMood('happy');
+  assert('Mascot switches to happy mood on download complete', mascot.getMood() === 'happy');
+  mascot.setMood('sad');
+  assert('Mascot switches to sad mood on download error/cancel', mascot.getMood() === 'sad');
+
+  // 12. Testing Apple Mac Download Filename Sanitization
+  console.log('\n--- 12. Testing Download Monitor Clean Filenames ---');
+  const { DownloadMonitor } = require('../dist/main/download-monitor.js');
+  const dm = new DownloadMonitor();
+  assert('DownloadMonitor formatBytes formats KB correctly', dm.formatBytes(512 * 1024) === '512.0 KB');
+  assert('DownloadMonitor formatBytes formats MB correctly', dm.formatBytes(15 * 1024 * 1024) === '15.0 MB');
+  const testFilename = 'VSCodeUserSetup-x64.exe.crdownload';
+  const cleanName = testFilename.replace(/\.(crdownload|part)$/i, '');
+  assert('Exact clean filename extracted without .crdownload', cleanName === 'VSCodeUserSetup-x64.exe');
+  assert('Unconfirmed placeholder is detected and ignored', /^unconfirmed/i.test('Unconfirmed 83921.crdownload'));
+  dm.dispose();
 
   // Summary
   console.log('\n====================================================');

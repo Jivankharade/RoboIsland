@@ -1,4 +1,4 @@
-import { app, BrowserWindow, globalShortcut, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, clipboard, globalShortcut, ipcMain, shell } from 'electron';
 import * as path from 'path';
 import { IslandWindow } from './island-window';
 import { TrayManager } from './tray-manager';
@@ -211,6 +211,22 @@ function setupAppIPC(): void {
     }
     const key = LicenseManager.getInstance().generateCustomerKey(customer);
     return { success: true, key };
+  });
+
+  ipcMain.handle('whatsapp:reply', async (_event, payload: { contact?: string; text: string }) => {
+    const text = payload?.text || '';
+    if (!text) return false;
+    try {
+      clipboard.writeText(text);
+      const url = `whatsapp://send?text=${encodeURIComponent(text)}`;
+      await shell.openExternal(url).catch(() => {
+        shell.openExternal(`https://web.whatsapp.com/send?text=${encodeURIComponent(text)}`);
+      });
+      return true;
+    } catch (err) {
+      console.warn('[WhatsAppReply] Failed to dispatch reply:', err);
+      return false;
+    }
   });
 
   ipcMain.handle('system:open-external', (_event, url: string) => {

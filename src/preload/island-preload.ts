@@ -180,6 +180,8 @@ const api = {
   postNotification: (payload: any) => {
     ipcRenderer.send('island:notify', payload);
   },
+  replyWhatsApp: (payload: { contact?: string; text: string }) =>
+    ipcRenderer.invoke('whatsapp:reply', payload),
   onCollapseRequested: (callback: () => void) => {
     const handler = () => callback();
     ipcRenderer.on('island:request-collapse', handler);

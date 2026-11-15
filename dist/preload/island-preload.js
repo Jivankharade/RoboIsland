@@ -165,6 +165,7 @@ const api = {
     postNotification: (payload) => {
         electron_1.ipcRenderer.send('island:notify', payload);
     },
+    replyWhatsApp: (payload) => electron_1.ipcRenderer.invoke('whatsapp:reply', payload),
     onCollapseRequested: (callback) => {
         const handler = () => callback();
         electron_1.ipcRenderer.on('island:request-collapse', handler);

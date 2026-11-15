@@ -796,9 +796,16 @@
     drawFloatingEyes(ctx, cx, cy, size = 1) {
       const skin = this.getActivePalette();
       const isCustomEye = Boolean(this.eyeColorKey && this.eyeColorKey !== "mint" && this.eyeColorKey !== "classic");
-      const eyeCoreColor = isCustomEye ? skin.eyeColor : "#ffffff";
-      const eyeGlowColor = isCustomEye ? skin.eyeGlow : "rgba(0, 229, 255, 0.40)";
+      let eyeCoreColor = isCustomEye ? skin.eyeColor : "#ffffff";
+      let eyeGlowColor = isCustomEye ? skin.eyeGlow : "rgba(0, 229, 255, 0.40)";
       const effectiveMood = this.idleLife(performance.now(), this.mood);
+      if (effectiveMood === "happy") {
+        eyeCoreColor = "#22e05a";
+        eyeGlowColor = "rgba(34, 224, 90, 0.60)";
+      } else if (effectiveMood === "sad") {
+        eyeCoreColor = "#ff3b3b";
+        eyeGlowColor = "rgba(255, 59, 59, 0.60)";
+      }
       const lookX = Math.max(-1, Math.min(1, this.lookX)) * 1.8 * size;
       const lookY = Math.max(-1, Math.min(1, this.lookY)) * 1 * size;
       const bob = (this.isDancing ? Math.sin(this.dancePhase) * 1.5 * size : this.isCompactIdle ? 0 : this.idleFloatY * size) + this.jumpY;
@@ -838,6 +845,11 @@
           ctx.scale(eyeScale, eyeScale);
           ctx.beginPath();
           ctx.arc(0, 3, 5, Math.PI * 1.15, Math.PI * 1.85);
+          ctx.stroke();
+        } else if (effectiveMood === "sad") {
+          ctx.scale(eyeScale, eyeScale);
+          ctx.beginPath();
+          ctx.arc(0, -1, 5, Math.PI * 0.15, Math.PI * 0.85);
           ctx.stroke();
         } else if (effectiveMood === "heart") {
           ctx.scale(eyeScale, eyeScale);
@@ -999,10 +1011,19 @@
       const eyeRadius = 3.6;
       const gazeX = this.lookX * 1.5;
       const gazeY = this.lookY * 1.5;
-      ctx.fillStyle = skin.eyeColor;
-      ctx.shadowColor = skin.eyeGlow;
+      let eyeColor = skin.eyeColor;
+      let eyeGlow = skin.eyeGlow;
+      if (this.mood === "happy") {
+        eyeColor = "#22e05a";
+        eyeGlow = "rgba(34, 224, 90, 0.60)";
+      } else if (this.mood === "sad") {
+        eyeColor = "#ff3b3b";
+        eyeGlow = "rgba(255, 59, 59, 0.60)";
+      }
+      ctx.fillStyle = eyeColor;
+      ctx.shadowColor = eyeGlow;
       ctx.shadowBlur = 8;
-      ctx.strokeStyle = skin.eyeColor;
+      ctx.strokeStyle = eyeColor;
       if (this.mood === "dizzy") {
         [-eyeOffsetX, eyeOffsetX].forEach((ex) => {
           ctx.save();
@@ -1036,6 +1057,11 @@
           ctx.beginPath();
           ctx.lineWidth = 1.8;
           ctx.arc(0, 1.2, eyeRadius, Math.PI * 1.15, Math.PI * 1.85, false);
+          ctx.stroke();
+        } else if (this.mood === "sad") {
+          ctx.beginPath();
+          ctx.lineWidth = 1.8;
+          ctx.arc(0, -0.6, eyeRadius, Math.PI * 0.15, Math.PI * 0.85, false);
           ctx.stroke();
         } else if (this.mood === "sleepy") {
           ctx.beginPath();
@@ -1529,6 +1555,11 @@
     notificationUntil = 0;
     notificationTimer = null;
     notificationHits = {};
+    // WhatsApp Quick Reply State (Apple Dynamic Island Parity)
+    isWhatsAppReplying = false;
+    whatsAppReplyText = "";
+    whatsAppReplySent = false;
+    whatsAppReplySentUntil = 0;
     // TwoCode Resting Geometry Parity (matching Screenshot 2):
     // Rest Mode: 32 x 18 px (radius = 9px)
     // Resting Compact Dock: 98 x 26 px (radius = 13px)
@@ -1657,13 +1688,20 @@
     transferProgressUntil = 0;
     isNotificationActive() {
       if (!this.activeNotification) return false;
+      if (this.isWhatsAppReplying) return true;
       if (this.notificationUntil > 0 && performance.now() > this.notificationUntil) {
         this.activeNotification = null;
         return false;
       }
       return true;
     }
-    getNotificationColor(kind) {
+    getNotificationColor(kind, status) {
+      const s = status || (this && this.activeNotification ? this.activeNotification.status : void 0);
+      if (kind === "download") {
+        if (s === "complete") return "#22e05a";
+        if (s === "error") return "#ff3b3b";
+        return "#00d2ff";
+      }
       switch (kind) {
         case "done":
           return "#22e05a";
@@ -1674,9 +1712,6 @@
         case "mail":
           return "#0078d4";
         // Outlook / Apple Mail blue
-        case "download":
-          return "#00d2ff";
-        // Apple Mac download cyan
         case "telegram":
           return "#229ed9";
         // Telegram blue
@@ -1716,19 +1751,48 @@
       }
       if (duration > 0) {
         this.notificationTimer = setTimeout(() => {
-          this.clearNotification();
+          if (!this.isWhatsAppReplying) {
+            this.clearNotification();
+          }
         }, duration);
       }
       this.kickJelly(0.18, 5, 4);
-      const soundKind = n.kind || "pop";
-      try {
-        AudioSynth.getInstance().play(soundKind);
-      } catch {
-      }
-      if (n.kind === "done" || n.kind === "badge") {
+      if (n.kind === "download") {
+        const isComplete = n.status === "complete" || n.title?.toLowerCase().includes("complete");
+        const isError = n.status === "error" || n.title?.toLowerCase().includes("cancel") || n.title?.toLowerCase().includes("fail");
+        if (isComplete) {
+          this.mascot.setMood("happy", 5e3);
+          try {
+            AudioSynth.getInstance().play("done");
+          } catch {
+          }
+          try {
+            AudioSynth.getInstance().launchConfetti(45, window.innerWidth / 2, this.getTopY() + 18);
+          } catch {
+          }
+        } else if (isError) {
+          this.mascot.setMood("sad", 4500);
+          try {
+            AudioSynth.getInstance().play("error");
+          } catch {
+          }
+        } else {
+          try {
+            AudioSynth.getInstance().play("pop");
+          } catch {
+          }
+        }
+      } else {
+        const soundKind = n.kind || "pop";
         try {
-          AudioSynth.getInstance().launchConfetti(45, window.innerWidth / 2, this.getTopY() + 18);
+          AudioSynth.getInstance().play(soundKind);
         } catch {
+        }
+        if (n.kind === "done" || n.kind === "badge") {
+          try {
+            AudioSynth.getInstance().launchConfetti(45, window.innerWidth / 2, this.getTopY() + 18);
+          } catch {
+          }
         }
       }
       this.updateTargetDimensions();
@@ -1736,11 +1800,54 @@
     clearNotification() {
       this.activeNotification = null;
       this.notificationUntil = 0;
+      this.isWhatsAppReplying = false;
+      this.whatsAppReplyText = "";
+      this.whatsAppReplySent = false;
       if (this.notificationTimer) {
         clearTimeout(this.notificationTimer);
         this.notificationTimer = null;
       }
       this.updateTargetDimensions();
+    }
+    openWhatsAppReply() {
+      if (!this.activeNotification) return;
+      this.isWhatsAppReplying = true;
+      this.whatsAppReplyText = "";
+      this.whatsAppReplySent = false;
+      if (this.notificationTimer) {
+        clearTimeout(this.notificationTimer);
+        this.notificationTimer = null;
+      }
+      if (window.roboIsland?.setInteractive) {
+        window.roboIsland.setInteractive(true);
+      }
+      this.kickJelly(0.14, 4, 3.5);
+      this.updateTargetDimensions();
+    }
+    closeWhatsAppReply() {
+      this.isWhatsAppReplying = false;
+      this.whatsAppReplyText = "";
+      this.whatsAppReplySent = false;
+      this.updateTargetDimensions();
+    }
+    submitWhatsAppReply() {
+      const text = this.whatsAppReplyText.trim();
+      if (!text || this.whatsAppReplySent) return;
+      this.whatsAppReplySent = true;
+      this.whatsAppReplySentUntil = performance.now() + 1200;
+      try {
+        AudioSynth.getInstance().play("pop");
+      } catch {
+      }
+      this.mascot.setMood("happy", 4e3);
+      const contact = this.activeNotification?.title || "";
+      if (window.roboIsland?.replyWhatsApp) {
+        window.roboIsland.replyWhatsApp({ contact, text });
+      }
+      setTimeout(() => {
+        this.closeWhatsAppReply();
+        this.clearNotification();
+      }, 1200);
     }
     isInsideHit(px, py, hit) {
       return px >= hit.x && px <= hit.x + hit.width && py >= hit.y && py <= hit.y + hit.height;
@@ -2441,6 +2548,43 @@
         }
       }, true);
       window.addEventListener("keydown", (e) => {
+        if (this.isWhatsAppReplying && this.activeNotification) {
+          if (e.key === "Escape") {
+            e.preventDefault();
+            this.closeWhatsAppReply();
+            this.clearNotification();
+            return;
+          }
+          if (e.key === "Enter") {
+            e.preventDefault();
+            this.submitWhatsAppReply();
+            return;
+          }
+          if (e.key === "Backspace") {
+            e.preventDefault();
+            if (this.whatsAppReplyText.length > 0) {
+              this.whatsAppReplyText = this.whatsAppReplyText.slice(0, -1);
+            }
+            return;
+          }
+          if ((e.ctrlKey || e.metaKey) && (e.key === "v" || e.key === "V")) {
+            e.preventDefault();
+            navigator.clipboard?.readText?.().then((clip) => {
+              if (clip) {
+                this.whatsAppReplyText = (this.whatsAppReplyText + clip).slice(0, 200);
+              }
+            }).catch(() => {
+            });
+            return;
+          }
+          if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+            e.preventDefault();
+            if (this.whatsAppReplyText.length < 200) {
+              this.whatsAppReplyText += e.key;
+            }
+            return;
+          }
+        }
         const activeTag = (document.activeElement?.tagName || "").toLowerCase();
         if (activeTag === "input" || activeTag === "textarea") return;
         if (e.key === " " || e.code === "Space") {
@@ -2886,10 +3030,18 @@
       }
       if (this.isNotificationActive()) {
         const n = this.activeNotification;
+        if (this.isWhatsAppReplying) {
+          this.targetWidth = 360;
+          this.targetHeight = 74;
+          this.targetRadius = 22;
+          return;
+        }
         const hasActions = Boolean(n.actions && n.actions.length > 0);
+        const isWhatsApp = n.kind === "whatsapp";
         const hasBody = Boolean(n.body && n.body.trim().length > 0);
         const textLen = Math.max(n.title.length, (n.body || "").length * 0.65);
-        this.targetWidth = hasActions ? 430 : Math.max(280, Math.min(410, 100 + textLen * 7.5));
+        const baseMinW = isWhatsApp ? 320 : 280;
+        this.targetWidth = hasActions ? 430 : Math.max(baseMinW, Math.min(420, 100 + textLen * 7.5 + (isWhatsApp ? 50 : 0)));
         this.targetHeight = hasBody ? 42 : 36;
         this.targetRadius = hasBody ? 21 : 18;
         return;
@@ -3227,7 +3379,7 @@
         if (this.mode === "rest") {
           this.restoreFromRest("compact");
         }
-        if (this.mode === "compact") {
+        if (this.mode === "compact" && !this.isNotificationActive()) {
           if (!this.hoverOpenTimer) {
             this.hoverOpenTimer = window.setTimeout(() => {
               this.hoverOpenTimer = null;
@@ -3547,6 +3699,21 @@
       if (this.isNotificationActive() && Object.keys(this.notificationHits).length > 0) {
         for (const [key, rect] of Object.entries(this.notificationHits)) {
           if (this.isInsideHit(x, y, rect)) {
+            if (key === "cWhatsAppReply") {
+              this.openWhatsAppReply();
+              return;
+            }
+            if (key === "cWhatsAppSend") {
+              this.submitWhatsAppReply();
+              return;
+            }
+            if (key === "cOpenFile") {
+              if (this.activeNotification?.filePath && window.roboIsland?.showItemInFolder) {
+                window.roboIsland.showItemInFolder(this.activeNotification.filePath);
+              }
+              this.clearNotification();
+              return;
+            }
             if (key === "cAllow") {
               const sid = this.activeNotification?.sessionId;
               if (sid && window.roboIsland?.aiApprove) {
@@ -3564,6 +3731,9 @@
               return;
             }
             if (key === "cDismiss") {
+              if (this.isWhatsAppReplying) {
+                this.closeWhatsAppReply();
+              }
               this.clearNotification();
               return;
             }
@@ -3573,7 +3743,14 @@
             }
           }
         }
+        if (inBounds && this.isWhatsAppReplying) {
+          return;
+        }
         if (inBounds && (!this.activeNotification?.actions || this.activeNotification.actions.length === 0)) {
+          if (this.activeNotification?.kind === "whatsapp" && !this.isWhatsAppReplying) {
+            this.openWhatsAppReply();
+            return;
+          }
           if (this.activeNotification?.filePath && window.roboIsland?.showItemInFolder) {
             window.roboIsland.showItemInFolder(this.activeNotification.filePath);
           }
@@ -4371,11 +4548,12 @@
       }
     }
     /**
-     * TwoCode Notification Content Renderer:
-     * Direct parity with TwoCode ai-monitor-ui.js lines 1115-1135 & mascot.html.
-     * - Left: Mascot eyes or Claude orange sparkle mark
+     * TwoCode & Apple Dynamic Island Notification Content Renderer:
+     * Direct parity with TwoCode ai-monitor-ui.js & Apple Dynamic Island.
+     * - Left: Mascot eyes, WhatsApp badge, Mail icon, or Apple Mac download ring
      * - Center: Title & body with graceful font and string truncation
-     * - Right: Interactive Allow / Deny buttons (76x26px, 8px radius) or circular dismiss button
+     * - Right: Interactive Allow / Deny buttons, WhatsApp Reply chip, Download Open chip, or circular dismiss button
+     * - Expanded Quick Reply: Apple iPhone / Mac style WhatsApp text input & send button
      */
     drawNotificationContent(pillLeft, midY, topY) {
       if (!this.activeNotification) return;
@@ -4385,7 +4563,117 @@
       const cy = midY;
       const left = pillLeft + 14;
       const right = pillLeft + W - 14;
-      const color = this.getNotificationColor(n.kind);
+      const color = this.getNotificationColor(n.kind, n.status);
+      if (this.isWhatsAppReplying) {
+        const headCy = topY + 18;
+        const badgeR = 8;
+        const badgeCx = left + 8;
+        this.ctx.save();
+        this.ctx.beginPath();
+        this.ctx.arc(badgeCx, headCy, badgeR, 0, Math.PI * 2);
+        this.ctx.fillStyle = "#25d366";
+        this.ctx.fill();
+        this.ctx.fillStyle = "#ffffff";
+        this.ctx.beginPath();
+        this.ctx.arc(badgeCx, headCy, 4, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.fillStyle = "#25d366";
+        this.ctx.beginPath();
+        this.ctx.arc(badgeCx, headCy, 2.4, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.fillStyle = "#ffffff";
+        this.ctx.fillRect(badgeCx - 1.5, headCy - 3, 3, 6);
+        const sender = (n.title || "WhatsApp").replace(/^WhatsApp:\s*/i, "");
+        this.ctx.font = '600 12px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
+        this.ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+        this.ctx.textAlign = "left";
+        this.ctx.textBaseline = "middle";
+        const maxHeadW = right - (badgeCx + badgeR + 10) - 24;
+        const truncSender = this.truncateText(`Reply to ${sender}`, maxHeadW, this.ctx.font);
+        this.ctx.fillText(truncSender, badgeCx + badgeR + 8, headCy);
+        const closeSize = 18;
+        const closeX = right - closeSize;
+        const closeY = headCy - closeSize / 2;
+        const isCloseHovered = this.isHovered && this.isInsideHit(this.pointerX, this.pointerY, { x: closeX, y: closeY, width: closeSize, height: closeSize });
+        this.ctx.beginPath();
+        this.ctx.arc(closeX + closeSize / 2, headCy, closeSize / 2, 0, Math.PI * 2);
+        this.ctx.fillStyle = isCloseHovered ? "rgba(255, 255, 255, 0.2)" : "rgba(255, 255, 255, 0.08)";
+        this.ctx.fill();
+        this.ctx.strokeStyle = isCloseHovered ? "#ffffff" : "rgba(255, 255, 255, 0.6)";
+        this.ctx.lineWidth = 1.3;
+        this.ctx.lineCap = "round";
+        const crossR = 3;
+        this.ctx.beginPath();
+        this.ctx.moveTo(closeX + closeSize / 2 - crossR, headCy - crossR);
+        this.ctx.lineTo(closeX + closeSize / 2 + crossR, headCy + crossR);
+        this.ctx.moveTo(closeX + closeSize / 2 + crossR, headCy - crossR);
+        this.ctx.lineTo(closeX + closeSize / 2 - crossR, headCy + crossR);
+        this.ctx.stroke();
+        this.notificationHits["cDismiss"] = { x: closeX, y: closeY, width: closeSize, height: closeSize };
+        const boxX = left;
+        const boxY = topY + 36;
+        const boxW = W - 28;
+        const boxH = 28;
+        const boxR = 14;
+        this.ctx.beginPath();
+        this.ctx.roundRect(boxX, boxY, boxW, boxH, boxR);
+        this.ctx.fillStyle = "rgba(255, 255, 255, 0.08)";
+        this.ctx.fill();
+        this.ctx.strokeStyle = this.whatsAppReplySent ? "rgba(34, 224, 90, 0.7)" : "rgba(37, 211, 102, 0.45)";
+        this.ctx.lineWidth = 1.2;
+        this.ctx.stroke();
+        if (this.whatsAppReplySent) {
+          this.ctx.font = '600 12px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
+          this.ctx.fillStyle = "#22e05a";
+          this.ctx.textAlign = "center";
+          this.ctx.textBaseline = "middle";
+          this.ctx.fillText("Sent \u2713", boxX + boxW / 2, boxY + boxH / 2);
+        } else {
+          const textPadX = boxX + 12;
+          const textCy = boxY + boxH / 2;
+          const sendBtnR = 10;
+          const sendBtnX = boxX + boxW - 14;
+          const sendBtnY = textCy;
+          const isSendHovered = this.isHovered && this.isInsideHit(this.pointerX, this.pointerY, { x: sendBtnX - 12, y: sendBtnY - 12, width: 24, height: 24 });
+          const hasText = this.whatsAppReplyText.length > 0;
+          this.ctx.font = '400 12px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
+          this.ctx.textAlign = "left";
+          this.ctx.textBaseline = "middle";
+          if (!hasText) {
+            this.ctx.fillStyle = "rgba(255, 255, 255, 0.35)";
+            this.ctx.fillText("Type a reply...", textPadX, textCy);
+          } else {
+            this.ctx.fillStyle = "#ffffff";
+            const maxInputW = boxW - 48;
+            const trunc = this.truncateText(this.whatsAppReplyText, maxInputW, this.ctx.font);
+            this.ctx.fillText(trunc, textPadX, textCy);
+            const cursorBlink = Math.floor(performance.now() / 500) % 2 === 0;
+            if (cursorBlink) {
+              const cursorX = textPadX + this.ctx.measureText(trunc).width + 1;
+              this.ctx.fillStyle = "#25d366";
+              this.ctx.fillRect(cursorX, textCy - 7, 1.5, 14);
+            }
+          }
+          this.ctx.beginPath();
+          this.ctx.arc(sendBtnX, sendBtnY, sendBtnR, 0, Math.PI * 2);
+          this.ctx.fillStyle = hasText ? isSendHovered ? "#1ebe5d" : "#25d366" : "rgba(255, 255, 255, 0.12)";
+          this.ctx.fill();
+          this.ctx.strokeStyle = hasText ? "#ffffff" : "rgba(255, 255, 255, 0.3)";
+          this.ctx.lineWidth = 1.4;
+          this.ctx.lineCap = "round";
+          this.ctx.lineJoin = "round";
+          this.ctx.beginPath();
+          this.ctx.moveTo(sendBtnX - 3.5, sendBtnY + 3.5);
+          this.ctx.lineTo(sendBtnX + 3.5, sendBtnY - 2.5);
+          this.ctx.moveTo(sendBtnX - 1.5, sendBtnY - 2.5);
+          this.ctx.lineTo(sendBtnX + 3.5, sendBtnY - 2.5);
+          this.ctx.lineTo(sendBtnX + 3.5, sendBtnY + 2.5);
+          this.ctx.stroke();
+          this.notificationHits["cWhatsAppSend"] = { x: sendBtnX - 12, y: sendBtnY - 12, width: 24, height: 24 };
+        }
+        this.ctx.restore();
+        return;
+      }
       const iconR = 10;
       const iconCx = left + 8;
       const iconCy = cy;
@@ -4425,22 +4713,72 @@
         this.ctx.stroke();
         this.ctx.restore();
       } else if (n.kind === "download") {
+        const isComplete = n.status === "complete" || n.title?.toLowerCase().includes("complete");
+        const isError = n.status === "error" || n.title?.toLowerCase().includes("cancel") || n.title?.toLowerCase().includes("fail");
         this.ctx.save();
-        this.ctx.beginPath();
-        this.ctx.arc(iconCx, iconCy, iconR, 0, Math.PI * 2);
-        this.ctx.fillStyle = "#00d2ff";
-        this.ctx.fill();
-        this.ctx.strokeStyle = "#081018";
-        this.ctx.lineWidth = 1.6;
-        this.ctx.lineCap = "round";
-        this.ctx.lineJoin = "round";
-        this.ctx.beginPath();
-        this.ctx.moveTo(iconCx, iconCy - 4.5);
-        this.ctx.lineTo(iconCx, iconCy + 3);
-        this.ctx.moveTo(iconCx - 3.5, iconCy);
-        this.ctx.lineTo(iconCx, iconCy + 3.5);
-        this.ctx.lineTo(iconCx + 3.5, iconCy);
-        this.ctx.stroke();
+        if (isComplete) {
+          this.ctx.beginPath();
+          this.ctx.arc(iconCx, iconCy, iconR, 0, Math.PI * 2);
+          this.ctx.fillStyle = "#22e05a";
+          this.ctx.fill();
+          this.ctx.strokeStyle = "#ffffff";
+          this.ctx.lineWidth = 1.6;
+          this.ctx.lineCap = "round";
+          this.ctx.lineJoin = "round";
+          this.ctx.beginPath();
+          this.ctx.moveTo(iconCx - 3.5, iconCy + 0.5);
+          this.ctx.lineTo(iconCx - 1, iconCy + 3);
+          this.ctx.lineTo(iconCx + 4, iconCy - 2.5);
+          this.ctx.stroke();
+        } else if (isError) {
+          this.ctx.beginPath();
+          this.ctx.arc(iconCx, iconCy, iconR, 0, Math.PI * 2);
+          this.ctx.fillStyle = "#ff3b3b";
+          this.ctx.fill();
+          this.ctx.strokeStyle = "#ffffff";
+          this.ctx.lineWidth = 1.6;
+          this.ctx.lineCap = "round";
+          const cross = 3;
+          this.ctx.beginPath();
+          this.ctx.moveTo(iconCx - cross, iconCy - cross);
+          this.ctx.lineTo(iconCx + cross, iconCy + cross);
+          this.ctx.moveTo(iconCx + cross, iconCy - cross);
+          this.ctx.lineTo(iconCx - cross, iconCy + cross);
+          this.ctx.stroke();
+        } else {
+          this.ctx.beginPath();
+          this.ctx.arc(iconCx, iconCy, iconR, 0, Math.PI * 2);
+          this.ctx.fillStyle = "rgba(0, 210, 255, 0.12)";
+          this.ctx.fill();
+          this.ctx.strokeStyle = "rgba(0, 210, 255, 0.3)";
+          this.ctx.lineWidth = 1.8;
+          this.ctx.stroke();
+          this.ctx.beginPath();
+          if (typeof n.progress === "number" && n.progress > 0) {
+            const startAngle = -Math.PI / 2;
+            const endAngle = startAngle + Math.PI * 2 * Math.min(1, Math.max(0, n.progress));
+            this.ctx.arc(iconCx, iconCy, iconR, startAngle, endAngle);
+          } else {
+            const rot = performance.now() / 450 % (Math.PI * 2);
+            this.ctx.arc(iconCx, iconCy, iconR, rot, rot + Math.PI * 0.9);
+          }
+          this.ctx.strokeStyle = "#00d2ff";
+          this.ctx.lineWidth = 2;
+          this.ctx.lineCap = "round";
+          this.ctx.stroke();
+          const arrowBob = Math.sin(performance.now() / 250) * 0.8;
+          this.ctx.strokeStyle = "#00d2ff";
+          this.ctx.lineWidth = 1.5;
+          this.ctx.lineCap = "round";
+          this.ctx.lineJoin = "round";
+          this.ctx.beginPath();
+          this.ctx.moveTo(iconCx, iconCy - 3.5 + arrowBob);
+          this.ctx.lineTo(iconCx, iconCy + 2.5 + arrowBob);
+          this.ctx.moveTo(iconCx - 2.8, iconCy + 0.2 + arrowBob);
+          this.ctx.lineTo(iconCx + 3, iconCy + 0.2 + arrowBob);
+          this.ctx.lineTo(iconCx + 2.8, iconCy + 0.2 + arrowBob);
+          this.ctx.stroke();
+        }
         this.ctx.restore();
       } else if (n.kind === "done") {
         this.ctx.save();
@@ -4520,7 +4858,54 @@
         const closeX = right - closeSize;
         const closeY = cy - closeSize / 2;
         const isCloseHovered = this.isHovered && this.isInsideHit(this.pointerX, this.pointerY, { x: closeX, y: closeY, width: closeSize, height: closeSize });
-        const maxTextW = Math.max(80, closeX - textLeft - 10);
+        let actionRight = closeX - 6;
+        if (n.kind === "whatsapp") {
+          const replyW = 52;
+          const replyH = 22;
+          const replyX = actionRight - replyW;
+          const replyY = cy - replyH / 2;
+          const isReplyHovered = this.isHovered && this.isInsideHit(this.pointerX, this.pointerY, { x: replyX, y: replyY, width: replyW, height: replyH });
+          this.ctx.save();
+          this.ctx.beginPath();
+          this.ctx.roundRect(replyX, replyY, replyW, replyH, 11);
+          this.ctx.fillStyle = isReplyHovered ? "#25d366" : "rgba(37, 211, 102, 0.22)";
+          this.ctx.fill();
+          this.ctx.strokeStyle = "#25d366";
+          this.ctx.lineWidth = 1;
+          this.ctx.stroke();
+          this.ctx.font = '600 11px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
+          this.ctx.fillStyle = isReplyHovered ? "#000000" : "#25d366";
+          this.ctx.textAlign = "center";
+          this.ctx.textBaseline = "middle";
+          this.ctx.fillText("Reply", replyX + replyW / 2, cy);
+          this.ctx.restore();
+          this.notificationHits["cWhatsAppReply"] = { x: replyX, y: replyY, width: replyW, height: replyH };
+          actionRight -= replyW + 6;
+        }
+        if (n.kind === "download" && n.status === "complete" && n.filePath) {
+          const openW = 48;
+          const openH = 22;
+          const openX = actionRight - openW;
+          const openY = cy - openH / 2;
+          const isOpenHovered = this.isHovered && this.isInsideHit(this.pointerX, this.pointerY, { x: openX, y: openY, width: openW, height: openH });
+          this.ctx.save();
+          this.ctx.beginPath();
+          this.ctx.roundRect(openX, openY, openW, openH, 11);
+          this.ctx.fillStyle = isOpenHovered ? "#22e05a" : "rgba(34, 224, 90, 0.22)";
+          this.ctx.fill();
+          this.ctx.strokeStyle = "#22e05a";
+          this.ctx.lineWidth = 1;
+          this.ctx.stroke();
+          this.ctx.font = '600 11px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
+          this.ctx.fillStyle = isOpenHovered ? "#000000" : "#22e05a";
+          this.ctx.textAlign = "center";
+          this.ctx.textBaseline = "middle";
+          this.ctx.fillText("Open", openX + openW / 2, cy);
+          this.ctx.restore();
+          this.notificationHits["cOpenFile"] = { x: openX, y: openY, width: openW, height: openH };
+          actionRight -= openW + 6;
+        }
+        const maxTextW = Math.max(80, actionRight - textLeft - 6);
         const truncTitle = this.truncateText(n.title, maxTextW, titleFont);
         this.ctx.save();
         this.ctx.textAlign = "left";

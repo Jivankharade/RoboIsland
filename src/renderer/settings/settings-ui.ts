@@ -1180,6 +1180,22 @@ class SettingsUI {
       setTimeout(() => { if (btnTestMail) btnTestMail.textContent = 'Test Mail'; }, 1500);
     });
 
+    const btnTestDownloadProgress = document.getElementById('btn-test-download-progress');
+    btnTestDownloadProgress?.addEventListener('click', () => {
+      window.settingsApi?.postNotification?.({
+        id: 'test-dl-prog-' + Date.now(),
+        app: 'Downloads',
+        title: 'RoboIsland-v2.0-Setup.exe',
+        body: '24.5 MB • 3.2 MB/s',
+        kind: 'download',
+        status: 'downloading',
+        progress: 0.65,
+        durationMs: 4500
+      });
+      btnTestDownloadProgress.textContent = 'Pushed!';
+      setTimeout(() => { if (btnTestDownloadProgress) btnTestDownloadProgress.textContent = 'Test Progress DL'; }, 1500);
+    });
+
     const btnTestDownload = document.getElementById('btn-test-download');
     btnTestDownload?.addEventListener('click', () => {
       window.settingsApi?.postNotification?.({
@@ -1188,10 +1204,27 @@ class SettingsUI {
         title: 'Download Complete',
         body: 'RoboIsland-v2.0-Setup.exe',
         kind: 'download',
+        status: 'complete',
+        filePath: 'C:\\Users\\Default\\Downloads\\RoboIsland-v2.0-Setup.exe',
         durationMs: 5000
       });
       btnTestDownload.textContent = 'Pushed!';
-      setTimeout(() => { if (btnTestDownload) btnTestDownload.textContent = 'Test Download'; }, 1500);
+      setTimeout(() => { if (btnTestDownload) btnTestDownload.textContent = 'Test DL Complete'; }, 1500);
+    });
+
+    const btnTestDownloadCancel = document.getElementById('btn-test-download-cancel');
+    btnTestDownloadCancel?.addEventListener('click', () => {
+      window.settingsApi?.postNotification?.({
+        id: 'test-dl-cancel-' + Date.now(),
+        app: 'Downloads',
+        title: 'Download Cancelled',
+        body: 'RoboIsland-v2.0-Setup.exe',
+        kind: 'download',
+        status: 'error',
+        durationMs: 4500
+      });
+      btnTestDownloadCancel.textContent = 'Pushed!';
+      setTimeout(() => { if (btnTestDownloadCancel) btnTestDownloadCancel.textContent = 'Test DL Cancelled'; }, 1500);
     });
 
     const btnTestQuestion = document.getElementById('btn-test-question-notification');

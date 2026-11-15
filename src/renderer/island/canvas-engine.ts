@@ -43,7 +43,12 @@ export interface IslandNotification {
   body?: string;
   app?: string;
   kind?: 'done' | 'question' | 'error' | 'warn' | 'pop' | 'badge' | 'info' | 'whatsapp' | 'mail' | 'download' | 'telegram' | 'discord' | 'chat';
+  status?: 'downloading' | 'complete' | 'error' | 'sent';
   filePath?: string;
+  bytes?: number;
+  sizeStr?: string;
+  speedStr?: string;
+  progress?: number;
   durationMs?: number;
   actions?: Array<{
     id: string;
@@ -69,6 +74,12 @@ export class CanvasEngine {
   public notificationUntil = 0;
   private notificationTimer: any = null;
   public notificationHits: Record<string, { x: number; y: number; width: number; height: number }> = {};
+
+  // WhatsApp Quick Reply State (Apple Dynamic Island Parity)
+  public isWhatsAppReplying = false;
+  public whatsAppReplyText = '';
+  public whatsAppReplySent = false;
+  public whatsAppReplySentUntil = 0;
 
   // TwoCode Resting Geometry Parity (matching Screenshot 2):
   // Rest Mode: 32 x 18 px (radius = 9px)
@@ -209,6 +220,7 @@ export class CanvasEngine {
 
   public isNotificationActive(): boolean {
     if (!this.activeNotification) return false;
+    if (this.isWhatsAppReplying) return true;
     if (this.notificationUntil > 0 && performance.now() > this.notificationUntil) {
       this.activeNotification = null;
       return false;
@@ -216,7 +228,13 @@ export class CanvasEngine {
     return true;
   }
 
-  public getNotificationColor(kind?: string): string {
+  public getNotificationColor(kind?: string, status?: string): string {
+    const s = status || (this && this.activeNotification ? this.activeNotification.status : undefined);
+    if (kind === 'download') {
+      if (s === 'complete') return '#22e05a'; // Green smile & glow
+      if (s === 'error') return '#ff3b3b';    // Red frown on cancel/error
+      return '#00d2ff'; // Apple Mac download cyan
+    }
     switch (kind) {
       case 'done':
         return '#22e05a'; // TwoCode green
@@ -224,8 +242,6 @@ export class CanvasEngine {
         return '#25d366'; // WhatsApp brand green
       case 'mail':
         return '#0078d4'; // Outlook / Apple Mail blue
-      case 'download':
-        return '#00d2ff'; // Apple Mac download cyan
       case 'telegram':
         return '#229ed9'; // Telegram blue
       case 'discord':
@@ -260,24 +276,37 @@ export class CanvasEngine {
 
     if (duration > 0) {
       this.notificationTimer = setTimeout(() => {
-        this.clearNotification();
+        if (!this.isWhatsAppReplying) {
+          this.clearNotification();
+        }
       }, duration);
     }
 
     // TwoCode Physics: Spring jelly kick on arrival
     this.kickJelly(0.18, 5.0, 4.0);
 
-    // TwoCode Sound Melodies
-    const soundKind = (n.kind || 'pop') as any;
-    try {
-      AudioSynth.getInstance().play(soundKind);
-    } catch {}
-
-    // Confetti on celebration / success / badge
-    if (n.kind === 'done' || n.kind === 'badge') {
-      try {
-        AudioSynth.getInstance().launchConfetti(45, window.innerWidth / 2, this.getTopY() + 18);
-      } catch {}
+    // Mascot & Audio reactions
+    if (n.kind === 'download') {
+      const isComplete = n.status === 'complete' || n.title?.toLowerCase().includes('complete');
+      const isError = n.status === 'error' || n.title?.toLowerCase().includes('cancel') || n.title?.toLowerCase().includes('fail');
+      if (isComplete) {
+        // "when download complete it show green smile"
+        this.mascot.setMood('happy', 5000);
+        try { AudioSynth.getInstance().play('done'); } catch {}
+        try { AudioSynth.getInstance().launchConfetti(45, window.innerWidth / 2, this.getTopY() + 18); } catch {}
+      } else if (isError) {
+        // "and when not download it show red"
+        this.mascot.setMood('sad', 4500);
+        try { AudioSynth.getInstance().play('error'); } catch {}
+      } else {
+        try { AudioSynth.getInstance().play('pop'); } catch {}
+      }
+    } else {
+      const soundKind = (n.kind || 'pop') as any;
+      try { AudioSynth.getInstance().play(soundKind); } catch {}
+      if (n.kind === 'done' || n.kind === 'badge') {
+        try { AudioSynth.getInstance().launchConfetti(45, window.innerWidth / 2, this.getTopY() + 18); } catch {}
+      }
     }
 
     this.updateTargetDimensions();
@@ -286,11 +315,61 @@ export class CanvasEngine {
   public clearNotification(): void {
     this.activeNotification = null;
     this.notificationUntil = 0;
+    this.isWhatsAppReplying = false;
+    this.whatsAppReplyText = '';
+    this.whatsAppReplySent = false;
     if (this.notificationTimer) {
       clearTimeout(this.notificationTimer);
       this.notificationTimer = null;
     }
     this.updateTargetDimensions();
+  }
+
+  public openWhatsAppReply(): void {
+    if (!this.activeNotification) return;
+    this.isWhatsAppReplying = true;
+    this.whatsAppReplyText = '';
+    this.whatsAppReplySent = false;
+    if (this.notificationTimer) {
+      clearTimeout(this.notificationTimer);
+      this.notificationTimer = null;
+    }
+    if (window.roboIsland?.setInteractive) {
+      window.roboIsland.setInteractive(true);
+    }
+    this.kickJelly(0.14, 4.0, 3.5);
+    this.updateTargetDimensions();
+  }
+
+  public closeWhatsAppReply(): void {
+    this.isWhatsAppReplying = false;
+    this.whatsAppReplyText = '';
+    this.whatsAppReplySent = false;
+    this.updateTargetDimensions();
+  }
+
+  public submitWhatsAppReply(): void {
+    const text = this.whatsAppReplyText.trim();
+    if (!text || this.whatsAppReplySent) return;
+
+    this.whatsAppReplySent = true;
+    this.whatsAppReplySentUntil = performance.now() + 1200;
+
+    try {
+      AudioSynth.getInstance().play('pop');
+    } catch {}
+
+    this.mascot.setMood('happy', 4000);
+
+    const contact = this.activeNotification?.title || '';
+    if (window.roboIsland?.replyWhatsApp) {
+      window.roboIsland.replyWhatsApp({ contact, text });
+    }
+
+    setTimeout(() => {
+      this.closeWhatsAppReply();
+      this.clearNotification();
+    }, 1200);
   }
 
   public isInsideHit(px: number, py: number, hit: { x: number; y: number; width: number; height: number }): boolean {
@@ -1106,8 +1185,46 @@ export class CanvasEngine {
       }
     }, true);
 
-    // Escape & Spacebar handling (Quick Look, Popover, Menu, Collapse)
+    // Escape & Spacebar handling (Quick Look, Popover, Menu, Collapse, WhatsApp Quick Reply)
     window.addEventListener('keydown', (e) => {
+      // WhatsApp Quick Reply input handling (Apple Dynamic Island Parity)
+      if (this.isWhatsAppReplying && this.activeNotification) {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          this.closeWhatsAppReply();
+          this.clearNotification();
+          return;
+        }
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          this.submitWhatsAppReply();
+          return;
+        }
+        if (e.key === 'Backspace') {
+          e.preventDefault();
+          if (this.whatsAppReplyText.length > 0) {
+            this.whatsAppReplyText = this.whatsAppReplyText.slice(0, -1);
+          }
+          return;
+        }
+        if ((e.ctrlKey || e.metaKey) && (e.key === 'v' || e.key === 'V')) {
+          e.preventDefault();
+          navigator.clipboard?.readText?.().then(clip => {
+            if (clip) {
+              this.whatsAppReplyText = (this.whatsAppReplyText + clip).slice(0, 200);
+            }
+          }).catch(() => {});
+          return;
+        }
+        if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+          e.preventDefault();
+          if (this.whatsAppReplyText.length < 200) {
+            this.whatsAppReplyText += e.key;
+          }
+          return;
+        }
+      }
+
       const activeTag = (document.activeElement?.tagName || '').toLowerCase();
       if (activeTag === 'input' || activeTag === 'textarea') return;
 
@@ -1574,10 +1691,18 @@ export class CanvasEngine {
 
     if (this.isNotificationActive()) {
       const n = this.activeNotification!;
+      if (this.isWhatsAppReplying) {
+        this.targetWidth = 360;
+        this.targetHeight = 74;
+        this.targetRadius = 22;
+        return;
+      }
       const hasActions = Boolean(n.actions && n.actions.length > 0);
+      const isWhatsApp = n.kind === 'whatsapp';
       const hasBody = Boolean(n.body && n.body.trim().length > 0);
       const textLen = Math.max(n.title.length, (n.body || '').length * 0.65);
-      this.targetWidth = hasActions ? 430 : Math.max(280, Math.min(410, 100 + textLen * 7.5));
+      const baseMinW = isWhatsApp ? 320 : 280;
+      this.targetWidth = hasActions ? 430 : Math.max(baseMinW, Math.min(420, 100 + textLen * 7.5 + (isWhatsApp ? 50 : 0)));
       this.targetHeight = hasBody ? 42 : 36;
       this.targetRadius = hasBody ? 21 : 18;
       return;
@@ -1991,8 +2116,8 @@ export class CanvasEngine {
       }
 
       // Hover to open: when hovering over compact (or after restoring from rest),
-      // wait 300ms (TwoCode NORMAL_PEEK_DELAY) then auto-expand into the card.
-      if (this.mode === 'compact') {
+      // wait 300ms (TwoCode NORMAL_PEEK_DELAY) then auto-expand into the card (unless notification is active).
+      if (this.mode === 'compact' && !this.isNotificationActive()) {
         if (!this.hoverOpenTimer) {
           this.hoverOpenTimer = window.setTimeout(() => {
             this.hoverOpenTimer = null;
@@ -2342,10 +2467,25 @@ export class CanvasEngine {
       return;
     }
 
-    // Notification Interactive Button Clicks (TwoCode Parity: Allow, Deny, View, Dismiss)
+    // Notification Interactive Button Clicks (TwoCode & Apple Dynamic Island Parity)
     if (this.isNotificationActive() && Object.keys(this.notificationHits).length > 0) {
       for (const [key, rect] of Object.entries(this.notificationHits)) {
         if (this.isInsideHit(x, y, rect)) {
+          if (key === 'cWhatsAppReply') {
+            this.openWhatsAppReply();
+            return;
+          }
+          if (key === 'cWhatsAppSend') {
+            this.submitWhatsAppReply();
+            return;
+          }
+          if (key === 'cOpenFile') {
+            if (this.activeNotification?.filePath && window.roboIsland?.showItemInFolder) {
+              window.roboIsland.showItemInFolder(this.activeNotification.filePath);
+            }
+            this.clearNotification();
+            return;
+          }
           if (key === 'cAllow') {
             const sid = this.activeNotification?.sessionId;
             if (sid && window.roboIsland?.aiApprove) {
@@ -2363,6 +2503,9 @@ export class CanvasEngine {
             return;
           }
           if (key === 'cDismiss') {
+            if (this.isWhatsAppReplying) {
+              this.closeWhatsAppReply();
+            }
             this.clearNotification();
             return;
           }
@@ -2372,8 +2515,16 @@ export class CanvasEngine {
           }
         }
       }
-      // If notification has no interactive actions and user clicks the pill, dismiss it (or reveal file if download)
+      // If user clicked inside the WhatsApp Quick Reply box, retain focus without dismissing
+      if (inBounds && this.isWhatsAppReplying) {
+        return;
+      }
+      // If notification is clicked directly (WhatsApp opens quick reply; download complete reveals in folder)
       if (inBounds && (!this.activeNotification?.actions || this.activeNotification.actions.length === 0)) {
+        if (this.activeNotification?.kind === 'whatsapp' && !this.isWhatsAppReplying) {
+          this.openWhatsAppReply();
+          return;
+        }
         if (this.activeNotification?.filePath && window.roboIsland?.showItemInFolder) {
           window.roboIsland.showItemInFolder(this.activeNotification.filePath);
         }
@@ -3357,11 +3508,12 @@ export class CanvasEngine {
   }
 
   /**
-   * TwoCode Notification Content Renderer:
-   * Direct parity with TwoCode ai-monitor-ui.js lines 1115-1135 & mascot.html.
-   * - Left: Mascot eyes or Claude orange sparkle mark
+   * TwoCode & Apple Dynamic Island Notification Content Renderer:
+   * Direct parity with TwoCode ai-monitor-ui.js & Apple Dynamic Island.
+   * - Left: Mascot eyes, WhatsApp badge, Mail icon, or Apple Mac download ring
    * - Center: Title & body with graceful font and string truncation
-   * - Right: Interactive Allow / Deny buttons (76x26px, 8px radius) or circular dismiss button
+   * - Right: Interactive Allow / Deny buttons, WhatsApp Reply chip, Download Open chip, or circular dismiss button
+   * - Expanded Quick Reply: Apple iPhone / Mac style WhatsApp text input & send button
    */
   public drawNotificationContent(pillLeft: number, midY: number, topY: number): void {
     if (!this.activeNotification) return;
@@ -3371,7 +3523,153 @@ export class CanvasEngine {
     const cy = midY;
     const left = pillLeft + 14;
     const right = pillLeft + W - 14;
-    const color = this.getNotificationColor(n.kind);
+    const color = this.getNotificationColor(n.kind, n.status);
+
+    // =========================================================================
+    // 1. WhatsApp Dynamic Island Quick Reply Box (Apple iPhone / Mac Style)
+    // =========================================================================
+    if (this.isWhatsAppReplying) {
+      const headCy = topY + 18;
+      const badgeR = 8;
+      const badgeCx = left + 8;
+
+      this.ctx.save();
+      // WhatsApp mini badge
+      this.ctx.beginPath();
+      this.ctx.arc(badgeCx, headCy, badgeR, 0, Math.PI * 2);
+      this.ctx.fillStyle = '#25d366';
+      this.ctx.fill();
+
+      // Handset silhouette
+      this.ctx.fillStyle = '#ffffff';
+      this.ctx.beginPath();
+      this.ctx.arc(badgeCx, headCy, 4, 0, Math.PI * 2);
+      this.ctx.fill();
+      this.ctx.fillStyle = '#25d366';
+      this.ctx.beginPath();
+      this.ctx.arc(badgeCx, headCy, 2.4, 0, Math.PI * 2);
+      this.ctx.fill();
+      this.ctx.fillStyle = '#ffffff';
+      this.ctx.fillRect(badgeCx - 1.5, headCy - 3, 3, 6);
+
+      // Contact Title
+      const sender = (n.title || 'WhatsApp').replace(/^WhatsApp:\s*/i, '');
+      this.ctx.font = '600 12px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
+      this.ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+      this.ctx.textAlign = 'left';
+      this.ctx.textBaseline = 'middle';
+      const maxHeadW = right - (badgeCx + badgeR + 10) - 24;
+      const truncSender = this.truncateText(`Reply to ${sender}`, maxHeadW, this.ctx.font);
+      this.ctx.fillText(truncSender, badgeCx + badgeR + 8, headCy);
+
+      // Close button
+      const closeSize = 18;
+      const closeX = right - closeSize;
+      const closeY = headCy - closeSize / 2;
+      const isCloseHovered = this.isHovered && this.isInsideHit(this.pointerX, this.pointerY, { x: closeX, y: closeY, width: closeSize, height: closeSize });
+
+      this.ctx.beginPath();
+      this.ctx.arc(closeX + closeSize / 2, headCy, closeSize / 2, 0, Math.PI * 2);
+      this.ctx.fillStyle = isCloseHovered ? 'rgba(255, 255, 255, 0.2)' : 'rgba(255, 255, 255, 0.08)';
+      this.ctx.fill();
+
+      this.ctx.strokeStyle = isCloseHovered ? '#ffffff' : 'rgba(255, 255, 255, 0.6)';
+      this.ctx.lineWidth = 1.3;
+      this.ctx.lineCap = 'round';
+      const crossR = 3;
+      this.ctx.beginPath();
+      this.ctx.moveTo(closeX + closeSize / 2 - crossR, headCy - crossR);
+      this.ctx.lineTo(closeX + closeSize / 2 + crossR, headCy + crossR);
+      this.ctx.moveTo(closeX + closeSize / 2 + crossR, headCy - crossR);
+      this.ctx.lineTo(closeX + closeSize / 2 - crossR, headCy + crossR);
+      this.ctx.stroke();
+      this.notificationHits['cDismiss'] = { x: closeX, y: closeY, width: closeSize, height: closeSize };
+
+      // Row 2: Input Box
+      const boxX = left;
+      const boxY = topY + 36;
+      const boxW = W - 28;
+      const boxH = 28;
+      const boxR = 14;
+
+      this.ctx.beginPath();
+      this.ctx.roundRect(boxX, boxY, boxW, boxH, boxR);
+      this.ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+      this.ctx.fill();
+      this.ctx.strokeStyle = this.whatsAppReplySent ? 'rgba(34, 224, 90, 0.7)' : 'rgba(37, 211, 102, 0.45)';
+      this.ctx.lineWidth = 1.2;
+      this.ctx.stroke();
+
+      if (this.whatsAppReplySent) {
+        // Sent confirmation
+        this.ctx.font = '600 12px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
+        this.ctx.fillStyle = '#22e05a';
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillText('Sent ✓', boxX + boxW / 2, boxY + boxH / 2);
+      } else {
+        const textPadX = boxX + 12;
+        const textCy = boxY + boxH / 2;
+        const sendBtnR = 10;
+        const sendBtnX = boxX + boxW - 14;
+        const sendBtnY = textCy;
+        const isSendHovered = this.isHovered && this.isInsideHit(this.pointerX, this.pointerY, { x: sendBtnX - 12, y: sendBtnY - 12, width: 24, height: 24 });
+        const hasText = this.whatsAppReplyText.length > 0;
+
+        // User typed text or placeholder
+        this.ctx.font = '400 12px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
+        this.ctx.textAlign = 'left';
+        this.ctx.textBaseline = 'middle';
+
+        if (!hasText) {
+          this.ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+          this.ctx.fillText('Type a reply...', textPadX, textCy);
+        } else {
+          this.ctx.fillStyle = '#ffffff';
+          const maxInputW = boxW - 48;
+          const trunc = this.truncateText(this.whatsAppReplyText, maxInputW, this.ctx.font);
+          this.ctx.fillText(trunc, textPadX, textCy);
+
+          // Blinking cursor
+          const cursorBlink = Math.floor(performance.now() / 500) % 2 === 0;
+          if (cursorBlink) {
+            const cursorX = textPadX + this.ctx.measureText(trunc).width + 1;
+            this.ctx.fillStyle = '#25d366';
+            this.ctx.fillRect(cursorX, textCy - 7, 1.5, 14);
+          }
+        }
+
+        // Send Button circle
+        this.ctx.beginPath();
+        this.ctx.arc(sendBtnX, sendBtnY, sendBtnR, 0, Math.PI * 2);
+        this.ctx.fillStyle = hasText
+          ? (isSendHovered ? '#1ebe5d' : '#25d366')
+          : 'rgba(255, 255, 255, 0.12)';
+        this.ctx.fill();
+
+        // Send arrow in button
+        this.ctx.strokeStyle = hasText ? '#ffffff' : 'rgba(255, 255, 255, 0.3)';
+        this.ctx.lineWidth = 1.4;
+        this.ctx.lineCap = 'round';
+        this.ctx.lineJoin = 'round';
+        this.ctx.beginPath();
+        this.ctx.moveTo(sendBtnX - 3.5, sendBtnY + 3.5);
+        this.ctx.lineTo(sendBtnX + 3.5, sendBtnY - 2.5);
+        this.ctx.moveTo(sendBtnX - 1.5, sendBtnY - 2.5);
+        this.ctx.lineTo(sendBtnX + 3.5, sendBtnY - 2.5);
+        this.ctx.lineTo(sendBtnX + 3.5, sendBtnY + 2.5);
+        this.ctx.stroke();
+
+        this.notificationHits['cWhatsAppSend'] = { x: sendBtnX - 12, y: sendBtnY - 12, width: 24, height: 24 };
+      }
+
+      this.ctx.restore();
+      return;
+    }
+
+    // =========================================================================
+    // 2. Standard Compact Island Notification (WhatsApp, Downloads, Mail, AI)
+    // =========================================================================
 
     // Left Icon / App Badge (WhatsApp, Mail, Download, Done, AI Sparkle, Mascot Eyes)
     const iconR = 10;
@@ -3420,25 +3718,83 @@ export class CanvasEngine {
       this.ctx.stroke();
       this.ctx.restore();
     } else if (n.kind === 'download') {
-      // Download cyan circular badge with downward arrow
-      this.ctx.save();
-      this.ctx.beginPath();
-      this.ctx.arc(iconCx, iconCy, iconR, 0, Math.PI * 2);
-      this.ctx.fillStyle = '#00d2ff';
-      this.ctx.fill();
+      const isComplete = n.status === 'complete' || n.title?.toLowerCase().includes('complete');
+      const isError = n.status === 'error' || n.title?.toLowerCase().includes('cancel') || n.title?.toLowerCase().includes('fail');
 
-      // Downward arrow
-      this.ctx.strokeStyle = '#081018';
-      this.ctx.lineWidth = 1.6;
-      this.ctx.lineCap = 'round';
-      this.ctx.lineJoin = 'round';
-      this.ctx.beginPath();
-      this.ctx.moveTo(iconCx, iconCy - 4.5);
-      this.ctx.lineTo(iconCx, iconCy + 3);
-      this.ctx.moveTo(iconCx - 3.5, iconCy);
-      this.ctx.lineTo(iconCx, iconCy + 3.5);
-      this.ctx.lineTo(iconCx + 3.5, iconCy);
-      this.ctx.stroke();
+      this.ctx.save();
+      if (isComplete) {
+        // "when download complete it show green smile" -> Green circle with clean checkmark
+        this.ctx.beginPath();
+        this.ctx.arc(iconCx, iconCy, iconR, 0, Math.PI * 2);
+        this.ctx.fillStyle = '#22e05a';
+        this.ctx.fill();
+
+        this.ctx.strokeStyle = '#ffffff';
+        this.ctx.lineWidth = 1.6;
+        this.ctx.lineCap = 'round';
+        this.ctx.lineJoin = 'round';
+        this.ctx.beginPath();
+        this.ctx.moveTo(iconCx - 3.5, iconCy + 0.5);
+        this.ctx.lineTo(iconCx - 1, iconCy + 3);
+        this.ctx.lineTo(iconCx + 4, iconCy - 2.5);
+        this.ctx.stroke();
+      } else if (isError) {
+        // "and when not download it show red" -> Red circle with clean X
+        this.ctx.beginPath();
+        this.ctx.arc(iconCx, iconCy, iconR, 0, Math.PI * 2);
+        this.ctx.fillStyle = '#ff3b3b';
+        this.ctx.fill();
+
+        this.ctx.strokeStyle = '#ffffff';
+        this.ctx.lineWidth = 1.6;
+        this.ctx.lineCap = 'round';
+        const cross = 3;
+        this.ctx.beginPath();
+        this.ctx.moveTo(iconCx - cross, iconCy - cross);
+        this.ctx.lineTo(iconCx + cross, iconCy + cross);
+        this.ctx.moveTo(iconCx + cross, iconCy - cross);
+        this.ctx.lineTo(iconCx - cross, iconCy + cross);
+        this.ctx.stroke();
+      } else {
+        // Apple Mac style downloading circular progress ring with downward arrow
+        this.ctx.beginPath();
+        this.ctx.arc(iconCx, iconCy, iconR, 0, Math.PI * 2);
+        this.ctx.fillStyle = 'rgba(0, 210, 255, 0.12)';
+        this.ctx.fill();
+        this.ctx.strokeStyle = 'rgba(0, 210, 255, 0.3)';
+        this.ctx.lineWidth = 1.8;
+        this.ctx.stroke();
+
+        // Progress arc
+        this.ctx.beginPath();
+        if (typeof n.progress === 'number' && n.progress > 0) {
+          const startAngle = -Math.PI / 2;
+          const endAngle = startAngle + Math.PI * 2 * Math.min(1, Math.max(0, n.progress));
+          this.ctx.arc(iconCx, iconCy, iconR, startAngle, endAngle);
+        } else {
+          // Smoothly rotating indeterminate arc
+          const rot = (performance.now() / 450) % (Math.PI * 2);
+          this.ctx.arc(iconCx, iconCy, iconR, rot, rot + Math.PI * 0.9);
+        }
+        this.ctx.strokeStyle = '#00d2ff';
+        this.ctx.lineWidth = 2.0;
+        this.ctx.lineCap = 'round';
+        this.ctx.stroke();
+
+        // Downward arrow in center with gentle pulsing bob
+        const arrowBob = Math.sin(performance.now() / 250) * 0.8;
+        this.ctx.strokeStyle = '#00d2ff';
+        this.ctx.lineWidth = 1.5;
+        this.ctx.lineCap = 'round';
+        this.ctx.lineJoin = 'round';
+        this.ctx.beginPath();
+        this.ctx.moveTo(iconCx, iconCy - 3.5 + arrowBob);
+        this.ctx.lineTo(iconCx, iconCy + 2.5 + arrowBob);
+        this.ctx.moveTo(iconCx - 2.8, iconCy + 0.2 + arrowBob);
+        this.ctx.lineTo(iconCx + 3.0, iconCy + 0.2 + arrowBob);
+        this.ctx.lineTo(iconCx + 2.8, iconCy + 0.2 + arrowBob);
+        this.ctx.stroke();
+      }
       this.ctx.restore();
     } else if (n.kind === 'done') {
       // Done green circular badge with checkmark
@@ -3527,7 +3883,7 @@ export class CanvasEngine {
       this.ctx.restore();
 
     } else {
-      // Standard notification without buttons (Done, Error, Info, Badge)
+      // Standard notification with optional quick action (WhatsApp Reply chip, Download Open chip, Dismiss)
       const hasBody = Boolean(n.body && n.body.trim().length > 0);
       const titleFont = hasBody
         ? '600 12px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif'
@@ -3539,7 +3895,65 @@ export class CanvasEngine {
       const closeY = cy - closeSize / 2;
       const isCloseHovered = this.isHovered && this.isInsideHit(this.pointerX, this.pointerY, { x: closeX, y: closeY, width: closeSize, height: closeSize });
 
-      const maxTextW = Math.max(80, closeX - textLeft - 10);
+      let actionRight = closeX - 6;
+
+      // WhatsApp Quick Reply Chip (Apple iPhone / Mac Style)
+      if (n.kind === 'whatsapp') {
+        const replyW = 52;
+        const replyH = 22;
+        const replyX = actionRight - replyW;
+        const replyY = cy - replyH / 2;
+        const isReplyHovered = this.isHovered && this.isInsideHit(this.pointerX, this.pointerY, { x: replyX, y: replyY, width: replyW, height: replyH });
+
+        this.ctx.save();
+        this.ctx.beginPath();
+        this.ctx.roundRect(replyX, replyY, replyW, replyH, 11);
+        this.ctx.fillStyle = isReplyHovered ? '#25d366' : 'rgba(37, 211, 102, 0.22)';
+        this.ctx.fill();
+        this.ctx.strokeStyle = '#25d366';
+        this.ctx.lineWidth = 1.0;
+        this.ctx.stroke();
+
+        this.ctx.font = '600 11px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
+        this.ctx.fillStyle = isReplyHovered ? '#000000' : '#25d366';
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillText('Reply', replyX + replyW / 2, cy);
+        this.ctx.restore();
+
+        this.notificationHits['cWhatsAppReply'] = { x: replyX, y: replyY, width: replyW, height: replyH };
+        actionRight -= replyW + 6;
+      }
+
+      // Download Complete "Open" File Chip
+      if (n.kind === 'download' && n.status === 'complete' && n.filePath) {
+        const openW = 48;
+        const openH = 22;
+        const openX = actionRight - openW;
+        const openY = cy - openH / 2;
+        const isOpenHovered = this.isHovered && this.isInsideHit(this.pointerX, this.pointerY, { x: openX, y: openY, width: openW, height: openH });
+
+        this.ctx.save();
+        this.ctx.beginPath();
+        this.ctx.roundRect(openX, openY, openW, openH, 11);
+        this.ctx.fillStyle = isOpenHovered ? '#22e05a' : 'rgba(34, 224, 90, 0.22)';
+        this.ctx.fill();
+        this.ctx.strokeStyle = '#22e05a';
+        this.ctx.lineWidth = 1.0;
+        this.ctx.stroke();
+
+        this.ctx.font = '600 11px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
+        this.ctx.fillStyle = isOpenHovered ? '#000000' : '#22e05a';
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillText('Open', openX + openW / 2, cy);
+        this.ctx.restore();
+
+        this.notificationHits['cOpenFile'] = { x: openX, y: openY, width: openW, height: openH };
+        actionRight -= openW + 6;
+      }
+
+      const maxTextW = Math.max(80, actionRight - textLeft - 6);
       const truncTitle = this.truncateText(n.title, maxTextW, titleFont);
 
       this.ctx.save();

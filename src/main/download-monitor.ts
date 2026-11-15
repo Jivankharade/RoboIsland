@@ -8,8 +8,13 @@ export interface ActiveDownloadInfo {
   tempPath: string;
   finalPath: string;
   bytes: number;
-  status: 'downloading' | 'complete';
+  totalBytes?: number;
+  percent?: number;
+  speedStr?: string;
+  status: 'downloading' | 'complete' | 'error';
   startTime: number;
+  lastBytes?: number;
+  lastTime?: number;
 }
 
 export class DownloadMonitor {
@@ -46,23 +51,45 @@ export class DownloadMonitor {
     } catch (err) {
       console.warn('[DownloadMonitor] Failed to start fs.watch:', err);
     }
+  }
 
-    // Periodic check (every 2.5s) to track download file growth while active
+  public formatBytes(bytes: number): string {
+    if (!bytes || bytes <= 0) return '0 KB';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+  }
+
+  private ensurePollLoop(): void {
+    if (this.pollTimer || this.isDisposed) return;
     this.pollTimer = setInterval(() => {
       if (this.activeDownloads.size > 0) {
         this.checkActiveDownloads();
+      } else if (this.pollTimer) {
+        clearInterval(this.pollTimer);
+        this.pollTimer = null;
       }
-    }, 2500);
+    }, 450);
     if (this.pollTimer.unref) this.pollTimer.unref();
   }
 
   private handleFileChange(filename: string): void {
-    const isCrDownload = filename.endsWith('.crdownload');
-    const isPartDownload = filename.endsWith('.part');
+    // 1. Chrome / Chromium initial placeholder: "Unconfirmed 12345.crdownload"
+    // ALWAYS ignore unconfirmed placeholder until Chrome negotiates headers and renames to the actual file!
+    if (/^unconfirmed/i.test(filename)) {
+      return;
+    }
+
+    const isCrDownload = filename.toLowerCase().endsWith('.crdownload');
+    const isPartDownload = filename.toLowerCase().endsWith('.part');
 
     if (isCrDownload || isPartDownload) {
       const fullPath = path.join(this.downloadsPath, filename);
-      const cleanName = filename.replace(/\.(crdownload|part)$/i, '').replace(/^Unconfirmed\s+\d+\./i, '');
+      // Clean target name: remove .crdownload or .part extension
+      const cleanName = filename.replace(/\.(crdownload|part)$/i, '');
+
+      // Double-check cleanName is not an unconfirmed prefix
+      if (/^unconfirmed/i.test(cleanName)) return;
 
       if (!this.activeDownloads.has(filename)) {
         let bytes = 0;
@@ -72,17 +99,21 @@ export class DownloadMonitor {
           }
         } catch {}
 
+        const now = Date.now();
         const info: ActiveDownloadInfo = {
           filename,
           cleanName,
           tempPath: fullPath,
           finalPath: path.join(this.downloadsPath, cleanName),
           bytes,
+          lastBytes: bytes,
+          lastTime: now,
           status: 'downloading',
-          startTime: Date.now()
+          startTime: now
         };
 
         this.activeDownloads.set(filename, info);
+        this.ensurePollLoop();
         this.broadcastDownloadActive(info);
       }
     } else {
@@ -102,6 +133,7 @@ export class DownloadMonitor {
   }
 
   private checkActiveDownloads(): void {
+    const now = Date.now();
     for (const [tempName, info] of this.activeDownloads.entries()) {
       if (!fs.existsSync(info.tempPath)) {
         // Temp file is gone: check if final file was produced
@@ -112,26 +144,47 @@ export class DownloadMonitor {
           info.finalPath = finalPath;
           this.broadcastDownloadComplete(info);
         } else {
-          // Cancelled download
+          // Download was cancelled or failed by the user / browser!
+          // User requirement: "and when not download it show red"
           this.activeDownloads.delete(tempName);
+          info.status = 'error';
+          this.broadcastDownloadError(info);
         }
       } else {
         try {
           const stats = fs.statSync(info.tempPath);
-          info.bytes = stats.size;
+          const currentBytes = stats.size;
+          const timeDiff = Math.max(150, now - (info.lastTime || info.startTime));
+          const byteDiff = Math.max(0, currentBytes - (info.lastBytes || 0));
+          const speedBytesPerSec = Math.round((byteDiff / timeDiff) * 1000);
+
+          info.bytes = currentBytes;
+          info.lastBytes = currentBytes;
+          info.lastTime = now;
+          if (speedBytesPerSec > 0) {
+            info.speedStr = `${this.formatBytes(speedBytesPerSec)}/s`;
+          }
+
+          this.broadcastDownloadActive(info);
         } catch {}
       }
     }
   }
 
   private broadcastDownloadActive(info: ActiveDownloadInfo): void {
+    const sizeStr = this.formatBytes(info.bytes);
+    const speed = info.speedStr ? ` • ${info.speedStr}` : '';
     const payload = {
       id: 'dl-progress-' + info.cleanName,
       app: 'Downloads',
-      title: 'Downloading...',
-      body: info.cleanName,
+      title: info.cleanName,
+      body: `${sizeStr}${speed}`,
       kind: 'download',
-      durationMs: 3500
+      status: 'downloading',
+      bytes: info.bytes,
+      sizeStr,
+      speedStr: info.speedStr,
+      durationMs: 4000
     };
 
     BrowserWindow.getAllWindows().forEach((win) => {
@@ -148,8 +201,27 @@ export class DownloadMonitor {
       title: 'Download Complete',
       body: info.cleanName,
       kind: 'download',
+      status: 'complete',
       filePath: info.finalPath,
       durationMs: 5000
+    };
+
+    BrowserWindow.getAllWindows().forEach((win) => {
+      if (!win.isDestroyed()) {
+        win.webContents.send('island:notify', payload);
+      }
+    });
+  }
+
+  private broadcastDownloadError(info: ActiveDownloadInfo): void {
+    const payload = {
+      id: 'dl-error-' + Date.now(),
+      app: 'Downloads',
+      title: 'Download Cancelled',
+      body: info.cleanName,
+      kind: 'download',
+      status: 'error',
+      durationMs: 4500
     };
 
     BrowserWindow.getAllWindows().forEach((win) => {
@@ -162,7 +234,7 @@ export class DownloadMonitor {
   /**
    * Helper method to simulate a download or toast notification for tests/settings.
    */
-  public simulateNotification(payload: { title: string; body: string; kind?: string; app?: string }): void {
+  public simulateNotification(payload: { title: string; body: string; kind?: string; app?: string; status?: string; filePath?: string }): void {
     BrowserWindow.getAllWindows().forEach((win) => {
       if (!win.isDestroyed()) {
         win.webContents.send('island:notify', {
@@ -171,6 +243,8 @@ export class DownloadMonitor {
           title: payload.title,
           body: payload.body,
           kind: payload.kind || 'info',
+          status: payload.status,
+          filePath: payload.filePath,
           durationMs: 5000
         });
       }
@@ -178,6 +252,7 @@ export class DownloadMonitor {
   }
 
   private setupIPC(): void {
+    if (!ipcMain || typeof ipcMain.handle !== 'function') return;
     try {
       ipcMain.removeHandler('tools:show-item-in-folder');
     } catch {}
