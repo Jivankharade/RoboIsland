@@ -396,8 +396,12 @@ class CanvasEngine {
                 }
             }, duration);
         }
-        // TwoCode Physics: Spring jelly kick on arrival
-        this.kickJelly(0.18, 5.0, 4.0);
+        // TwoCode Physics: Spring jelly kick on arrival only (never during repeated download progress updates)
+        const isUpdate = Boolean(this.activeNotification && (this.activeNotification.id === n.id || (n.kind === 'download' && this.activeNotification.kind === 'download')));
+        const isDownloadingProgress = n.kind === 'download' && n.status === 'downloading';
+        if (!isUpdate && !isDownloadingProgress) {
+            this.kickJelly(0.18, 5.0, 4.0);
+        }
         // Mascot & Audio reactions
         if (n.kind === 'download') {
             const isComplete = n.status === 'complete' || n.title?.toLowerCase().includes('complete');
@@ -2622,9 +2626,16 @@ class CanvasEngine {
                 this.targetRadius = 22;
                 return;
             }
+            const hasBody = Boolean(n.body && n.body.trim().length > 0);
+            if (n.kind === 'download') {
+                // Rock-solid fixed stable width for downloads (prevents jitter / moving motion on progress bytes update)
+                this.targetWidth = 330;
+                this.targetHeight = hasBody ? 42 : 36;
+                this.targetRadius = hasBody ? 21 : 18;
+                return;
+            }
             const hasActions = Boolean(n.actions && n.actions.length > 0);
             const isWhatsApp = n.kind === 'whatsapp';
-            const hasBody = Boolean(n.body && n.body.trim().length > 0);
             const textLen = Math.max(n.title.length, (n.body || '').length * 0.65);
             const baseMinW = isWhatsApp ? 320 : 280;
             this.targetWidth = hasActions ? 430 : Math.max(baseMinW, Math.min(420, 100 + textLen * 7.5 + (isWhatsApp ? 50 : 0)));
@@ -2713,7 +2724,7 @@ class CanvasEngine {
                         textLen = Math.max(textLen, lyric.text.length);
                     }
                 }
-                const dynamicMusicW = Math.max(285, Math.min(370, Math.round(textLen * 7.2 + 96)));
+                const dynamicMusicW = Math.max(300, Math.min(440, Math.round(textLen * 7.8 + 104)));
                 this.targetWidth = this.isHovered ? dynamicMusicW + 8 : dynamicMusicW;
                 this.targetHeight = 36;
                 this.targetRadius = 18;
@@ -2734,7 +2745,7 @@ class CanvasEngine {
                     textLen = Math.max(textLen, lyric.text.length);
                 }
             }
-            const dynamicMusicW = Math.max(285, Math.min(370, Math.round(textLen * 7.2 + 96)));
+            const dynamicMusicW = Math.max(300, Math.min(440, Math.round(textLen * 7.8 + 104)));
             this.targetWidth = this.isHovered ? dynamicMusicW + 8 : dynamicMusicW;
             this.targetHeight = 36;
             this.targetRadius = 18;
@@ -7734,7 +7745,7 @@ class CanvasEngine {
             document.getElementById('panel-music')?.classList.add('active');
         }
         else if (tab === 'tray') {
-            setTwoToneTitle('File ', 'Tray', '#ffd60a');
+            setTwoToneTitle('File ', 'Tray', '#00d2ff');
             if (phoneBtn)
                 phoneBtn.classList.remove('hidden');
             document.getElementById('panel-tray')?.classList.add('active');
@@ -7751,7 +7762,7 @@ class CanvasEngine {
             this.loadClipboardList();
         }
         else if (tab === 'chat') {
-            setTwoToneTitle('Robo ', 'Chat', '#30d158');
+            setTwoToneTitle('Robo ', 'Chat', '#818cf8');
             document.getElementById('panel-chat')?.classList.add('active');
             const input = document.getElementById('chat-input');
             if (input)
@@ -7828,10 +7839,10 @@ class CanvasEngine {
                 accent = '#d97757';
                 break;
             case 'chat':
-                // Apple Messages spring green
-                primary = 'rgba(48, 209, 88, 0.50)';
-                secondary = 'rgba(52, 199, 89, 0.22)';
-                accent = '#30d158';
+                // Electric Cyber AI Indigo / Neon Sparkle (distinct from Spotify green)
+                primary = 'rgba(99, 102, 241, 0.52)';
+                secondary = 'rgba(129, 140, 248, 0.25)';
+                accent = '#818cf8';
                 break;
             case 'focus':
                 // Mindfulness lavender & violet purple
@@ -7840,8 +7851,13 @@ class CanvasEngine {
                 accent = '#bf5af2';
                 break;
             case 'tray':
+                // Apple AirDrop Electric Cyan (distinct from Notes yellow)
+                primary = 'rgba(0, 210, 255, 0.50)';
+                secondary = 'rgba(0, 150, 255, 0.22)';
+                accent = '#00d2ff';
+                break;
             case 'notes':
-                // Warm golden amber
+                // Warm golden amber notepad
                 primary = 'rgba(255, 214, 10, 0.48)';
                 secondary = 'rgba(245, 158, 11, 0.22)';
                 accent = '#ffd60a';

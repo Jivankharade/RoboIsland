@@ -580,6 +580,30 @@ async function runTests() {
     assert(`Feature "${tab}" dimensions: ${expectedW}x${expectedH}px`, mockEngine.targetWidth === expectedW && mockEngine.targetHeight === expectedH);
   });
 
+  // --- 23. Testing File Tray Distinction, AI Tab Indigo Theme, Download Motion Fix ---
+  console.log('\n--- 23. Testing File Tray Distinction, AI Tab Indigo Theme, Download Motion Fix ---');
+  assert('island.css styles tray tab with AirDrop cyan glow', islandCss.includes('[data-active-tab="tray"]') && islandCss.includes('0, 210, 255'));
+  assert('island.css styles tray active dock item with AirDrop cyan', islandCss.includes('.nav-item.active[data-tab="tray"]') && islandCss.includes('#00d2ff'));
+  assert('index.html tray big icon uses AirDrop cyan stroke', indexHtml.includes('stroke="#00d2ff"'));
+  assert('island.css styles chat tab with Cyber AI Indigo glow', islandCss.includes('[data-active-tab="chat"]') && islandCss.includes('99, 102, 241'));
+  assert('island.css styles chat active dock item with Cyber AI Indigo', islandCss.includes('.nav-item.active[data-tab="chat"]') && islandCss.includes('#818cf8'));
+  assert('island.css styles Spotify lyrics with dark frosted background', islandCss.includes('rgba(10, 10, 14'));
+
+  // Test stable download notification width (zero jitter/motion)
+  mockEngine.mode = 'rest';
+  mockEngine.activeNotification = { kind: 'download', title: 'logo.png', body: '102.7 MB • 206.4 KB/s', status: 'downloading' };
+  mockEngine.updateTargetDimensions();
+  assert('Download notification targetWidth is stable 330px without jitter', mockEngine.targetWidth === 330);
+
+  // Test music pill width expansion for full lyrics
+  mockEngine.activeNotification = null;
+  mockEngine.mode = 'compact';
+  mockEngine.mediaState = { active: true, playing: true, title: 'One two three four get on the dance floor' };
+  mockEngine.hasSyncedLyrics = () => true;
+  mockEngine.getLyricNow = () => ({ text: 'One two three four get on the dance floor', k: 1 });
+  mockEngine.updateTargetDimensions();
+  assert('Music pill expands up to 440px for full 42-char lyrics', mockEngine.targetWidth >= 380);
+
   // Summary
   console.log('\n====================================================');
   console.log(`TEST SUMMARY: ${passed} PASSED, ${failed} FAILED`);

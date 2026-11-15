@@ -1901,7 +1901,11 @@
           }
         }, duration);
       }
-      this.kickJelly(0.18, 5, 4);
+      const isUpdate = Boolean(this.activeNotification && (this.activeNotification.id === n.id || n.kind === "download" && this.activeNotification.kind === "download"));
+      const isDownloadingProgress = n.kind === "download" && n.status === "downloading";
+      if (!isUpdate && !isDownloadingProgress) {
+        this.kickJelly(0.18, 5, 4);
+      }
       if (n.kind === "download") {
         const isComplete = n.status === "complete" || n.title?.toLowerCase().includes("complete");
         const isError = n.status === "error" || n.title?.toLowerCase().includes("cancel") || n.title?.toLowerCase().includes("fail");
@@ -3851,9 +3855,15 @@
           this.targetRadius = 22;
           return;
         }
+        const hasBody = Boolean(n.body && n.body.trim().length > 0);
+        if (n.kind === "download") {
+          this.targetWidth = 330;
+          this.targetHeight = hasBody ? 42 : 36;
+          this.targetRadius = hasBody ? 21 : 18;
+          return;
+        }
         const hasActions = Boolean(n.actions && n.actions.length > 0);
         const isWhatsApp = n.kind === "whatsapp";
-        const hasBody = Boolean(n.body && n.body.trim().length > 0);
         const textLen = Math.max(n.title.length, (n.body || "").length * 0.65);
         const baseMinW = isWhatsApp ? 320 : 280;
         this.targetWidth = hasActions ? 430 : Math.max(baseMinW, Math.min(420, 100 + textLen * 7.5 + (isWhatsApp ? 50 : 0)));
@@ -3929,7 +3939,7 @@
               textLen = Math.max(textLen, lyric.text.length);
             }
           }
-          const dynamicMusicW = Math.max(285, Math.min(370, Math.round(textLen * 7.2 + 96)));
+          const dynamicMusicW = Math.max(300, Math.min(440, Math.round(textLen * 7.8 + 104)));
           this.targetWidth = this.isHovered ? dynamicMusicW + 8 : dynamicMusicW;
           this.targetHeight = 36;
           this.targetRadius = 18;
@@ -3946,7 +3956,7 @@
             textLen = Math.max(textLen, lyric.text.length);
           }
         }
-        const dynamicMusicW = Math.max(285, Math.min(370, Math.round(textLen * 7.2 + 96)));
+        const dynamicMusicW = Math.max(300, Math.min(440, Math.round(textLen * 7.8 + 104)));
         this.targetWidth = this.isHovered ? dynamicMusicW + 8 : dynamicMusicW;
         this.targetHeight = 36;
         this.targetRadius = 18;
@@ -8400,7 +8410,7 @@
         setTwoToneTitle("Music ", "Player", tint);
         document.getElementById("panel-music")?.classList.add("active");
       } else if (tab === "tray") {
-        setTwoToneTitle("File ", "Tray", "#ffd60a");
+        setTwoToneTitle("File ", "Tray", "#00d2ff");
         if (phoneBtn) phoneBtn.classList.remove("hidden");
         document.getElementById("panel-tray")?.classList.add("active");
         this.loadTrayShelf();
@@ -8413,7 +8423,7 @@
         document.getElementById("panel-clipboard")?.classList.add("active");
         this.loadClipboardList();
       } else if (tab === "chat") {
-        setTwoToneTitle("Robo ", "Chat", "#30d158");
+        setTwoToneTitle("Robo ", "Chat", "#818cf8");
         document.getElementById("panel-chat")?.classList.add("active");
         const input = document.getElementById("chat-input");
         if (input) input.focus();
@@ -8477,9 +8487,9 @@
           accent = "#d97757";
           break;
         case "chat":
-          primary = "rgba(48, 209, 88, 0.50)";
-          secondary = "rgba(52, 199, 89, 0.22)";
-          accent = "#30d158";
+          primary = "rgba(99, 102, 241, 0.52)";
+          secondary = "rgba(129, 140, 248, 0.25)";
+          accent = "#818cf8";
           break;
         case "focus":
           primary = "rgba(191, 90, 242, 0.52)";
@@ -8487,6 +8497,10 @@
           accent = "#bf5af2";
           break;
         case "tray":
+          primary = "rgba(0, 210, 255, 0.50)";
+          secondary = "rgba(0, 150, 255, 0.22)";
+          accent = "#00d2ff";
+          break;
         case "notes":
           primary = "rgba(255, 214, 10, 0.48)";
           secondary = "rgba(245, 158, 11, 0.22)";
