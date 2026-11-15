@@ -478,6 +478,46 @@ async function runTests() {
   // Verify reportCapsuleBounds exists on mockEngine
   assert('reportCapsuleBounds method exists on CanvasEngine prototype', typeof mockEngine.reportCapsuleBounds === 'function');
 
+  // --- 19. Testing Agenda Schedule Timeline & Centered Bottom Dock Bar ---
+  console.log('\n--- 19. Testing Agenda Schedule Timeline & Centered Bottom Dock Bar ---');
+  const indexHtml = fs.readFileSync(path.join(__dirname, '../src/renderer/island/index.html'), 'utf-8');
+  const islandCss = fs.readFileSync(path.join(__dirname, '../src/renderer/island/island.css'), 'utf-8');
+
+  // Agenda Panel verification
+  assert('index.html contains #panel-agenda', indexHtml.includes('id="panel-agenda"'));
+  assert('index.html contains hero event title', indexHtml.includes('id="agenda-hero-title"'));
+  assert('index.html contains hero event time', indexHtml.includes('id="agenda-hero-time"'));
+  assert('index.html contains hero subtitle', indexHtml.includes('id="agenda-hero-sub"'));
+  assert('index.html contains Day and Month toggles', indexHtml.includes('id="agenda-toggle-day"') && indexHtml.includes('id="agenda-toggle-month"'));
+  assert('index.html contains Add Event button', indexHtml.includes('id="agenda-btn-add-event"'));
+  assert('index.html contains timeline track and playhead', indexHtml.includes('id="agenda-timeline-track"') && indexHtml.includes('id="agenda-playhead"'));
+  assert('index.html contains events container', indexHtml.includes('id="agenda-events-container"'));
+  assert('index.html contains month calendar view', indexHtml.includes('id="agenda-month-view"'));
+
+  // Clean Centered Dock verification
+  assert('index.html contains nav-account-pill with you@gmail.com', indexHtml.includes('class="nav-account-pill"') && indexHtml.includes('you@gmail.com'));
+  assert('index.html contains nav-dock-center wrapper', indexHtml.includes('class="nav-dock-center"'));
+  assert('index.html contains data-tab="agenda" dock item', indexHtml.includes('data-tab="agenda"'));
+
+  // Mac Ambient Glow & Clean CSS verification
+  assert('island.css contains expanded-island-overlay::after ambient glow', islandCss.includes('#expanded-island-overlay::after') && islandCss.includes('radial-gradient'));
+  assert('island.css contains nav-dock-center centered dock styling', islandCss.includes('.nav-dock-center'));
+  assert('island.css hides nav-label for inactive tabs', islandCss.includes('.nav-item .nav-label') && islandCss.includes('display: none'));
+  assert('island.css shows uppercase nav-label for active tab', islandCss.includes('.nav-item.active .nav-label') && islandCss.includes('text-transform: uppercase'));
+  assert('island.css styles agenda active tab with Apple oceanic blue glow', islandCss.includes('.nav-item.active[data-tab="agenda"]'));
+
+  // CanvasEngine methods verification
+  assert('initAgendaUI method exists on CanvasEngine prototype', typeof mockEngine.initAgendaUI === 'function');
+  assert('renderAgendaTimeline method exists on CanvasEngine prototype', typeof mockEngine.renderAgendaTimeline === 'function');
+  assert('renderAgendaMonth method exists on CanvasEngine prototype', typeof mockEngine.renderAgendaMonth === 'function');
+
+  // Dimension test for Agenda
+  mockEngine.mode = 'expanded';
+  mockEngine.currentDomTab = 'agenda';
+  mockEngine.updateTargetDimensions();
+  assert('Agenda tab sets targetWidth to 540px', mockEngine.targetWidth === 540);
+  assert('Agenda tab sets targetHeight to 280px', mockEngine.targetHeight === 280);
+
   // Summary
   console.log('\n====================================================');
   console.log(`TEST SUMMARY: ${passed} PASSED, ${failed} FAILED`);

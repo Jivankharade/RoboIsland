@@ -2840,6 +2840,15 @@
     domOverlayEl = null;
     currentDomTab = "home";
     activePopover = "none";
+    agendaEvents = [
+      { id: "1", title: "Design review", timeStr: "10:30 AM", mins: 630, duration: 60, subtitle: "NEXT \u2022 IN 48 MIN" },
+      { id: "2", title: "Team Sync", timeStr: "1:00 PM", mins: 780, duration: 60, subtitle: "TODAY \u2022 IN 3 HRS" },
+      { id: "3", title: "Sprint Retro", timeStr: "6:00 PM", mins: 1080, duration: 60, subtitle: "TONIGHT \u2022 AT 6:00 PM" }
+    ];
+    selectedAgendaEventId = "1";
+    agendaViewMode = "day";
+    agendaAccountEmail = "you@gmail.com";
+    agendaListenersBound = false;
     setPopover(target) {
       this.activePopover = target;
       const popover = document.getElementById("system-popover");
@@ -3793,6 +3802,10 @@
             break;
           case "focus":
             this.targetHeight = 270;
+            break;
+          case "agenda":
+            this.targetWidth = 540;
+            this.targetHeight = 280;
             break;
           case "home":
           default:
@@ -8361,6 +8374,11 @@
         } else {
           document.getElementById("panel-home")?.classList.add("active");
         }
+      } else if (tab === "agenda") {
+        setTwoToneTitle("Age", "nda", "#0070f3");
+        if (phoneBtn) phoneBtn.classList.add("hidden");
+        document.getElementById("panel-agenda")?.classList.add("active");
+        this.initAgendaUI();
       } else if (tab === "settings") {
         if (titleEl) titleEl.textContent = "";
         document.getElementById("panel-home")?.classList.add("active");
@@ -8368,6 +8386,221 @@
       } else {
         if (titleEl) titleEl.textContent = "";
         document.getElementById("panel-home")?.classList.add("active");
+      }
+    }
+    initAgendaUI() {
+      if (!this.domOverlayEl) return;
+      try {
+        const savedEmail = localStorage.getItem("roboisland_agenda_email");
+        if (savedEmail) this.agendaAccountEmail = savedEmail;
+      } catch {
+      }
+      const emailEl = document.getElementById("nav-account-email");
+      if (emailEl) emailEl.textContent = this.agendaAccountEmail;
+      const now = /* @__PURE__ */ new Date();
+      const dateEl = document.getElementById("agenda-date-str");
+      if (dateEl) {
+        const days = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+        const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+        const dayName = days[now.getDay()];
+        const dayNum = String(now.getDate()).padStart(2, "0");
+        const monthName = months[now.getMonth()];
+        dateEl.textContent = `${dayName} ${dayNum} ${monthName}`;
+      }
+      const weatherEl = document.getElementById("agenda-weather-str");
+      if (weatherEl) {
+        const tempStr = document.getElementById("weather-temp")?.textContent?.trim();
+        weatherEl.textContent = tempStr && tempStr !== "--\xB0C" ? tempStr.replace("C", "").trim() : "25\xB0";
+      }
+      const timeEl = document.getElementById("agenda-live-time");
+      if (timeEl) {
+        let h = now.getHours();
+        const m = String(now.getMinutes()).padStart(2, "0");
+        const ampm = h >= 12 ? "PM" : "AM";
+        h = h % 12 || 12;
+        timeEl.textContent = `${h}:${m} ${ampm}`;
+      }
+      const currentMins = now.getHours() * 60 + now.getMinutes();
+      const playheadEl = document.getElementById("agenda-playhead");
+      if (playheadEl) {
+        const pct = Math.max(0, Math.min(100, (currentMins - 480) / 720 * 100));
+        playheadEl.style.left = `${pct.toFixed(1)}%`;
+      }
+      this.renderAgendaTimeline();
+      if (this.agendaListenersBound) return;
+      this.agendaListenersBound = true;
+      const dayBtn = document.getElementById("agenda-toggle-day");
+      const monthBtn = document.getElementById("agenda-toggle-month");
+      const timelineView = document.getElementById("agenda-timeline-view");
+      const monthView = document.getElementById("agenda-month-view");
+      dayBtn?.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.agendaViewMode = "day";
+        dayBtn.classList.add("active");
+        monthBtn?.classList.remove("active");
+        timelineView?.classList.remove("hidden");
+        monthView?.classList.add("hidden");
+      });
+      monthBtn?.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.agendaViewMode = "month";
+        monthBtn.classList.add("active");
+        dayBtn?.classList.remove("active");
+        timelineView?.classList.add("hidden");
+        monthView?.classList.remove("hidden");
+        this.renderAgendaMonth();
+      });
+      const addBtn = document.getElementById("agenda-btn-add-event");
+      const addPopover = document.getElementById("agenda-add-event-popover");
+      const titleInput = document.getElementById("agenda-input-title");
+      const timeInput = document.getElementById("agenda-input-time");
+      const saveBtn = document.getElementById("agenda-save-event-btn");
+      const cancelBtn = document.getElementById("agenda-cancel-event-btn");
+      addBtn?.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (!addPopover) return;
+        addPopover.classList.toggle("hidden");
+        if (!addPopover.classList.contains("hidden") && titleInput) {
+          titleInput.value = "";
+          titleInput.focus();
+        }
+      });
+      cancelBtn?.addEventListener("click", (e) => {
+        e.stopPropagation();
+        addPopover?.classList.add("hidden");
+      });
+      saveBtn?.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const title = titleInput?.value.trim() || "Meeting";
+        const timeVal = timeInput?.value || "14:00";
+        const [hStr, mStr] = timeVal.split(":");
+        let h = parseInt(hStr || "14", 10);
+        const m = parseInt(mStr || "00", 10);
+        const ampm = h >= 12 ? "PM" : "AM";
+        const displayH = h % 12 || 12;
+        const timeStr = `${displayH}:${String(m).padStart(2, "0")} ${ampm}`;
+        const mins = h * 60 + m;
+        const newEv = {
+          id: String(Date.now()),
+          title,
+          timeStr,
+          mins,
+          duration: 60,
+          subtitle: `TODAY \u2022 AT ${timeStr}`
+        };
+        this.agendaEvents.push(newEv);
+        this.selectedAgendaEventId = newEv.id;
+        this.renderAgendaTimeline();
+        addPopover?.classList.add("hidden");
+        try {
+          localStorage.setItem("roboisland_agenda_events", JSON.stringify(this.agendaEvents));
+        } catch {
+        }
+      });
+      const dotsBtn = document.getElementById("agenda-action-dots-btn");
+      dotsBtn?.addEventListener("click", (e) => {
+        e.stopPropagation();
+        window.roboIsland?.openSettings();
+      });
+      const accountEmailEl = document.getElementById("nav-account-email");
+      const accountAddBtn = document.getElementById("nav-account-add-btn");
+      const promptChangeEmail = (e) => {
+        e.stopPropagation();
+        const newEmail = window.prompt("Connect Google or Apple Calendar account:", this.agendaAccountEmail);
+        if (newEmail && newEmail.trim()) {
+          this.agendaAccountEmail = newEmail.trim();
+          if (accountEmailEl) accountEmailEl.textContent = this.agendaAccountEmail;
+          try {
+            localStorage.setItem("roboisland_agenda_email", this.agendaAccountEmail);
+          } catch {
+          }
+        }
+      };
+      accountEmailEl?.addEventListener("click", promptChangeEmail);
+      accountAddBtn?.addEventListener("click", promptChangeEmail);
+    }
+    renderAgendaTimeline() {
+      const container = document.getElementById("agenda-events-container");
+      if (!container) return;
+      try {
+        const saved = localStorage.getItem("roboisland_agenda_events");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            this.agendaEvents = parsed;
+          }
+        }
+      } catch {
+      }
+      container.innerHTML = "";
+      const selected = this.agendaEvents.find((e) => e.id === this.selectedAgendaEventId) || this.agendaEvents[0];
+      if (selected) {
+        this.selectedAgendaEventId = selected.id;
+        const heroTitle = document.getElementById("agenda-hero-title");
+        const heroTime = document.getElementById("agenda-hero-time");
+        const heroSub = document.getElementById("agenda-hero-sub");
+        if (heroTitle) heroTitle.textContent = selected.title;
+        if (heroTime) heroTime.textContent = selected.timeStr;
+        if (heroSub) heroSub.textContent = selected.subtitle || "NEXT \u2022 IN 48 MIN";
+      }
+      this.agendaEvents.forEach((ev) => {
+        const leftPct = Math.max(0, Math.min(90, (ev.mins - 480) / 720 * 100));
+        const widthPct = Math.max(8, Math.min(20, ev.duration / 720 * 100));
+        const isActive = ev.id === this.selectedAgendaEventId;
+        const capsule = document.createElement("div");
+        capsule.className = `agenda-event-capsule ${isActive ? "active" : ""}`;
+        capsule.dataset.id = ev.id;
+        capsule.dataset.title = ev.title;
+        capsule.dataset.time = ev.timeStr;
+        capsule.style.left = `${leftPct.toFixed(1)}%`;
+        capsule.style.width = `${widthPct.toFixed(1)}%`;
+        capsule.title = `${ev.timeStr} - ${ev.title}`;
+        const splitLine = document.createElement("span");
+        splitLine.className = "capsule-split-line";
+        capsule.appendChild(splitLine);
+        capsule.addEventListener("click", (e) => {
+          e.stopPropagation();
+          this.selectedAgendaEventId = ev.id;
+          this.renderAgendaTimeline();
+        });
+        container.appendChild(capsule);
+      });
+    }
+    renderAgendaMonth() {
+      const grid = document.getElementById("agenda-calendar-grid");
+      const titleEl = document.getElementById("agenda-month-title");
+      if (!grid) return;
+      grid.innerHTML = "";
+      const now = /* @__PURE__ */ new Date();
+      const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+      if (titleEl) titleEl.textContent = `${months[now.getMonth()]} ${now.getFullYear()}`;
+      const dayHeaders = ["S", "M", "T", "W", "T", "F", "S"];
+      dayHeaders.forEach((dh) => {
+        const headerCell = document.createElement("div");
+        headerCell.className = "cal-header-cell";
+        headerCell.textContent = dh;
+        grid.appendChild(headerCell);
+      });
+      const year = now.getFullYear();
+      const month = now.getMonth();
+      const firstDay = new Date(year, month, 1).getDay();
+      const totalDays = new Date(year, month + 1, 0).getDate();
+      const todayNum = now.getDate();
+      for (let i = 0; i < firstDay; i++) {
+        const emptyCell = document.createElement("div");
+        emptyCell.className = "cal-day-cell empty";
+        grid.appendChild(emptyCell);
+      }
+      for (let d = 1; d <= totalDays; d++) {
+        const dayCell = document.createElement("div");
+        dayCell.className = `cal-day-cell ${d === todayNum ? "today" : ""}`;
+        dayCell.textContent = String(d);
+        dayCell.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const dayBtn = document.getElementById("agenda-toggle-day");
+          dayBtn?.click();
+        });
+        grid.appendChild(dayCell);
       }
     }
     async loadTrayShelf(forceShowQr = false) {
