@@ -522,8 +522,8 @@ async function runTests() {
   assert('Agenda tab sets targetWidth to 540px', mockEngine.targetWidth === 540);
   assert('Agenda tab sets targetHeight to 280px', mockEngine.targetHeight === 280);
 
-  // --- 20. Testing Apple Notes Pad & Deterministic Ambient Feature Glow ---
-  console.log('\n--- 20. Testing Apple Notes Pad & Deterministic Ambient Feature Glow ---');
+  // --- 20. Testing Quick Notes Pad & Deterministic Ambient Feature Glow ---
+  console.log('\n--- 20. Testing Quick Notes Pad & Deterministic Ambient Feature Glow ---');
   assert('index.html contains #panel-notes section', indexHtml.includes('id="panel-notes"'));
   assert('index.html contains #notes-title-input', indexHtml.includes('id="notes-title-input"'));
   assert('index.html contains #notes-textarea', indexHtml.includes('id="notes-textarea"'));
@@ -538,6 +538,47 @@ async function runTests() {
   assert('island.css contains deterministic glow for music', islandCss.includes('data-active-tab="music"'));
   assert('island.css contains #panel-notes styling', islandCss.includes('#panel-notes'));
   assert('initNotesUI method exists on CanvasEngine prototype', typeof mockEngine.initNotesUI === 'function');
+
+  // --- 21. Testing Panel Specificity Isolation & Removal of "Apple Notes" Branding ---
+  console.log('\n--- 21. Testing Panel Specificity Isolation & Removal of "Apple Notes" Branding ---');
+  assert('island.css isolates inactive panels with display: none !important', islandCss.includes('.island-panel:not(.active)'));
+  assert('island.css ensures #panel-agenda is display: none when inactive', islandCss.includes('#panel-agenda') && islandCss.includes('#panel-agenda.active'));
+  assert('island.css ensures #panel-notes is display: none when inactive', islandCss.includes('#panel-notes') && islandCss.includes('#panel-notes.active'));
+  assert('index.html does not contain Apple Notes branding', !indexHtml.includes('Apple Notes'));
+  assert('index.html displays Quick Notes', indexHtml.includes('Quick Notes'));
+
+  // --- 22. Testing Spotify Synced Lyrics Stream & All 10 Features Functionality ---
+  console.log('\n--- 22. Testing Spotify Synced Lyrics Stream & All 10 Features Functionality ---');
+  assert('index.html contains #media-lyrics-wrap stream container', indexHtml.includes('id="media-lyrics-wrap"'));
+  assert('index.html contains #lyrics-line-prev', indexHtml.includes('id="lyrics-line-prev"'));
+  assert('index.html contains #lyrics-line-active', indexHtml.includes('id="lyrics-line-active"'));
+  assert('index.html contains #lyrics-line-next', indexHtml.includes('id="lyrics-line-next"'));
+  assert('island.css styles .media-lyrics-wrap container', islandCss.includes('.media-lyrics-wrap'));
+  assert('island.css styles lyrics-prev as dark & faint', islandCss.includes('.lyrics-line.lyrics-prev'));
+  assert('island.css styles lyrics-active as bright white glowing', islandCss.includes('.lyrics-line.lyrics-active'));
+  assert('island.css styles lyrics-next as dark & faint', islandCss.includes('.lyrics-line.lyrics-next'));
+  assert('updateLyricsDom method exists on CanvasEngine prototype', typeof mockEngine.updateLyricsDom === 'function');
+
+  // Verify all 10 features targetDimensions
+  const featureTests = [
+    { tab: 'home', expectedW: 520, expectedH: 240 },
+    { tab: 'ai', expectedW: 520, expectedH: 310 },
+    { tab: 'music', expectedW: 520, expectedH: 300 },
+    { tab: 'chat', expectedW: 520, expectedH: 320 },
+    { tab: 'focus', expectedW: 520, expectedH: 270 },
+    { tab: 'tray', expectedW: 520, expectedH: 270 },
+    { tab: 'clipboard', expectedW: 560, expectedH: 370 },
+    { tab: 'notes', expectedW: 520, expectedH: 270 },
+    { tab: 'agenda', expectedW: 540, expectedH: 280 },
+    { tab: 'settings', expectedW: 520, expectedH: 300 },
+  ];
+
+  featureTests.forEach(({ tab, expectedW, expectedH }) => {
+    mockEngine.mode = 'expanded';
+    mockEngine.currentDomTab = tab;
+    mockEngine.updateTargetDimensions();
+    assert(`Feature "${tab}" dimensions: ${expectedW}x${expectedH}px`, mockEngine.targetWidth === expectedW && mockEngine.targetHeight === expectedH);
+  });
 
   // Summary
   console.log('\n====================================================');

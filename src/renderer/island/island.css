@@ -345,14 +345,15 @@ html, body {
   overflow: hidden;
 }
 
-.island-panel {
-  display: none;
+.island-panel,
+.island-panel:not(.active) {
+  display: none !important;
   width: 100%;
   height: 100%;
 }
 
 .island-panel.active {
-  display: block;
+  display: flex !important;
 }
 
 /* 1. Home Cards Grid (Screenshot 01) */
@@ -1958,6 +1959,61 @@ html, body {
   overflow: hidden;
   text-overflow: ellipsis;
   line-height: 1.2;
+}
+
+/* Spotify-Style Synced Lyrics Stream (Active vs Dark & Faint) */
+.media-lyrics-wrap {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 2px;
+  padding: 4px 12px;
+  margin: 2px 0 5px 0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  min-height: 52px;
+  max-height: 60px;
+  overflow: hidden;
+  user-select: none;
+}
+
+.lyrics-line {
+  width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.lyrics-line.lyrics-prev {
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.28);
+  min-height: 14px;
+  line-height: 14px;
+}
+
+.lyrics-line.lyrics-active {
+  font-size: 14px;
+  font-weight: 700;
+  color: #ffffff;
+  text-shadow: 0 0 12px rgba(255, 255, 255, 0.45);
+  letter-spacing: -0.2px;
+  min-height: 18px;
+  line-height: 18px;
+}
+
+.lyrics-line.lyrics-next {
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.38);
+  min-height: 14px;
+  line-height: 14px;
 }
 
 .media-scrub-container {
@@ -4337,14 +4393,18 @@ html, body {
    ========================================================================== */
 
 #panel-agenda {
+  display: none;
   padding: 8px 18px 4px;
-  display: flex;
   flex-direction: column;
   justify-content: space-between;
   height: 100%;
   box-sizing: border-box;
   position: relative;
   z-index: 2;
+}
+
+#panel-agenda.active {
+  display: flex !important;
 }
 
 .agenda-content {
@@ -4765,12 +4825,12 @@ html, body {
 }
 
 /* ==========================================================================
-   APPLE NOTES PANEL PARITY (#panel-notes)
-   Mac Sonoma & iOS 18 Apple Notes Textured Notepad Experience
+   QUICK NOTES PANEL PARITY (#panel-notes)
+   Clean Textured Notepad Experience
    ========================================================================== */
 #panel-notes {
+  display: none;
   padding: 6px 14px 4px;
-  display: flex;
   flex-direction: column;
   height: 100%;
   box-sizing: border-box;

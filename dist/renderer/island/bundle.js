@@ -2890,6 +2890,34 @@
       if (btStatusEl) btStatusEl.textContent = this.netState.btOn ? this.netState.btDevice || "Active" : "Off";
       if (tileBtEl) tileBtEl.classList.toggle("active", this.netState.btOn);
     }
+    /**
+     * Spotify-Style Synced Lyrics Stream DOM updater:
+     * Keeps prev (dark & faint), active (bright white bold), and next (dark & faint) synchronized.
+     */
+    updateLyricsDom() {
+      const prevEl = document.getElementById("lyrics-line-prev");
+      const activeEl = document.getElementById("lyrics-line-active");
+      const nextEl = document.getElementById("lyrics-line-next");
+      if (!activeEl) return;
+      if (this.mediaState.playing && this.mediaState.active) {
+        if (this.hasSyncedLyrics()) {
+          const lyr = this.getLyricAround();
+          if (lyr && (lyr.now || lyr.before || lyr.next)) {
+            if (prevEl) prevEl.textContent = lyr.before || "";
+            activeEl.textContent = lyr.now || "\u266A";
+            if (nextEl) nextEl.textContent = lyr.next || "";
+            return;
+          }
+        }
+        if (prevEl) prevEl.textContent = "";
+        activeEl.textContent = this.mediaState.title ? `\u266A ${this.mediaState.title}` : "Playing";
+        if (nextEl) nextEl.textContent = this.mediaState.artist || "";
+      } else {
+        if (prevEl) prevEl.textContent = "";
+        activeEl.textContent = "Play music to sync live lyrics";
+        if (nextEl) nextEl.textContent = "";
+      }
+    }
     lastTime = performance.now();
     // UX-4: Resource Optimization — idle frame throttling and dirty-flag render
     _idleFrameCount = 0;
@@ -3781,7 +3809,7 @@
         const isMusicWithLyrics = (tab === "music" || this.activeTab === "media") && this.hasSyncedLyrics();
         switch (tab) {
           case "music":
-            this.targetHeight = 280;
+            this.targetHeight = 300;
             break;
           case "chat":
             this.targetHeight = 320;
@@ -6696,25 +6724,33 @@
       };
       const trackName = getTrackDisplayName();
       const lyric = this.hasSyncedLyrics() ? this.getLyricNow() : null;
-      const line = (s, dy) => {
+      const line = (s, dy, isActive = false) => {
         if (!s) return;
         const alpha = Math.max(0, 1 - Math.abs(dy) / band);
         if (alpha <= 0.01) return;
         this.ctx.save();
         this.ctx.globalAlpha *= alpha;
-        let fontSz = 12.5;
-        this.ctx.font = `500 ${fontSz}px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+        let fontSz = isActive ? 13 : 11.5;
+        const weight = isActive ? "700" : "500";
+        this.ctx.font = `${weight} ${fontSz}px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
         const full = this.ctx.measureText(s).width;
         if (full > w) {
-          fontSz = Math.max(10.5, 12.5 * w / full);
-          this.ctx.font = `500 ${fontSz.toFixed(1)}px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+          fontSz = Math.max(10, fontSz * w / full);
+          this.ctx.font = `${weight} ${fontSz.toFixed(1)}px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
         }
         let text = s;
         while (text.length > 1 && this.ctx.measureText(text + "...").width > w) {
           text = text.slice(0, -1);
         }
         if (text !== s) text += "...";
-        this.ctx.fillStyle = "#ffffff";
+        if (isActive) {
+          this.ctx.fillStyle = "#ffffff";
+          this.ctx.shadowColor = "rgba(255, 255, 255, 0.45)";
+          this.ctx.shadowBlur = 8;
+        } else {
+          this.ctx.fillStyle = "rgba(255, 255, 255, 0.35)";
+          this.ctx.shadowBlur = 0;
+        }
         this.ctx.textAlign = "center";
         this.ctx.textBaseline = "middle";
         this.ctx.fillText(text, x0 + w / 2, cy + 0.5 + dy);
@@ -6728,11 +6764,11 @@
         this.ctx.beginPath();
         this.ctx.rect(x0 - 4, cy - band / 2 - 2, w + 8, band + 4);
         this.ctx.clip();
-        line(prev, -band * k);
-        line(curr, band * (1 - k));
+        line(prev, -band * k, false);
+        line(curr, band * (1 - k), true);
         this.ctx.restore();
       } else {
-        line(trackName, 0);
+        line(trackName, 0, true);
       }
     }
     /**
@@ -7553,13 +7589,17 @@
         this.ctx.textAlign = "left";
         this.ctx.textBaseline = "alphabetic";
         this.ctx.font = '500 12px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-        this.ctx.fillStyle = "rgba(255, 255, 255, 0.32)";
+        this.ctx.fillStyle = "rgba(255, 255, 255, 0.28)";
+        this.ctx.shadowBlur = 0;
         this.ctx.fillText(lyr.before, x0, ly + 12 + push);
         this.ctx.font = '700 15px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
         this.ctx.fillStyle = lyr.now ? "#ffffff" : "rgba(255, 255, 255, 0.5)";
+        this.ctx.shadowColor = "rgba(255, 255, 255, 0.45)";
+        this.ctx.shadowBlur = 10;
         this.ctx.fillText(lyr.now || "\u266A", x0, ly + 12 + step + push);
+        this.ctx.shadowBlur = 0;
         this.ctx.font = '500 12px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-        this.ctx.fillStyle = "rgba(255, 255, 255, 0.45)";
+        this.ctx.fillStyle = "rgba(255, 255, 255, 0.38)";
         this.ctx.fillText(lyr.next, x0, ly + 12 + step * 2 + push);
         this.ctx.restore();
       }
@@ -8365,7 +8405,7 @@
         document.getElementById("panel-tray")?.classList.add("active");
         this.loadTrayShelf();
       } else if (tab === "notes") {
-        setTwoToneTitle("Apple ", "Notes", "#ffd60a");
+        setTwoToneTitle("Quick ", "Notes", "#ffd60a");
         document.getElementById("panel-notes")?.classList.add("active");
         this.initNotesUI();
       } else if (tab === "clipboard") {
@@ -9353,6 +9393,7 @@
         weatherCond.textContent = this.weatherState.condition || "Clear";
       }
       this.updateNetworkDom();
+      this.updateLyricsDom();
       if (this.albumAccentColor) {
         document.documentElement.style.setProperty("--album-tint-hex", this.albumAccentColor);
         document.documentElement.style.setProperty("--album-tint-rgb", `${this.currentTintR}, ${this.currentTintG}, ${this.currentTintB}`);

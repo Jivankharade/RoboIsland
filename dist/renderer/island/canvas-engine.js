@@ -1568,6 +1568,44 @@ class CanvasEngine {
         if (tileBtEl)
             tileBtEl.classList.toggle('active', this.netState.btOn);
     }
+    /**
+     * Spotify-Style Synced Lyrics Stream DOM updater:
+     * Keeps prev (dark & faint), active (bright white bold), and next (dark & faint) synchronized.
+     */
+    updateLyricsDom() {
+        const prevEl = document.getElementById('lyrics-line-prev');
+        const activeEl = document.getElementById('lyrics-line-active');
+        const nextEl = document.getElementById('lyrics-line-next');
+        if (!activeEl)
+            return;
+        if (this.mediaState.playing && this.mediaState.active) {
+            if (this.hasSyncedLyrics()) {
+                const lyr = this.getLyricAround();
+                if (lyr && (lyr.now || lyr.before || lyr.next)) {
+                    if (prevEl)
+                        prevEl.textContent = lyr.before || '';
+                    activeEl.textContent = lyr.now || '♪';
+                    if (nextEl)
+                        nextEl.textContent = lyr.next || '';
+                    return;
+                }
+            }
+            // Playing but no synced lyrics available
+            if (prevEl)
+                prevEl.textContent = '';
+            activeEl.textContent = this.mediaState.title ? `♪ ${this.mediaState.title}` : 'Playing';
+            if (nextEl)
+                nextEl.textContent = this.mediaState.artist || '';
+        }
+        else {
+            // Idle / standby
+            if (prevEl)
+                prevEl.textContent = '';
+            activeEl.textContent = 'Play music to sync live lyrics';
+            if (nextEl)
+                nextEl.textContent = '';
+        }
+    }
     lastTime = performance.now();
     // UX-4: Resource Optimization — idle frame throttling and dirty-flag render
     _idleFrameCount = 0;
@@ -2542,7 +2580,7 @@ class CanvasEngine {
             const isMusicWithLyrics = (tab === 'music' || this.activeTab === 'media') && this.hasSyncedLyrics();
             switch (tab) {
                 case 'music':
-                    this.targetHeight = 280;
+                    this.targetHeight = 300;
                     break;
                 case 'chat':
                     this.targetHeight = 320;
@@ -5833,7 +5871,7 @@ class CanvasEngine {
         };
         const trackName = getTrackDisplayName();
         const lyric = this.hasSyncedLyrics() ? this.getLyricNow() : null;
-        const line = (s, dy) => {
+        const line = (s, dy, isActive = false) => {
             if (!s)
                 return;
             const alpha = Math.max(0, 1 - Math.abs(dy) / band);
@@ -5841,12 +5879,13 @@ class CanvasEngine {
                 return;
             this.ctx.save();
             this.ctx.globalAlpha *= alpha;
-            let fontSz = 12.5;
-            this.ctx.font = `500 ${fontSz}px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+            let fontSz = isActive ? 13 : 11.5;
+            const weight = isActive ? '700' : '500';
+            this.ctx.font = `${weight} ${fontSz}px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
             const full = this.ctx.measureText(s).width;
             if (full > w) {
-                fontSz = Math.max(10.5, 12.5 * w / full);
-                this.ctx.font = `500 ${fontSz.toFixed(1)}px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+                fontSz = Math.max(10, fontSz * w / full);
+                this.ctx.font = `${weight} ${fontSz.toFixed(1)}px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
             }
             let text = s;
             while (text.length > 1 && this.ctx.measureText(text + '...').width > w) {
@@ -5854,7 +5893,16 @@ class CanvasEngine {
             }
             if (text !== s)
                 text += '...';
-            this.ctx.fillStyle = '#ffffff';
+            if (isActive) {
+                this.ctx.fillStyle = '#ffffff';
+                this.ctx.shadowColor = 'rgba(255, 255, 255, 0.45)';
+                this.ctx.shadowBlur = 8;
+            }
+            else {
+                // Spotify past/upcoming line: dark and faint
+                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+                this.ctx.shadowBlur = 0;
+            }
             this.ctx.textAlign = 'center';
             this.ctx.textBaseline = 'middle';
             this.ctx.fillText(text, x0 + w / 2, cy + 0.5 + dy);
@@ -5868,13 +5916,13 @@ class CanvasEngine {
             this.ctx.beginPath();
             this.ctx.rect(x0 - 4, cy - band / 2 - 2, w + 8, band + 4);
             this.ctx.clip();
-            line(prev, -band * k);
-            line(curr, band * (1 - k));
+            line(prev, -band * k, false); // outgoing/previous: dark and faint
+            line(curr, band * (1 - k), true); // ongoing/active: bright white bold
             this.ctx.restore();
         }
         else {
             // Steady display of Track Name or Ad Name (zero eyes during media playback)
-            line(trackName, 0);
+            line(trackName, 0, true);
         }
     }
     /**
@@ -6778,17 +6826,21 @@ class CanvasEngine {
             this.ctx.clip();
             this.ctx.textAlign = 'left';
             this.ctx.textBaseline = 'alphabetic';
-            // Line before (dim)
+            // Line before (Spotify past line: dark and faint)
             this.ctx.font = '500 12px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.32)';
+            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.28)';
+            this.ctx.shadowBlur = 0;
             this.ctx.fillText(lyr.before, x0, ly + 12 + push);
-            // Now sung line (bold white 15px)
+            // Now sung line (Spotify active line: bright white bold with glow)
             this.ctx.font = '700 15px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
             this.ctx.fillStyle = lyr.now ? '#ffffff' : 'rgba(255, 255, 255, 0.5)';
+            this.ctx.shadowColor = 'rgba(255, 255, 255, 0.45)';
+            this.ctx.shadowBlur = 10;
             this.ctx.fillText(lyr.now || '♪', x0, ly + 12 + step + push);
-            // Next line (dim)
+            // Next line (Spotify upcoming line: dark and faint)
+            this.ctx.shadowBlur = 0;
             this.ctx.font = '500 12px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.38)';
             this.ctx.fillText(lyr.next, x0, ly + 12 + step * 2 + push);
             this.ctx.restore();
         }
@@ -7689,7 +7741,7 @@ class CanvasEngine {
             this.loadTrayShelf();
         }
         else if (tab === 'notes') {
-            setTwoToneTitle('Apple ', 'Notes', '#ffd60a');
+            setTwoToneTitle('Quick ', 'Notes', '#ffd60a');
             document.getElementById('panel-notes')?.classList.add('active');
             this.initNotesUI();
         }
@@ -8803,6 +8855,8 @@ class CanvasEngine {
         }
         // Wi-Fi & Bluetooth Popover Status
         this.updateNetworkDom();
+        // Spotify Synced Lyrics DOM Stream
+        this.updateLyricsDom();
         // Sync album tint variables on document root
         if (this.albumAccentColor) {
             document.documentElement.style.setProperty('--album-tint-hex', this.albumAccentColor);
