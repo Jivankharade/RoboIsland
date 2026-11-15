@@ -5116,6 +5116,7 @@
           if (this.domOverlayEl) {
             this.domOverlayEl.classList.remove("hidden");
             this.updateDomOverlay(cx, topY);
+            this.updateAmbientGlow(this.currentDomTab);
           }
           const eyeSlot = document.getElementById("mascot-eye-slot");
           if (eyeSlot) {
@@ -8318,6 +8319,7 @@
         this.activeTab = "tray";
       }
       this.updateTargetDimensions();
+      this.updateAmbientGlow(tab);
       if (!this.domOverlayEl) return;
       const navItems = this.domOverlayEl.querySelectorAll(".nav-item");
       navItems.forEach((item) => {
@@ -8388,15 +8390,71 @@
         document.getElementById("panel-home")?.classList.add("active");
       }
     }
+    /**
+     * Apple Mac / iOS Dynamic Ambient Feature Glow
+     * Changes bottom radiant aura dynamically to match the active feature & album artwork
+     */
+    updateAmbientGlow(tab) {
+      const overlay = this.domOverlayEl || document.getElementById("expanded-island-overlay");
+      if (!overlay) return;
+      let primary = "rgba(255, 255, 255, 0.16)";
+      let secondary = "rgba(140, 140, 160, 0.08)";
+      let accent = "#ffffff";
+      switch (tab) {
+        case "agenda":
+          primary = "rgba(0, 112, 243, 0.52)";
+          secondary = "rgba(2, 132, 199, 0.24)";
+          accent = "#0070f3";
+          break;
+        case "music": {
+          const r = this.currentTintR || 30;
+          const g = this.currentTintG || 215;
+          const b = this.currentTintB || 96;
+          primary = `rgba(${r}, ${g}, ${b}, 0.50)`;
+          secondary = `rgba(${Math.round(r * 0.65)}, ${Math.round(g * 0.65)}, ${Math.round(b * 0.65)}, 0.22)`;
+          accent = this.albumAccentColor || "#1ed760";
+          break;
+        }
+        case "ai":
+          primary = "rgba(217, 119, 87, 0.52)";
+          secondary = "rgba(245, 158, 11, 0.22)";
+          accent = "#d97757";
+          break;
+        case "chat":
+          primary = "rgba(48, 209, 88, 0.50)";
+          secondary = "rgba(52, 199, 89, 0.22)";
+          accent = "#30d158";
+          break;
+        case "focus":
+          primary = "rgba(191, 90, 242, 0.52)";
+          secondary = "rgba(142, 68, 173, 0.22)";
+          accent = "#bf5af2";
+          break;
+        case "tray":
+        case "notes":
+          primary = "rgba(255, 214, 10, 0.48)";
+          secondary = "rgba(245, 158, 11, 0.22)";
+          accent = "#ffd60a";
+          break;
+        case "clipboard":
+          primary = "rgba(100, 210, 255, 0.50)";
+          secondary = "rgba(0, 150, 255, 0.22)";
+          accent = "#64d2ff";
+          break;
+        case "home":
+        case "settings":
+        default:
+          primary = "rgba(255, 255, 255, 0.16)";
+          secondary = "rgba(140, 140, 160, 0.08)";
+          accent = "#ffffff";
+          break;
+      }
+      overlay.style.setProperty("--feature-glow-primary", primary);
+      overlay.style.setProperty("--feature-glow-secondary", secondary);
+      overlay.style.setProperty("--feature-glow-accent", accent);
+    }
     initAgendaUI() {
       if (!this.domOverlayEl) return;
-      try {
-        const savedEmail = localStorage.getItem("roboisland_agenda_email");
-        if (savedEmail) this.agendaAccountEmail = savedEmail;
-      } catch {
-      }
-      const emailEl = document.getElementById("nav-account-email");
-      if (emailEl) emailEl.textContent = this.agendaAccountEmail;
       const now = /* @__PURE__ */ new Date();
       const dateEl = document.getElementById("agenda-date-str");
       if (dateEl) {
@@ -8502,22 +8560,6 @@
         e.stopPropagation();
         window.roboIsland?.openSettings();
       });
-      const accountEmailEl = document.getElementById("nav-account-email");
-      const accountAddBtn = document.getElementById("nav-account-add-btn");
-      const promptChangeEmail = (e) => {
-        e.stopPropagation();
-        const newEmail = window.prompt("Connect Google or Apple Calendar account:", this.agendaAccountEmail);
-        if (newEmail && newEmail.trim()) {
-          this.agendaAccountEmail = newEmail.trim();
-          if (accountEmailEl) accountEmailEl.textContent = this.agendaAccountEmail;
-          try {
-            localStorage.setItem("roboisland_agenda_email", this.agendaAccountEmail);
-          } catch {
-          }
-        }
-      };
-      accountEmailEl?.addEventListener("click", promptChangeEmail);
-      accountAddBtn?.addEventListener("click", promptChangeEmail);
     }
     renderAgendaTimeline() {
       const container = document.getElementById("agenda-events-container");

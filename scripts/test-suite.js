@@ -495,21 +495,25 @@ async function runTests() {
   assert('index.html contains month calendar view', indexHtml.includes('id="agenda-month-view"'));
 
   // Clean Centered Dock verification
-  assert('index.html contains nav-account-pill with you@gmail.com', indexHtml.includes('class="nav-account-pill"') && indexHtml.includes('you@gmail.com'));
+  assert('index.html removed you@gmail.com as requested', !indexHtml.includes('you@gmail.com'));
+  assert('index.html contains nav-dock-spacer-left for true dock centering', indexHtml.includes('class="nav-dock-spacer-left"'));
   assert('index.html contains nav-dock-center wrapper', indexHtml.includes('class="nav-dock-center"'));
   assert('index.html contains data-tab="agenda" dock item', indexHtml.includes('data-tab="agenda"'));
 
-  // Mac Ambient Glow & Clean CSS verification
+  // Mac Dynamic Ambient Glow & Clean CSS verification
   assert('island.css contains expanded-island-overlay::after ambient glow', islandCss.includes('#expanded-island-overlay::after') && islandCss.includes('radial-gradient'));
+  assert('island.css uses dynamic CSS variable for feature glow', islandCss.includes('var(--feature-glow-primary'));
   assert('island.css contains nav-dock-center centered dock styling', islandCss.includes('.nav-dock-center'));
   assert('island.css hides nav-label for inactive tabs', islandCss.includes('.nav-item .nav-label') && islandCss.includes('display: none'));
   assert('island.css shows uppercase nav-label for active tab', islandCss.includes('.nav-item.active .nav-label') && islandCss.includes('text-transform: uppercase'));
   assert('island.css styles agenda active tab with Apple oceanic blue glow', islandCss.includes('.nav-item.active[data-tab="agenda"]'));
+  assert('island.css styles music active tab with Spotify green glow', islandCss.includes('.nav-item.active[data-tab="music"]'));
 
   // CanvasEngine methods verification
   assert('initAgendaUI method exists on CanvasEngine prototype', typeof mockEngine.initAgendaUI === 'function');
   assert('renderAgendaTimeline method exists on CanvasEngine prototype', typeof mockEngine.renderAgendaTimeline === 'function');
   assert('renderAgendaMonth method exists on CanvasEngine prototype', typeof mockEngine.renderAgendaMonth === 'function');
+  assert('updateAmbientGlow method exists on CanvasEngine prototype', typeof mockEngine.updateAmbientGlow === 'function');
 
   // Dimension test for Agenda
   mockEngine.mode = 'expanded';

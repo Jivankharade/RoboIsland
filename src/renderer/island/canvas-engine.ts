@@ -4208,6 +4208,7 @@ export class CanvasEngine {
         if (this.domOverlayEl) {
           this.domOverlayEl.classList.remove('hidden');
           this.updateDomOverlay(cx, topY);
+          this.updateAmbientGlow(this.currentDomTab);
         }
         // In DOM mode, draw capsule eyes inside the dedicated #mascot-eye-slot element
         const eyeSlot = document.getElementById('mascot-eye-slot');
@@ -8174,6 +8175,7 @@ export class CanvasEngine {
       this.activeTab = 'tray';
     }
     this.updateTargetDimensions();
+    this.updateAmbientGlow(tab);
     if (!this.domOverlayEl) return;
 
     // Update active nav button
@@ -8253,17 +8255,83 @@ export class CanvasEngine {
     }
   }
 
+  /**
+   * Apple Mac / iOS Dynamic Ambient Feature Glow
+   * Changes bottom radiant aura dynamically to match the active feature & album artwork
+   */
+  public updateAmbientGlow(tab: string): void {
+    const overlay = this.domOverlayEl || document.getElementById('expanded-island-overlay');
+    if (!overlay) return;
+
+    let primary = 'rgba(255, 255, 255, 0.16)';
+    let secondary = 'rgba(140, 140, 160, 0.08)';
+    let accent = '#ffffff';
+
+    switch (tab) {
+      case 'agenda':
+        // Apple Calendar oceanic blue
+        primary = 'rgba(0, 112, 243, 0.52)';
+        secondary = 'rgba(2, 132, 199, 0.24)';
+        accent = '#0070f3';
+        break;
+      case 'music': {
+        // Spotify / Apple Music emerald green or dynamic album artwork tint
+        const r = this.currentTintR || 30;
+        const g = this.currentTintG || 215;
+        const b = this.currentTintB || 96;
+        primary = `rgba(${r}, ${g}, ${b}, 0.50)`;
+        secondary = `rgba(${Math.round(r * 0.65)}, ${Math.round(g * 0.65)}, ${Math.round(b * 0.65)}, 0.22)`;
+        accent = this.albumAccentColor || '#1ed760';
+        break;
+      }
+      case 'ai':
+        // Anthropic warm terracotta / sunset amber
+        primary = 'rgba(217, 119, 87, 0.52)';
+        secondary = 'rgba(245, 158, 11, 0.22)';
+        accent = '#d97757';
+        break;
+      case 'chat':
+        // Apple Messages spring green
+        primary = 'rgba(48, 209, 88, 0.50)';
+        secondary = 'rgba(52, 199, 89, 0.22)';
+        accent = '#30d158';
+        break;
+      case 'focus':
+        // Mindfulness lavender & violet purple
+        primary = 'rgba(191, 90, 242, 0.52)';
+        secondary = 'rgba(142, 68, 173, 0.22)';
+        accent = '#bf5af2';
+        break;
+      case 'tray':
+      case 'notes':
+        // Warm golden amber
+        primary = 'rgba(255, 214, 10, 0.48)';
+        secondary = 'rgba(245, 158, 11, 0.22)';
+        accent = '#ffd60a';
+        break;
+      case 'clipboard':
+        // Electric ice cyan
+        primary = 'rgba(100, 210, 255, 0.50)';
+        secondary = 'rgba(0, 150, 255, 0.22)';
+        accent = '#64d2ff';
+        break;
+      case 'home':
+      case 'settings':
+      default:
+        // Frosted Apple glass neutral silver
+        primary = 'rgba(255, 255, 255, 0.16)';
+        secondary = 'rgba(140, 140, 160, 0.08)';
+        accent = '#ffffff';
+        break;
+    }
+
+    overlay.style.setProperty('--feature-glow-primary', primary);
+    overlay.style.setProperty('--feature-glow-secondary', secondary);
+    overlay.style.setProperty('--feature-glow-accent', accent);
+  }
+
   public initAgendaUI(): void {
     if (!this.domOverlayEl) return;
-
-    // Load saved account email if exists
-    try {
-      const savedEmail = localStorage.getItem('roboisland_agenda_email');
-      if (savedEmail) this.agendaAccountEmail = savedEmail;
-    } catch {}
-
-    const emailEl = document.getElementById('nav-account-email');
-    if (emailEl) emailEl.textContent = this.agendaAccountEmail;
 
     // Update Header Date / Weather and Live Clock
     const now = new Date();
@@ -8391,23 +8459,6 @@ export class CanvasEngine {
       e.stopPropagation();
       window.roboIsland?.openSettings();
     });
-
-    // Connected Account Email Click to edit / sync
-    const accountEmailEl = document.getElementById('nav-account-email');
-    const accountAddBtn = document.getElementById('nav-account-add-btn');
-    const promptChangeEmail = (e: MouseEvent) => {
-      e.stopPropagation();
-      const newEmail = window.prompt('Connect Google or Apple Calendar account:', this.agendaAccountEmail);
-      if (newEmail && newEmail.trim()) {
-        this.agendaAccountEmail = newEmail.trim();
-        if (accountEmailEl) accountEmailEl.textContent = this.agendaAccountEmail;
-        try {
-          localStorage.setItem('roboisland_agenda_email', this.agendaAccountEmail);
-        } catch {}
-      }
-    };
-    accountEmailEl?.addEventListener('click', promptChangeEmail);
-    accountAddBtn?.addEventListener('click', promptChangeEmail);
   }
 
   public renderAgendaTimeline(): void {
