@@ -5,6 +5,9 @@ const api = {
   setInteractive: (interactive: boolean) => {
     ipcRenderer.send('island:set-interactive', interactive);
   },
+  focusWindow: () => {
+    ipcRenderer.send('island:focus');
+  },
   setIslandMode: (mode: 'rest' | 'compact' | 'expanded') => ipcRenderer.invoke('island:set-mode', mode),
   getIslandMode: () => ipcRenderer.invoke('island:get-mode'),
   getModeBounds: (mode: 'rest' | 'compact' | 'expanded') => ipcRenderer.invoke('island:get-mode-bounds', mode),

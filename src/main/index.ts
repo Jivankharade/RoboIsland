@@ -170,6 +170,14 @@ function setupAppIPC(): void {
     islandWindow?.getWindow()?.webContents.send('island:toggle-expand');
   });
 
+  ipcMain.on('island:focus', () => {
+    const win = islandWindow?.getWindow();
+    if (win && !win.isDestroyed()) {
+      win.show();
+      win.focus();
+    }
+  });
+
   ipcMain.on('island:notify', (_event, payload) => {
     islandWindow?.getWindow()?.webContents.send('island:notify', payload);
   });

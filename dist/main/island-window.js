@@ -172,6 +172,12 @@ class IslandWindow {
             return;
         this.isInteractive = effectiveInteractive;
         this.window.setIgnoreMouseEvents(!effectiveInteractive, { forward: true });
+        if (effectiveInteractive) {
+            try {
+                this.window.focus();
+            }
+            catch { }
+        }
     }
     reposition() {
         if (!this.window || this.window.isDestroyed())

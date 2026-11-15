@@ -10,6 +10,17 @@
   <!-- Existing Canvas remains 100% intact for resting capsule eyes, physics, and compact state -->
   <canvas id="island-canvas"></canvas>
 
+  <!-- Apple iPhone / Mac Style WhatsApp Quick Reply Overlay Input -->
+  <div id="whatsapp-quick-reply-bar" class="whatsapp-quick-reply-bar hidden">
+    <input type="text" id="whatsapp-reply-input" class="whatsapp-reply-input" placeholder="Type a reply..." autocomplete="off" spellcheck="false" maxlength="280">
+    <button type="button" id="whatsapp-reply-send-btn" class="whatsapp-reply-send-btn" title="Send Reply">
+      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="22" y1="2" x2="11" y2="13"></line>
+        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+      </svg>
+    </button>
+  </div>
+
   <!-- Hybrid HTML/CSS Expanded Island Overlay (Screenshots 01, 03, 04, 07, 08) -->
   <div id="expanded-island-overlay" class="hidden">
     <!-- Apple AirDrop Transfer Notification Toast -->

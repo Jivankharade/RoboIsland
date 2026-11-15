@@ -6,6 +6,9 @@ const api = {
     setInteractive: (interactive) => {
         electron_1.ipcRenderer.send('island:set-interactive', interactive);
     },
+    focusWindow: () => {
+        electron_1.ipcRenderer.send('island:focus');
+    },
     setIslandMode: (mode) => electron_1.ipcRenderer.invoke('island:set-mode', mode),
     getIslandMode: () => electron_1.ipcRenderer.invoke('island:get-mode'),
     getModeBounds: (mode) => electron_1.ipcRenderer.invoke('island:get-mode-bounds', mode),

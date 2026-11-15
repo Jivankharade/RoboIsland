@@ -146,6 +146,9 @@ export class IslandWindow {
 
     this.isInteractive = effectiveInteractive;
     this.window.setIgnoreMouseEvents(!effectiveInteractive, { forward: true });
+    if (effectiveInteractive) {
+      try { this.window.focus(); } catch {}
+    }
   }
 
   public reposition(): void {

@@ -244,12 +244,21 @@ async function runTests() {
   const getColor = CanvasEngine.prototype.getNotificationColor;
   const getRgb = CanvasEngine.prototype.getNotificationRgb;
   assert('Notification color for WhatsApp matches #25d366', getColor('whatsapp') === '#25d366');
+  assert('Notification color for Antigravity matches #818cf8', getColor('antigravity') === '#818cf8');
+  assert('Notification color for Windows Defender matches #0078d4', getColor('defender') === '#0078d4');
+  assert('Notification color for Snipping Tool matches #8b5cf6', getColor('snipping') === '#8b5cf6');
+  assert('Notification color for Terminal matches #38bdf8', getColor('terminal') === '#38bdf8');
   assert('Notification color for Chrome matches #4285f4', getColor('chrome') === '#4285f4');
   assert('Notification color for Mail matches #0078d4', getColor('mail') === '#0078d4');
   assert('Notification color for active Download matches #00d2ff', getColor('download') === '#00d2ff');
   assert('Download complete notification color matches #22e05a (Green Smile)', getColor('download', 'complete') === '#22e05a');
   assert('Download error/cancelled notification color matches #ff3b3b (Red Frown)', getColor('download', 'error') === '#ff3b3b');
   assert('Notification RGB for Chrome matches r:66, g:133, b:244', getRgb('chrome').r === 66 && getRgb('chrome').g === 133);
+  assert('Notification RGB for Antigravity matches r:129, g:140, b:248', getRgb('antigravity').r === 129 && getRgb('antigravity').g === 140);
+  assert('resolveNotificationKindStatic detects Antigravity', CanvasEngine.resolveNotificationKindStatic('info', undefined, 'Antigravity') === 'antigravity');
+  assert('resolveNotificationKindStatic detects Windows Defender', CanvasEngine.resolveNotificationKindStatic('info', undefined, 'Windows Security') === 'defender');
+  assert('resolveNotificationKindStatic detects Snipping Tool', CanvasEngine.resolveNotificationKindStatic('info', undefined, 'Snipping Tool') === 'snipping');
+  assert('resolveNotificationKindStatic detects Terminal', CanvasEngine.resolveNotificationKindStatic('info', undefined, 'PowerShell') === 'terminal');
   assert('drawAppleAppIcon method exists on CanvasEngine prototype', typeof CanvasEngine.prototype.drawAppleAppIcon === 'function');
 
   // 11. Testing Mascot Happy Green Smile & Sad Red Reactions
@@ -290,6 +299,9 @@ async function runTests() {
     closePath: () => {},
     translate: () => {},
     rotate: () => {},
+    bezierCurveTo: () => {},
+    fillText: () => {},
+    measureText: () => ({ width: 10 }),
     createLinearGradient: () => ({ addColorStop: () => {} })
   };
   const mockEngine = Object.create(CanvasEngine.prototype);
@@ -301,7 +313,10 @@ async function runTests() {
   assert('drawAppleAppIcon returns true for Chrome', mockEngine.drawAppleAppIcon(0, 0, 11, 'chrome') === true);
   assert('drawAppleAppIcon returns true for Mail', mockEngine.drawAppleAppIcon(0, 0, 11, 'mail') === true);
   assert('drawAppleAppIcon returns true for Download', mockEngine.drawAppleAppIcon(0, 0, 11, 'download') === true);
-  assert('drawAppleAppIcon returns false for Snipping Tool / Unknown (Zero generic mascot eyes)', mockEngine.drawAppleAppIcon(0, 0, 11, 'info', undefined, 'Snipping Tool') === false);
+  assert('drawAppleAppIcon returns true for Snipping Tool', mockEngine.drawAppleAppIcon(0, 0, 11, 'info', undefined, 'Snipping Tool') === true);
+  assert('drawAppleAppIcon returns true for Antigravity', mockEngine.drawAppleAppIcon(0, 0, 11, 'info', undefined, 'Antigravity') === true);
+  assert('drawAppleAppIcon returns true for Windows Defender', mockEngine.drawAppleAppIcon(0, 0, 11, 'info', undefined, 'Windows Security') === true);
+  assert('drawAppleAppIcon returns true for automatic System app detection', mockEngine.drawAppleAppIcon(0, 0, 11, 'info', undefined, 'Notepad') === true);
 
   // 14. Testing Dynamic Compact Music Lyric Expansion
   console.log('\n--- 14. Testing Dynamic Music Pill Lyric Expansion ---');

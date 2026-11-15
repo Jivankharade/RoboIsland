@@ -187,6 +187,13 @@ function setupAppIPC() {
     electron_1.ipcMain.on('island:toggle-expand', () => {
         islandWindow?.getWindow()?.webContents.send('island:toggle-expand');
     });
+    electron_1.ipcMain.on('island:focus', () => {
+        const win = islandWindow?.getWindow();
+        if (win && !win.isDestroyed()) {
+            win.show();
+            win.focus();
+        }
+    });
     electron_1.ipcMain.on('island:notify', (_event, payload) => {
         islandWindow?.getWindow()?.webContents.send('island:notify', payload);
     });
