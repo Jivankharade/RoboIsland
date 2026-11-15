@@ -2067,10 +2067,12 @@
      * When volume keys (Vol Up/Down/Mute) are pressed, smoothly expands pill to 270px for 2.2s.
      */
     triggerVolumeHud(level, muted = false) {
+      if (this.mode !== "compact" && this.mode !== "rest") return;
+      if (window.isMediaVolumeDragging || performance.now() < (window.__twocodeVolumeQuietUntil || 0)) return;
       this.volumeHudLevel = Math.max(0, Math.min(100, Math.round(level)));
       this.volumeHudMuted = Boolean(muted);
       this.volumeHudStartTime = performance.now();
-      this.volumeHudUntil = performance.now() + 2200;
+      this.volumeHudUntil = performance.now() + 1800;
       this.kickJelly(0.08);
       this.updateTargetDimensions();
     }
@@ -2904,33 +2906,24 @@
       const prevEl = document.getElementById("lyrics-line-prev");
       const activeEl = document.getElementById("lyrics-line-active");
       const nextEl = document.getElementById("lyrics-line-next");
-      if (!activeEl) return;
-      let newPrev = "";
-      let newNow = "Play music to sync live lyrics";
-      let newNext = "";
-      if (this.mediaState.playing && this.mediaState.active) {
-        if (this.hasSyncedLyrics()) {
-          const lyr = this.getLyricAround();
-          if (lyr && (lyr.now || lyr.before || lyr.next)) {
-            newPrev = lyr.before || "";
-            newNow = lyr.now || "\u266A";
-            newNext = lyr.next || "";
-          } else {
-            newNow = this.mediaState.title ? `\u266A ${this.mediaState.title}` : "Playing";
-            newNext = this.mediaState.artist || "";
-          }
-        } else {
-          newNow = this.mediaState.title ? `\u266A ${this.mediaState.title}` : "Playing";
-          newNext = this.mediaState.artist || "";
-        }
+      if (!wrapEl || !activeEl) return;
+      if (!this.hasSyncedLyrics() || !this.mediaState.playing || !this.mediaState.active) {
+        wrapEl.style.display = "none";
+        if (prevEl) prevEl.textContent = "";
+        if (activeEl) activeEl.textContent = "";
+        if (nextEl) nextEl.textContent = "";
+        return;
       }
+      wrapEl.style.display = "flex";
+      const lyr = this.getLyricAround();
+      const newPrev = lyr && lyr.before || "";
+      const newNow = lyr && lyr.now || "\u266A";
+      const newNext = lyr && lyr.next || "";
       if (activeEl.textContent !== newNow) {
         activeEl.textContent = newNow;
-        if (wrapEl) {
-          wrapEl.classList.remove("lyrics-roll");
-          void wrapEl.offsetWidth;
-          wrapEl.classList.add("lyrics-roll");
-        }
+        wrapEl.classList.remove("lyrics-roll");
+        void wrapEl.offsetWidth;
+        wrapEl.classList.add("lyrics-roll");
       }
       if (prevEl && prevEl.textContent !== newPrev) prevEl.textContent = newPrev;
       if (nextEl && nextEl.textContent !== newNext) nextEl.textContent = newNext;
@@ -3826,7 +3819,7 @@
         const isMusicWithLyrics = (tab === "music" || this.activeTab === "media") && this.hasSyncedLyrics();
         switch (tab) {
           case "music":
-            this.targetHeight = 330;
+            this.targetHeight = this.hasSyncedLyrics() ? 330 : 280;
             break;
           case "chat":
             this.targetHeight = 320;
@@ -3933,7 +3926,9 @@
         this.targetHeight = 44;
         this.targetRadius = 22;
       } else if (this.mode === "compact" && performance.now() < this.volumeHudUntil) {
-        this.targetWidth = this.isHovered ? 280 : 270;
+        const isMediaPlaying = Boolean(this.mediaState.active && this.mediaState.title);
+        const baseW = isMediaPlaying ? Math.max(280, Math.min(360, Math.round((this.mediaState.title || "").length * 7.5 + 104))) : 270;
+        this.targetWidth = this.isHovered ? baseW + 8 : baseW;
         this.targetHeight = 36;
         this.targetRadius = 18;
       } else if (this.mode === "compact" && performance.now() < this.chargerSurgeUntil) {
@@ -6753,79 +6748,44 @@
       const trackName = getTrackDisplayName();
       const lyric = this.hasSyncedLyrics() ? this.getLyricNow() : null;
       const appleFont = '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Inter, sans-serif';
-      const drawLyricLineCombo = (activeS, nextS, dy, isBright = true) => {
-        if (!activeS) return;
+      const line = (s, dy, isBright = true) => {
         const alpha = Math.max(0, 1 - Math.abs(dy) / band);
-        if (alpha <= 0.01) return;
+        if (!s || alpha <= 0.01) return;
         this.ctx.save();
         this.ctx.globalAlpha *= alpha;
-        this.ctx.textBaseline = "middle";
-        const activeWeight = isBright ? "700" : "500";
-        const activeFontSz = 13;
-        const inactiveFontSz = 13;
-        const inactiveWeight = "500";
-        this.ctx.font = `${activeWeight} ${activeFontSz}px ${appleFont}`;
-        const activeRawW = this.ctx.measureText(activeS).width;
-        this.ctx.font = `${inactiveWeight} ${inactiveFontSz}px ${appleFont}`;
-        const spaceW = this.ctx.measureText("  ").width;
-        let trimmedActive = activeS;
-        let trimmedNext = (nextS || "").trim();
-        if (activeRawW + spaceW + 35 > w) {
-          this.ctx.font = `${activeWeight} ${activeFontSz}px ${appleFont}`;
-          while (trimmedActive.length > 1 && this.ctx.measureText(trimmedActive + "...").width > w) {
-            trimmedActive = trimmedActive.slice(0, -1);
-          }
-          if (trimmedActive !== activeS) trimmedActive += "...";
-          trimmedNext = "";
-        } else if (trimmedNext) {
-          const availForNext = w - activeRawW - spaceW;
-          this.ctx.font = `${inactiveWeight} ${inactiveFontSz}px ${appleFont}`;
-          while (trimmedNext.length > 1 && this.ctx.measureText(trimmedNext + "...").width > availForNext) {
-            trimmedNext = trimmedNext.slice(0, -1);
-          }
-          if (trimmedNext.length > 0 && trimmedNext !== nextS?.trim()) {
-            trimmedNext += "...";
-          }
+        let fontStr = isBright ? `700 13px ${appleFont}` : `500 13px ${appleFont}`;
+        this.ctx.font = fontStr;
+        const full = this.ctx.measureText(s).width;
+        if (full > w) {
+          const scaledPx = Math.max(10.5, 13 * w / full).toFixed(1);
+          fontStr = isBright ? `700 ${scaledPx}px ${appleFont}` : `500 ${scaledPx}px ${appleFont}`;
+          this.ctx.font = fontStr;
         }
-        this.ctx.font = `${activeWeight} ${activeFontSz}px ${appleFont}`;
-        const renderedActiveW = this.ctx.measureText(trimmedActive).width;
-        this.ctx.font = `${inactiveWeight} ${inactiveFontSz}px ${appleFont}`;
-        const renderedNextW = trimmedNext ? this.ctx.measureText(trimmedNext).width : 0;
-        const totalW = renderedActiveW + (trimmedNext ? spaceW + renderedNextW : 0);
-        const startX = x0 + Math.max(0, (w - totalW) / 2);
-        this.ctx.textAlign = "left";
-        this.ctx.font = `${activeWeight} ${activeFontSz}px ${appleFont}`;
+        let t2 = s;
+        while (t2.length > 1 && this.ctx.measureText(t2).width > w) {
+          t2 = t2.slice(0, -2) + "\u2026";
+        }
+        this.ctx.fillStyle = isBright ? "#ffffff" : "rgba(255, 255, 255, 0.45)";
+        this.ctx.textAlign = "center";
+        this.ctx.textBaseline = "middle";
         if (isBright) {
-          this.ctx.fillStyle = "#ffffff";
           this.ctx.shadowColor = "rgba(255, 255, 255, 0.45)";
           this.ctx.shadowBlur = 6;
-        } else {
-          this.ctx.fillStyle = "rgba(255, 255, 255, 0.35)";
-          this.ctx.shadowBlur = 0;
         }
-        this.ctx.fillText(trimmedActive, startX, cy + 0.5 + dy);
-        if (trimmedNext) {
-          this.ctx.shadowBlur = 0;
-          this.ctx.font = `${inactiveWeight} ${inactiveFontSz}px ${appleFont}`;
-          this.ctx.fillStyle = isBright ? "rgba(255, 255, 255, 0.45)" : "rgba(255, 255, 255, 0.22)";
-          this.ctx.fillText(trimmedNext, startX + renderedActiveW + spaceW, cy + 0.5 + dy);
-        }
+        this.ctx.fillText(t2, x0 + w / 2, cy + 0.5 + dy);
         this.ctx.restore();
       };
       if (lyric && (lyric.text || lyric.previous)) {
         const k = lyric.k;
-        const prev = lyric.previous || (lyric.text ? trackName : null);
-        const curr = lyric.text || trackName;
-        const next = lyric.next || null;
         this.ctx.save();
         this.ctx.beginPath();
         this.ctx.rect(x0 - 4, cy - band / 2 - 2, w + 8, band + 4);
         this.ctx.clip();
-        drawLyricLineCombo(prev, null, -band * k, false);
-        drawLyricLineCombo(curr, next, band * (1 - k), true);
+        line(lyric.previous, -band * k, false);
+        line(lyric.text, band * (1 - k), true);
         this.ctx.restore();
       } else {
-        drawLyricLineCombo(trackName, null, 0, true);
+        line(trackName, 0, true);
       }
     }
     /**

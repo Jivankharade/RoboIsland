@@ -482,6 +482,7 @@ async function runTests() {
   console.log('\n--- 19. Testing Agenda Schedule Timeline & Centered Bottom Dock Bar ---');
   const indexHtml = fs.readFileSync(path.join(__dirname, '../src/renderer/island/index.html'), 'utf-8');
   const islandCss = fs.readFileSync(path.join(__dirname, '../src/renderer/island/island.css'), 'utf-8');
+  const canvasEngineSrc = fs.readFileSync(path.join(__dirname, '../src/renderer/island/canvas-engine.ts'), 'utf-8');
 
   // Agenda Panel verification
   assert('index.html contains #panel-agenda', indexHtml.includes('id="panel-agenda"'));
@@ -559,11 +560,11 @@ async function runTests() {
   assert('island.css styles lyrics-next as dark & faint', islandCss.includes('.lyrics-line.lyrics-next'));
   assert('updateLyricsDom method exists on CanvasEngine prototype', typeof mockEngine.updateLyricsDom === 'function');
 
-  // Verify all 10 features targetDimensions
+  // Verify all 10 features targetDimensions (Normal Music Player is 520x280px without lyrics box)
   const featureTests = [
     { tab: 'home', expectedW: 520, expectedH: 240 },
     { tab: 'ai', expectedW: 520, expectedH: 310 },
-    { tab: 'music', expectedW: 520, expectedH: 330 },
+    { tab: 'music', expectedW: 520, expectedH: 280 },
     { tab: 'chat', expectedW: 520, expectedH: 320 },
     { tab: 'focus', expectedW: 520, expectedH: 270 },
     { tab: 'tray', expectedW: 520, expectedH: 270 },
@@ -580,6 +581,14 @@ async function runTests() {
     assert(`Feature "${tab}" dimensions: ${expectedW}x${expectedH}px`, mockEngine.targetWidth === expectedW && mockEngine.targetHeight === expectedH);
   });
 
+  // Verify Music Player dynamically expands to 520x330px when synced lyrics are present
+  mockEngine.hasSyncedLyrics = () => true;
+  mockEngine.mode = 'expanded';
+  mockEngine.currentDomTab = 'music';
+  mockEngine.updateTargetDimensions();
+  assert('Feature "music" with synced lyrics expands to 520x330px', mockEngine.targetWidth === 520 && mockEngine.targetHeight === 330);
+  mockEngine.hasSyncedLyrics = () => false;
+
   // --- 23. Testing File Tray vs Clipboard Distinction, AI Indigo Theme, Download Motion Fix ---
   console.log('\n--- 23. Testing File Tray vs Clipboard Distinction, AI Indigo Theme, Download Motion Fix ---');
   assert('island.css styles tray tab with AirDrop mint/teal glow', islandCss.includes('[data-active-tab="tray"]') && islandCss.includes('0, 199, 190'));
@@ -588,8 +597,10 @@ async function runTests() {
   assert('island.css styles clipboard active dock item with Apple Royal Blue', islandCss.includes('.nav-item.active[data-tab="clipboard"]') && islandCss.includes('#0a84ff'));
   assert('island.css styles chat tab with Cyber AI Indigo glow', islandCss.includes('[data-active-tab="chat"]') && islandCss.includes('99, 102, 241'));
   assert('island.css styles chat active dock item with Cyber AI Indigo', islandCss.includes('.nav-item.active[data-tab="chat"]') && islandCss.includes('#818cf8'));
-  assert('island.css styles Spotify lyrics with subtle frosted glass background', islandCss.includes('rgba(255, 255, 255, 0.04)') && islandCss.includes('backdrop-filter: blur(14px)'));
+  assert('island.css styles Spotify lyrics with seamless floating stream', islandCss.includes('.media-lyrics-wrap') && islandCss.includes('background: transparent !important'));
   assert('island.css has smooth lyrics-roll animation', islandCss.includes('.media-lyrics-wrap.lyrics-roll .lyrics-line') && islandCss.includes('@keyframes lyricRollUp'));
+  assert('index.html contains .media-controls-center for perfect symmetry', indexHtml.includes('class="media-controls-center"'));
+  assert('canvasEngine protects expanded mode from volume HUD pop', canvasEngineSrc.includes("if (this.mode !== 'compact' && this.mode !== 'rest') return;"));
 
   // Test stable download notification width (zero jitter/motion)
   mockEngine.mode = 'rest';

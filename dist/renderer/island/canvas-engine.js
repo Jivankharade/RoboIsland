@@ -589,10 +589,15 @@ class CanvasEngine {
      * When volume keys (Vol Up/Down/Mute) are pressed, smoothly expands pill to 270px for 2.2s.
      */
     triggerVolumeHud(level, muted = false) {
+        // Only trigger compact/rest pill HUD pop — NEVER in expanded mode, and never while dragging volume in UI
+        if (this.mode !== 'compact' && this.mode !== 'rest')
+            return;
+        if (window.isMediaVolumeDragging || performance.now() < (window.__twocodeVolumeQuietUntil || 0))
+            return;
         this.volumeHudLevel = Math.max(0, Math.min(100, Math.round(level)));
         this.volumeHudMuted = Boolean(muted);
         this.volumeHudStartTime = performance.now();
-        this.volumeHudUntil = performance.now() + 2200;
+        this.volumeHudUntil = performance.now() + 1800;
         this.kickJelly(0.08);
         this.updateTargetDimensions();
     }
@@ -1582,36 +1587,30 @@ class CanvasEngine {
         const prevEl = document.getElementById('lyrics-line-prev');
         const activeEl = document.getElementById('lyrics-line-active');
         const nextEl = document.getElementById('lyrics-line-next');
-        if (!activeEl)
+        if (!wrapEl || !activeEl)
             return;
-        let newPrev = '';
-        let newNow = 'Play music to sync live lyrics';
-        let newNext = '';
-        if (this.mediaState.playing && this.mediaState.active) {
-            if (this.hasSyncedLyrics()) {
-                const lyr = this.getLyricAround();
-                if (lyr && (lyr.now || lyr.before || lyr.next)) {
-                    newPrev = lyr.before || '';
-                    newNow = lyr.now || '♪';
-                    newNext = lyr.next || '';
-                }
-                else {
-                    newNow = this.mediaState.title ? `♪ ${this.mediaState.title}` : 'Playing';
-                    newNext = this.mediaState.artist || '';
-                }
-            }
-            else {
-                newNow = this.mediaState.title ? `♪ ${this.mediaState.title}` : 'Playing';
-                newNext = this.mediaState.artist || '';
-            }
+        // Normal mode: If no synced lyrics or music isn't actively playing, completely hide the lyrics box
+        if (!this.hasSyncedLyrics() || !this.mediaState.playing || !this.mediaState.active) {
+            wrapEl.style.display = 'none';
+            if (prevEl)
+                prevEl.textContent = '';
+            if (activeEl)
+                activeEl.textContent = '';
+            if (nextEl)
+                nextEl.textContent = '';
+            return;
         }
+        // Synced lyrics are available: reveal the floating transparent lyrics
+        wrapEl.style.display = 'flex';
+        const lyr = this.getLyricAround();
+        const newPrev = (lyr && lyr.before) || '';
+        const newNow = (lyr && lyr.now) || '♪';
+        const newNext = (lyr && lyr.next) || '';
         if (activeEl.textContent !== newNow) {
             activeEl.textContent = newNow;
-            if (wrapEl) {
-                wrapEl.classList.remove('lyrics-roll');
-                void wrapEl.offsetWidth; // force reflow for smooth animation
-                wrapEl.classList.add('lyrics-roll');
-            }
+            wrapEl.classList.remove('lyrics-roll');
+            void wrapEl.offsetWidth; // force reflow for smooth animation
+            wrapEl.classList.add('lyrics-roll');
         }
         if (prevEl && prevEl.textContent !== newPrev)
             prevEl.textContent = newPrev;
@@ -2592,7 +2591,7 @@ class CanvasEngine {
             const isMusicWithLyrics = (tab === 'music' || this.activeTab === 'media') && this.hasSyncedLyrics();
             switch (tab) {
                 case 'music':
-                    this.targetHeight = 330;
+                    this.targetHeight = this.hasSyncedLyrics() ? 330 : 280;
                     break;
                 case 'chat':
                     this.targetHeight = 320;
@@ -2706,8 +2705,12 @@ class CanvasEngine {
             this.targetRadius = 22;
         }
         else if (this.mode === 'compact' && performance.now() < this.volumeHudUntil) {
-            // Apple-style Hardware Volume HUD Pop
-            this.targetWidth = this.isHovered ? 280 : 270;
+            // Apple-style Hardware Volume HUD Pop (stable width when music is playing)
+            const isMediaPlaying = Boolean(this.mediaState.active && this.mediaState.title);
+            const baseW = isMediaPlaying
+                ? Math.max(280, Math.min(360, Math.round(((this.mediaState.title || '').length) * 7.5 + 104)))
+                : 270;
+            this.targetWidth = this.isHovered ? baseW + 8 : baseW;
             this.targetHeight = 36;
             this.targetRadius = 18;
         }
@@ -5896,91 +5899,51 @@ class CanvasEngine {
         const trackName = getTrackDisplayName();
         const lyric = this.hasSyncedLyrics() ? this.getLyricNow() : null;
         const appleFont = '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Inter, sans-serif';
-        const drawLyricLineCombo = (activeS, nextS, dy, isBright = true) => {
-            if (!activeS)
-                return;
+        const line = (s, dy, isBright = true) => {
             const alpha = Math.max(0, 1 - Math.abs(dy) / band);
-            if (alpha <= 0.01)
+            if (!s || alpha <= 0.01)
                 return;
             this.ctx.save();
             this.ctx.globalAlpha *= alpha;
+            let fontStr = isBright
+                ? `700 13px ${appleFont}`
+                : `500 13px ${appleFont}`;
+            this.ctx.font = fontStr;
+            const full = this.ctx.measureText(s).width;
+            if (full > w) {
+                const scaledPx = Math.max(10.5, (13 * w) / full).toFixed(1);
+                fontStr = isBright
+                    ? `700 ${scaledPx}px ${appleFont}`
+                    : `500 ${scaledPx}px ${appleFont}`;
+                this.ctx.font = fontStr;
+            }
+            let t = s;
+            while (t.length > 1 && this.ctx.measureText(t).width > w) {
+                t = t.slice(0, -2) + '…';
+            }
+            this.ctx.fillStyle = isBright ? '#ffffff' : 'rgba(255, 255, 255, 0.45)';
+            this.ctx.textAlign = 'center';
             this.ctx.textBaseline = 'middle';
-            const activeWeight = isBright ? '700' : '500';
-            const activeFontSz = 13;
-            const inactiveFontSz = 13;
-            const inactiveWeight = '500';
-            this.ctx.font = `${activeWeight} ${activeFontSz}px ${appleFont}`;
-            const activeRawW = this.ctx.measureText(activeS).width;
-            this.ctx.font = `${inactiveWeight} ${inactiveFontSz}px ${appleFont}`;
-            const spaceW = this.ctx.measureText('  ').width;
-            let trimmedActive = activeS;
-            let trimmedNext = (nextS || '').trim();
-            if (activeRawW + spaceW + 35 > w) {
-                // Active text takes almost all space: fit active text with ellipsis if needed
-                this.ctx.font = `${activeWeight} ${activeFontSz}px ${appleFont}`;
-                while (trimmedActive.length > 1 && this.ctx.measureText(trimmedActive + '...').width > w) {
-                    trimmedActive = trimmedActive.slice(0, -1);
-                }
-                if (trimmedActive !== activeS)
-                    trimmedActive += '...';
-                trimmedNext = '';
-            }
-            else if (trimmedNext) {
-                // Active text fits! Show inactive upcoming text preview with ellipsis
-                const availForNext = w - activeRawW - spaceW;
-                this.ctx.font = `${inactiveWeight} ${inactiveFontSz}px ${appleFont}`;
-                while (trimmedNext.length > 1 && this.ctx.measureText(trimmedNext + '...').width > availForNext) {
-                    trimmedNext = trimmedNext.slice(0, -1);
-                }
-                if (trimmedNext.length > 0 && trimmedNext !== nextS?.trim()) {
-                    trimmedNext += '...';
-                }
-            }
-            // Calculate total width to center the full phrase
-            this.ctx.font = `${activeWeight} ${activeFontSz}px ${appleFont}`;
-            const renderedActiveW = this.ctx.measureText(trimmedActive).width;
-            this.ctx.font = `${inactiveWeight} ${inactiveFontSz}px ${appleFont}`;
-            const renderedNextW = trimmedNext ? this.ctx.measureText(trimmedNext).width : 0;
-            const totalW = renderedActiveW + (trimmedNext ? spaceW + renderedNextW : 0);
-            const startX = x0 + Math.max(0, (w - totalW) / 2);
-            // 1. Draw Active Lyric (Bright White Bold with Apple soft glow)
-            this.ctx.textAlign = 'left';
-            this.ctx.font = `${activeWeight} ${activeFontSz}px ${appleFont}`;
             if (isBright) {
-                this.ctx.fillStyle = '#ffffff';
                 this.ctx.shadowColor = 'rgba(255, 255, 255, 0.45)';
                 this.ctx.shadowBlur = 6;
             }
-            else {
-                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
-                this.ctx.shadowBlur = 0;
-            }
-            this.ctx.fillText(trimmedActive, startX, cy + 0.5 + dy);
-            // 2. Draw Inactive / Upcoming Lyric (Faint Dimmed Semi-Transparent like Image 2)
-            if (trimmedNext) {
-                this.ctx.shadowBlur = 0;
-                this.ctx.font = `${inactiveWeight} ${inactiveFontSz}px ${appleFont}`;
-                this.ctx.fillStyle = isBright ? 'rgba(255, 255, 255, 0.45)' : 'rgba(255, 255, 255, 0.22)';
-                this.ctx.fillText(trimmedNext, startX + renderedActiveW + spaceW, cy + 0.5 + dy);
-            }
+            this.ctx.fillText(t, x0 + w / 2, cy + 0.5 + dy);
             this.ctx.restore();
         };
         if (lyric && (lyric.text || lyric.previous)) {
             const k = lyric.k;
-            const prev = lyric.previous || (lyric.text ? trackName : null);
-            const curr = lyric.text || trackName;
-            const next = lyric.next || null;
             this.ctx.save();
             this.ctx.beginPath();
             this.ctx.rect(x0 - 4, cy - band / 2 - 2, w + 8, band + 4);
             this.ctx.clip();
-            drawLyricLineCombo(prev, null, -band * k, false); // outgoing/previous: dark and faint
-            drawLyricLineCombo(curr, next, band * (1 - k), true); // ongoing/active: bright white bold + next faint
+            line(lyric.previous, -band * k, false);
+            line(lyric.text, band * (1 - k), true);
             this.ctx.restore();
         }
         else {
             // Steady display of Track Name or Ad Name (zero eyes during media playback)
-            drawLyricLineCombo(trackName, null, 0, true);
+            line(trackName, 0, true);
         }
     }
     /**

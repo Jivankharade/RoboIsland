@@ -174,6 +174,13 @@
           </div>
         </div>
 
+        <!-- Spotify-Style Synced Lyrics Stream (Active vs Dark & Faint Floating Lines) -->
+        <div class="media-lyrics-wrap" id="media-lyrics-wrap" style="display: none;">
+          <div class="lyrics-line lyrics-prev" id="lyrics-line-prev"></div>
+          <div class="lyrics-line lyrics-active" id="lyrics-line-active"></div>
+          <div class="lyrics-line lyrics-next" id="lyrics-line-next"></div>
+        </div>
+
         <!-- Interactive Expanding Scrub Bar (3px to 6px on hover) -->
         <div class="media-scrub-container">
           <div id="media-scrub-bar" class="media-scrub-bar" role="slider" aria-label="Playback scrub bar">
@@ -190,25 +197,27 @@
 
         <!-- Zero-Emoji Vector SVG Controls Row -->
         <div class="media-controls-row">
-          <button id="btn-media-prev" class="media-ctrl-btn" title="Previous Track">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polygon points="19 20 9 12 19 4 19 20"/>
-              <line x1="5" y1="19" x2="5" y2="5"/>
-            </svg>
-          </button>
+          <div class="media-controls-center">
+            <button id="btn-media-prev" class="media-ctrl-btn" title="Previous Track">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="19 20 9 12 19 4 19 20"/>
+                <line x1="5" y1="19" x2="5" y2="5"/>
+              </svg>
+            </button>
 
-          <button id="btn-media-play" class="media-play-btn" title="Play / Pause">
-            <svg id="media-play-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-              <polygon points="5 3 19 12 5 21 5 3"/>
-            </svg>
-          </button>
+            <button id="btn-media-play" class="media-play-btn" title="Play / Pause">
+              <svg id="media-play-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                <polygon points="5 3 19 12 5 21 5 3"/>
+              </svg>
+            </button>
 
-          <button id="btn-media-next" class="media-ctrl-btn" title="Next Track">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polygon points="5 4 15 12 5 20 5 4"/>
-              <line x1="19" y1="5" x2="19" y2="19"/>
-            </svg>
-          </button>
+            <button id="btn-media-next" class="media-ctrl-btn" title="Next Track">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="5 4 15 12 5 20 5 4"/>
+                <line x1="19" y1="5" x2="19" y2="19"/>
+              </svg>
+            </button>
+          </div>
 
           <div class="media-volume-wrap">
             <button id="btn-media-mute" class="media-ctrl-btn" title="Mute">
@@ -328,10 +337,17 @@
         e.stopPropagation();
         const val = parseInt(e.target.value, 10);
         this.volumeLevel = val;
+        window.isMediaVolumeDragging = true;
+        window.isMediaInteracting = true;
+        window.__twocodeVolumeQuietUntil = performance.now() + 1500;
         api?.setVolume?.(val);
       });
       this.volSlider?.addEventListener("change", (e) => {
         e.stopPropagation();
+        setTimeout(() => {
+          window.isMediaVolumeDragging = false;
+          window.isMediaInteracting = false;
+        }, 500);
       });
       this.volSlider?.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -340,9 +356,12 @@
         e.stopPropagation();
         window.isMediaVolumeDragging = true;
         window.isMediaInteracting = true;
+        window.__twocodeVolumeQuietUntil = performance.now() + 1500;
         const onMouseUp = () => {
-          window.isMediaVolumeDragging = false;
-          window.isMediaInteracting = false;
+          setTimeout(() => {
+            window.isMediaVolumeDragging = false;
+            window.isMediaInteracting = false;
+          }, 500);
           window.removeEventListener("mouseup", onMouseUp);
         };
         window.addEventListener("mouseup", onMouseUp);
@@ -350,6 +369,7 @@
       this.btnMute?.addEventListener("click", (e) => {
         e.stopPropagation();
         this.isMuted = !this.isMuted;
+        window.__twocodeVolumeQuietUntil = performance.now() + 1500;
         api?.setMute?.(this.isMuted);
         this.updateVolumeUI();
       });
