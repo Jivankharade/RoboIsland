@@ -628,6 +628,19 @@ async function runTests() {
   assert('island.css styles .note-chip.active with gold border & glow', islandCss.includes('.note-chip.active'));
   assert('island.css styles .note-chip-del delete button', islandCss.includes('.note-chip-del'));
 
+  // --- 25. Testing Real-Time Sound Reactive Equalizer (System Audio & TwoCode Parity) ---
+  console.log('\n--- 25. Testing Real-Time Sound Reactive Equalizer (System Audio & TwoCode Parity) ---');
+  const indexTs = fs.readFileSync(path.join(__dirname, '../src/main/index.ts'), 'utf-8');
+  assert('index.ts configures setDisplayMediaRequestHandler for loopback audio', indexTs.includes('setDisplayMediaRequestHandler') && indexTs.includes("'loopback'"));
+  assert('canvasEngine defines SystemAudioVisualizer class', canvasEngineSrc.includes('class SystemAudioVisualizer'));
+  assert('SystemAudioVisualizer has startListening method', canvasEngineSrc.includes('startListening'));
+  assert('SystemAudioVisualizer has getLevels method', canvasEngineSrc.includes('getLevels'));
+  assert('SystemAudioVisualizer has update method', canvasEngineSrc.includes('update(isPlaying'));
+  assert('Compact visualizer scales with live audio levels', canvasEngineSrc.includes('const levels = audioViz.getLevels(n)'));
+  assert('Visualizer bars settle flat when paused', canvasEngineSrc.includes('const want = !playing ? 0.1 :'));
+  assert('Visualizer maintains separate state for compact and expanded modes', canvasEngineSrc.includes('compactVizBars') && canvasEngineSrc.includes('expandedVizBars'));
+  assert('Header music button reflects real-time audio levels in DOM', canvasEngineSrc.includes("btnHeaderMusic.querySelectorAll('.header-eq-bars span')"));
+
   // Summary
   console.log('\n====================================================');
   console.log(`TEST SUMMARY: ${passed} PASSED, ${failed} FAILED`);

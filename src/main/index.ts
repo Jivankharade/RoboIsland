@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, globalShortcut, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, clipboard, globalShortcut, ipcMain, shell, session, desktopCapturer } from 'electron';
 import * as path from 'path';
 import { IslandWindow } from './island-window';
 import { TrayManager } from './tray-manager';
@@ -46,6 +46,27 @@ let downloadMonitor: DownloadMonitor | null = null;
 app.whenReady().then(() => {
   // Initialize config & startup
   StartupManager.init();
+
+  // Configure system loopback audio capture for real-time sound reactive equalizer (TwoCode Parity)
+  try {
+    session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
+      desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 0, height: 0 } })
+        .then(sources => {
+          if (sources && sources.length > 0) {
+            callback({ video: sources[0], audio: 'loopback' });
+          } else {
+            callback({});
+          }
+        })
+        .catch(() => callback({}));
+    });
+    session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
+      callback(true);
+    });
+    session.defaultSession.setPermissionCheckHandler(() => true);
+  } catch (err) {
+    console.warn('[RoboIsland] Loopback audio capture handler init error:', err);
+  }
 
   // Setup core application IPC early
   setupAppIPC();

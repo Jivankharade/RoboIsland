@@ -75,6 +75,28 @@ let downloadMonitor = null;
 electron_1.app.whenReady().then(() => {
     // Initialize config & startup
     startup_manager_1.StartupManager.init();
+    // Configure system loopback audio capture for real-time sound reactive equalizer (TwoCode Parity)
+    try {
+        electron_1.session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
+            electron_1.desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 0, height: 0 } })
+                .then(sources => {
+                if (sources && sources.length > 0) {
+                    callback({ video: sources[0], audio: 'loopback' });
+                }
+                else {
+                    callback({});
+                }
+            })
+                .catch(() => callback({}));
+        });
+        electron_1.session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
+            callback(true);
+        });
+        electron_1.session.defaultSession.setPermissionCheckHandler(() => true);
+    }
+    catch (err) {
+        console.warn('[RoboIsland] Loopback audio capture handler init error:', err);
+    }
     // Setup core application IPC early
     setupAppIPC();
     // Create Island Window

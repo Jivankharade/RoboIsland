@@ -1541,6 +1541,148 @@
         return null;
     }
   }
+  var SystemAudioVisualizer = class _SystemAudioVisualizer {
+    static instance = null;
+    stream = null;
+    ctx = null;
+    analyser = null;
+    data = null;
+    starting = false;
+    failed = false;
+    onSince = 0;
+    offSince = 0;
+    BARS = 18;
+    levels = new Array(18).fill(0);
+    peaks = new Array(18).fill(0.08);
+    loudPeak = 0.1;
+    isHearing = false;
+    static getInstance() {
+      if (!_SystemAudioVisualizer.instance) {
+        _SystemAudioVisualizer.instance = new _SystemAudioVisualizer();
+      }
+      return _SystemAudioVisualizer.instance;
+    }
+    async startListening() {
+      if (this.stream || this.starting || this.failed) return;
+      this.starting = true;
+      try {
+        if (typeof navigator !== "undefined" && navigator.mediaDevices?.getDisplayMedia) {
+          const stream = await navigator.mediaDevices.getDisplayMedia({
+            audio: true,
+            video: { width: 16, height: 16, frameRate: 1 }
+          });
+          stream.getVideoTracks().forEach((t) => t.stop());
+          const audioTracks = stream.getAudioTracks();
+          if (!audioTracks.length) {
+            throw new Error("no audio track");
+          }
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (!AudioCtx) throw new Error("AudioContext unavailable");
+          const ctx = new AudioCtx();
+          if (ctx.state === "suspended") {
+            ctx.resume().catch(() => {
+            });
+          }
+          const analyser = ctx.createAnalyser();
+          analyser.fftSize = 2048;
+          analyser.smoothingTimeConstant = 0.6;
+          analyser.minDecibels = -80;
+          const source = ctx.createMediaStreamSource(stream);
+          source.connect(analyser);
+          this.stream = stream;
+          this.ctx = ctx;
+          this.analyser = analyser;
+          this.data = new Uint8Array(analyser.frequencyBinCount);
+          this.failed = false;
+        }
+      } catch {
+        this.failed = true;
+      } finally {
+        this.starting = false;
+      }
+    }
+    stopListening() {
+      if (this.stream) {
+        this.stream.getTracks().forEach((t) => t.stop());
+        this.stream = null;
+      }
+      if (this.ctx) {
+        this.ctx.close().catch(() => {
+        });
+        this.ctx = null;
+      }
+      this.analyser = null;
+      this.data = null;
+      this.levels.fill(0);
+      this.isHearing = false;
+    }
+    resumeAudioContext() {
+      if (this.ctx && this.ctx.state === "suspended") {
+        this.ctx.resume().catch(() => {
+        });
+      }
+    }
+    update(isPlaying) {
+      const now = performance.now();
+      if (isPlaying) {
+        this.offSince = 0;
+        if (!this.onSince) this.onSince = now;
+        if (!this.failed && now - this.onSince > 600) {
+          this.startListening();
+        }
+      } else {
+        this.onSince = 0;
+        if (this.stream) {
+          if (!this.offSince) this.offSince = now;
+          if (now - this.offSince > 4e3) {
+            this.stopListening();
+          }
+        }
+      }
+    }
+    getLevels(barCount = 5) {
+      if (!this.analyser || !this.data || !this.ctx) return null;
+      this.analyser.getByteFrequencyData(this.data);
+      const n = this.data.length;
+      const hzPerBin = this.ctx.sampleRate / 2 / n;
+      const raw = [];
+      for (let i = 0; i < this.BARS; i++) {
+        const f0 = 60 * Math.pow(200, i / this.BARS);
+        const f1 = 60 * Math.pow(200, (i + 1) / this.BARS);
+        const from = Math.max(1, Math.floor(f0 / hzPerBin));
+        const to = Math.max(from + 1, Math.ceil(f1 / hzPerBin));
+        let sum = 0;
+        for (let j = from; j < to && j < n; j++) {
+          sum += this.data[j];
+        }
+        raw.push(sum / (to - from) / 255);
+      }
+      const loud = raw.reduce((a, b) => a + b, 0) / this.BARS;
+      this.isHearing = loud > 0.05;
+      if (!this.isHearing) {
+        for (let i = 0; i < this.BARS; i++) {
+          this.levels[i] *= 0.8;
+        }
+        return this.sampleBarCount(this.levels, barCount);
+      }
+      this.loudPeak = Math.max(loud, this.loudPeak * 0.997, 0.12);
+      const overall = Math.min(1, loud / this.loudPeak * 1.15);
+      for (let i = 0; i < this.BARS; i++) {
+        this.peaks[i] = Math.max(raw[i], this.peaks[i] * 0.996, 0.15);
+        const v = Math.pow(raw[i] / this.peaks[i], 1.6) * overall;
+        this.levels[i] += (v - this.levels[i]) * (v > this.levels[i] ? 0.55 : 0.2);
+      }
+      return this.sampleBarCount(this.levels, barCount);
+    }
+    sampleBarCount(sourceLevels, targetCount) {
+      const out = [];
+      for (let i = 0; i < targetCount; i++) {
+        const idx = Math.min(sourceLevels.length - 1, Math.floor(i * sourceLevels.length / targetCount));
+        out.push(sourceLevels[idx] || 0.06);
+      }
+      return out;
+    }
+  };
   var CanvasEngine = class _CanvasEngine {
     canvas;
     ctx;
@@ -1612,6 +1754,8 @@
     lastPushedTintG = -1;
     lastPushedTintB = -1;
     visualizerBars = [0.1, 0.1, 0.1, 0.1, 0.1, 0.1];
+    compactVizBars = [0.1, 0.1, 0.1, 0.1, 0.1];
+    expandedVizBars = [0.1, 0.1, 0.1, 0.1, 0.1, 0.1];
     syncedLyrics = [];
     // TwoCode Synchronized Lyrics State Machine (lyrics-ui.js)
     lyricsSongKey = "";
@@ -3120,6 +3264,7 @@
       let dragStart = null;
       let swallowClick = false;
       window.addEventListener("mousedown", (e) => {
+        SystemAudioVisualizer.getInstance().resumeAudioContext();
         if (e.button !== 0) return;
         const cx = window.innerWidth / 2;
         const topY = this.getTopY();
@@ -3250,6 +3395,7 @@
         this.checkHitTest();
       });
       window.addEventListener("click", (e) => {
+        SystemAudioVisualizer.getInstance().resumeAudioContext();
         if (swallowClick) {
           swallowClick = false;
           e.stopPropagation();
@@ -5137,6 +5283,8 @@
         this.mascot.setMood("neutral");
       }
       this.mascot.update(dt, this.pointerX, this.pointerY, cx, topY + 13);
+      const isMusicPlaying = Boolean(this.mediaState.playing && this.mediaState.active);
+      SystemAudioVisualizer.getInstance().update(isMusicPlaying);
       if (this.isTucked) {
         if (this.domOverlayEl) this.domOverlayEl.classList.add("hidden");
         requestAnimationFrame(this.renderLoop.bind(this));
@@ -6707,18 +6855,43 @@
       const vizX = right - vizW - 4;
       const n = 5;
       const t = performance.now() / 1e3;
-      const playing = Boolean(this.mediaState.playing);
+      const playing = Boolean(this.mediaState.playing && this.mediaState.active);
       const gap = 2;
       const bw = (vizW - gap * (n - 1)) / n;
+      const audioViz = SystemAudioVisualizer.getInstance();
+      const levels = audioViz.getLevels(n);
       this.ctx.save();
       this.ctx.shadowColor = this.albumAccentColor || "#ffffff";
       this.ctx.shadowBlur = 3;
       for (let i = 0; i < n; i++) {
-        const raw = !playing ? 0.06 : 0.2 + 0.6 * Math.abs(Math.sin(t * (2.1 + i * 0.43) + i * 1.7)) * (0.65 + 0.35 * Math.sin(t * 1.3 + i * 0.9));
+        let raw = 0.06;
+        if (playing) {
+          if (levels) {
+            raw = levels[i] || 0.06;
+          } else {
+            const volFactor = this.volumeState.muted ? 0 : Math.max(0.2, (this.volumeState.level || 70) / 100);
+            const beatKick = Math.pow(Math.max(0, Math.sin(t * 4.2)), 3);
+            const bandPattern = [
+              0.35 + 0.65 * beatKick,
+              // Bar 0: Bass kick (60-180 Hz)
+              0.25 + 0.55 * Math.abs(Math.sin(t * 3.1 + 0.6)),
+              // Bar 1: Low-Mid groove (180-500 Hz)
+              0.3 + 0.6 * Math.abs(Math.sin(t * 5.4 + 1.2) * Math.cos(t * 2.1)),
+              // Bar 2: Vocals (500-2000 Hz)
+              0.2 + 0.7 * Math.pow(Math.max(0, Math.sin(t * 4.2 + Math.PI)), 4),
+              // Bar 3: Snare (2-6 kHz)
+              0.25 + 0.5 * Math.abs(Math.sin(t * 11.2))
+              // Bar 4: Treble shimmer (6-12 kHz)
+            ];
+            const pattern = bandPattern[i % bandPattern.length];
+            raw = Math.min(1, Math.max(0.06, pattern * volFactor));
+          }
+        }
         const want = !playing ? 0.1 : Math.min(1, 0.12 + 1.15 * Math.pow(raw, 0.65));
-        if (!this.visualizerBars[i]) this.visualizerBars[i] = 0.15;
-        this.visualizerBars[i] += (want - this.visualizerBars[i]) * (want > this.visualizerBars[i] ? 0.5 : 0.16);
-        const bh = Math.max(bw, vizH * Math.min(1, this.visualizerBars[i]));
+        if (!this.compactVizBars[i]) this.compactVizBars[i] = 0.15;
+        this.compactVizBars[i] += (want - this.compactVizBars[i]) * (want > this.compactVizBars[i] ? 0.55 : 0.18);
+        this.visualizerBars[i] = this.compactVizBars[i];
+        const bh = Math.max(bw, vizH * Math.min(1, this.compactVizBars[i]));
         const bx = vizX + i * (bw + gap);
         const by = cy - bh / 2;
         this.ctx.beginPath();
@@ -7545,18 +7718,38 @@
       const vizCy = top0 + 24;
       const n = 6;
       const t = performance.now() / 1e3;
-      const playing = Boolean(this.mediaState.playing);
+      const playing = Boolean(this.mediaState.playing && this.mediaState.active);
       const gap = Math.max(2, vizW / n * 0.4);
       const vbw = (vizW - gap * (n - 1)) / n;
+      const audioViz = SystemAudioVisualizer.getInstance();
+      const levels = audioViz.getLevels(n);
       this.ctx.save();
       this.ctx.shadowColor = accent;
       this.ctx.shadowBlur = vizH * 0.35;
       for (let i = 0; i < n; i++) {
-        const raw = !playing ? 0.06 : 0.2 + 0.6 * Math.abs(Math.sin(t * (2.1 + i * 0.43) + i * 1.7)) * (0.65 + 0.35 * Math.sin(t * 1.3 + i * 0.9));
+        let raw = 0.06;
+        if (playing) {
+          if (levels) {
+            raw = levels[i] || 0.06;
+          } else {
+            const volFactor = this.volumeState.muted ? 0 : Math.max(0.2, (this.volumeState.level || 70) / 100);
+            const beatKick = Math.pow(Math.max(0, Math.sin(t * 4.2)), 3);
+            const bandPattern = [
+              0.35 + 0.65 * beatKick,
+              0.25 + 0.55 * Math.abs(Math.sin(t * 3.1 + 0.6)),
+              0.3 + 0.6 * Math.abs(Math.sin(t * 5.4 + 1.2) * Math.cos(t * 2.1)),
+              0.28 + 0.58 * Math.abs(Math.sin(t * 7.1 + 2)),
+              0.2 + 0.7 * Math.pow(Math.max(0, Math.sin(t * 4.2 + Math.PI)), 4),
+              0.25 + 0.5 * Math.abs(Math.sin(t * 11.2))
+            ];
+            const pattern = bandPattern[i % bandPattern.length];
+            raw = Math.min(1, Math.max(0.06, pattern * volFactor));
+          }
+        }
         const want = !playing ? 0.1 : Math.min(1, 0.12 + 1.15 * Math.pow(raw, 0.65));
-        if (!this.visualizerBars[i]) this.visualizerBars[i] = 0.15;
-        this.visualizerBars[i] += (want - this.visualizerBars[i]) * (want > this.visualizerBars[i] ? 0.5 : 0.16);
-        const bh2 = Math.max(vbw, vizH * Math.min(1, this.visualizerBars[i]));
+        if (!this.expandedVizBars[i]) this.expandedVizBars[i] = 0.15;
+        this.expandedVizBars[i] += (want - this.expandedVizBars[i]) * (want > this.expandedVizBars[i] ? 0.55 : 0.18);
+        const bh2 = Math.max(vbw, vizH * Math.min(1, this.expandedVizBars[i]));
         const bx = vizX + i * (vbw + gap);
         const by = vizCy - bh2 / 2;
         this.ctx.beginPath();
@@ -9598,6 +9791,20 @@
         const isMusicPlaying = Boolean(this.mediaState.playing && this.mediaState.active);
         if (isMusicPlaying && this.currentDomTab !== "music") {
           btnHeaderMusic.classList.remove("hidden");
+          const headerLevels = SystemAudioVisualizer.getInstance().getLevels(4);
+          const spans = btnHeaderMusic.querySelectorAll(".header-eq-bars span");
+          if (spans.length === 4) {
+            spans.forEach((span, idx) => {
+              const el = span;
+              if (headerLevels) {
+                const hPct = Math.max(20, Math.min(100, Math.round((headerLevels[idx] || 0.1) * 100)));
+                el.style.animation = "none";
+                el.style.height = `${hPct}%`;
+              } else {
+                el.style.animation = "";
+              }
+            });
+          }
         } else {
           btnHeaderMusic.classList.add("hidden");
         }
