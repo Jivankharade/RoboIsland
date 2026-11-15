@@ -1152,6 +1152,48 @@ class SettingsUI {
       setTimeout(() => { if (btnTestNotification) btnTestNotification.textContent = 'Test Done'; }, 1500);
     });
 
+    const btnTestWhatsApp = document.getElementById('btn-test-whatsapp');
+    btnTestWhatsApp?.addEventListener('click', () => {
+      window.settingsApi?.postNotification?.({
+        id: 'test-wa-' + Date.now(),
+        app: 'WhatsApp',
+        title: 'WhatsApp: Rahul Sharma',
+        body: 'Hey! Are we still meeting for lunch today?',
+        kind: 'whatsapp',
+        durationMs: 5000
+      });
+      btnTestWhatsApp.textContent = 'Pushed!';
+      setTimeout(() => { if (btnTestWhatsApp) btnTestWhatsApp.textContent = 'Test WhatsApp'; }, 1500);
+    });
+
+    const btnTestMail = document.getElementById('btn-test-mail');
+    btnTestMail?.addEventListener('click', () => {
+      window.settingsApi?.postNotification?.({
+        id: 'test-mail-' + Date.now(),
+        app: 'Mail',
+        title: 'Google Security: New Login',
+        body: 'A new sign-in was detected on your Windows device.',
+        kind: 'mail',
+        durationMs: 5000
+      });
+      btnTestMail.textContent = 'Pushed!';
+      setTimeout(() => { if (btnTestMail) btnTestMail.textContent = 'Test Mail'; }, 1500);
+    });
+
+    const btnTestDownload = document.getElementById('btn-test-download');
+    btnTestDownload?.addEventListener('click', () => {
+      window.settingsApi?.postNotification?.({
+        id: 'test-dl-' + Date.now(),
+        app: 'Downloads',
+        title: 'Download Complete',
+        body: 'RoboIsland-v2.0-Setup.exe',
+        kind: 'download',
+        durationMs: 5000
+      });
+      btnTestDownload.textContent = 'Pushed!';
+      setTimeout(() => { if (btnTestDownload) btnTestDownload.textContent = 'Test Download'; }, 1500);
+    });
+
     const btnTestQuestion = document.getElementById('btn-test-question-notification');
     btnTestQuestion?.addEventListener('click', () => {
       window.settingsApi?.postNotification?.({
