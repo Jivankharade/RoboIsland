@@ -267,7 +267,7 @@ class CanvasEngine {
     LYRICS_HOLD = 2500;
     LYRICS_LEAD = 250;
     LYRICS_SWAP = 420;
-    LYRICS_FONT = '600 13px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+    LYRICS_FONT = '600 13px Inter, "Segoe UI", sans-serif';
     isDevicesOpen = false;
     spotifyDevices = [];
     // Live AI State (Claude Code & Codex)
@@ -1674,6 +1674,8 @@ class CanvasEngine {
     agendaViewMode = 'day';
     agendaAccountEmail = 'you@gmail.com';
     agendaListenersBound = false;
+    agendaNotificationWarned = new Set();
+    agendaNotifierTimer = null;
     setPopover(target) {
         this.activePopover = target;
         const popover = document.getElementById('system-popover');
@@ -6079,24 +6081,17 @@ class CanvasEngine {
         };
         const trackName = getTrackDisplayName();
         const lyric = this.hasSyncedLyrics() ? this.getLyricNow() : null;
-        const appleFont = '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Inter, sans-serif';
+        const twoCodeLyricsFont = '600 13px Inter, "Segoe UI", sans-serif';
         const line = (s, dy, isBright = true) => {
             const alpha = Math.max(0, 1 - Math.abs(dy) / band);
             if (!s || alpha <= 0.01)
                 return;
             this.ctx.save();
             this.ctx.globalAlpha *= alpha;
-            let fontStr = isBright
-                ? `700 13px ${appleFont}`
-                : `500 13px ${appleFont}`;
-            this.ctx.font = fontStr;
+            this.ctx.font = twoCodeLyricsFont;
             const full = this.ctx.measureText(s).width;
             if (full > w) {
-                const scaledPx = Math.max(10.5, (13 * w) / full).toFixed(1);
-                fontStr = isBright
-                    ? `700 ${scaledPx}px ${appleFont}`
-                    : `500 ${scaledPx}px ${appleFont}`;
-                this.ctx.font = fontStr;
+                this.ctx.font = twoCodeLyricsFont.replace(/\d+(\.\d+)?px/, (m) => Math.max(10.5, parseFloat(m) * w / full).toFixed(1) + 'px');
             }
             let t = s;
             while (t.length > 1 && this.ctx.measureText(t).width > w) {
@@ -6106,7 +6101,7 @@ class CanvasEngine {
             this.ctx.textAlign = 'center';
             this.ctx.textBaseline = 'middle';
             if (isBright) {
-                this.ctx.shadowColor = 'rgba(255, 255, 255, 0.45)';
+                this.ctx.shadowColor = 'rgba(255, 255, 255, 0.40)';
                 this.ctx.shadowBlur = 6;
             }
             this.ctx.fillText(t, x0 + w / 2, cy + 0.5 + dy);
@@ -8480,6 +8475,13 @@ class CanvasEngine {
             playheadEl.style.left = `${pct.toFixed(1)}%`;
         }
         this.renderAgendaTimeline();
+        // Start background sound notifier for upcoming events (10m and now)
+        if (!this.agendaNotifierTimer) {
+            this.checkAgendaNotifications();
+            this.agendaNotifierTimer = setInterval(() => {
+                this.checkAgendaNotifications();
+            }, 15000);
+        }
         // Bind event listeners only once
         if (this.agendaListenersBound)
             return;
@@ -8506,13 +8508,29 @@ class CanvasEngine {
             monthView?.classList.remove('hidden');
             this.renderAgendaMonth();
         });
-        // Add Event (+) Button
+        // Delete Active Event Button
+        const delBtn = document.getElementById('agenda-btn-delete-event');
+        delBtn?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (!this.selectedAgendaEventId)
+                return;
+            this.agendaEvents = this.agendaEvents.filter((ev) => ev.id !== this.selectedAgendaEventId);
+            this.selectedAgendaEventId = this.agendaEvents[0]?.id || '';
+            try {
+                localStorage.setItem('roboisland_agenda_events', JSON.stringify(this.agendaEvents));
+            }
+            catch { }
+            this.mascot.sounds.playChirp();
+            this.renderAgendaTimeline();
+        });
+        // Add Event (+) Button & Popover
         const addBtn = document.getElementById('agenda-btn-add-event');
         const addPopover = document.getElementById('agenda-add-event-popover');
         const titleInput = document.getElementById('agenda-input-title');
         const timeInput = document.getElementById('agenda-input-time');
         const saveBtn = document.getElementById('agenda-save-event-btn');
         const cancelBtn = document.getElementById('agenda-cancel-event-btn');
+        const clearDefaultsBtn = document.getElementById('agenda-clear-all-events-btn');
         addBtn?.addEventListener('click', (e) => {
             e.stopPropagation();
             if (!addPopover)
@@ -8527,9 +8545,21 @@ class CanvasEngine {
             e.stopPropagation();
             addPopover?.classList.add('hidden');
         });
+        clearDefaultsBtn?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.agendaEvents = [];
+            this.selectedAgendaEventId = '';
+            try {
+                localStorage.setItem('roboisland_agenda_events', JSON.stringify(this.agendaEvents));
+            }
+            catch { }
+            this.mascot.sounds.playChirp();
+            this.renderAgendaTimeline();
+            addPopover?.classList.add('hidden');
+        });
         saveBtn?.addEventListener('click', (e) => {
             e.stopPropagation();
-            const title = titleInput?.value.trim() || 'Meeting';
+            const title = titleInput?.value.trim() || 'Custom Agenda';
             const timeVal = timeInput?.value || '14:00';
             const [hStr, mStr] = timeVal.split(':');
             let h = parseInt(hStr || '14', 10);
@@ -8554,6 +8584,8 @@ class CanvasEngine {
                 localStorage.setItem('roboisland_agenda_events', JSON.stringify(this.agendaEvents));
             }
             catch { }
+            this.mascot.sounds.playChirp();
+            this.checkAgendaNotifications();
         });
         // Three-dot Options Menu on Agenda
         const dotsBtn = document.getElementById('agenda-action-dots-btn');
@@ -8569,27 +8601,51 @@ class CanvasEngine {
         // Load saved events from localStorage if available
         try {
             const saved = localStorage.getItem('roboisland_agenda_events');
-            if (saved) {
+            if (saved !== null) {
                 const parsed = JSON.parse(saved);
-                if (Array.isArray(parsed) && parsed.length > 0) {
+                if (Array.isArray(parsed)) {
                     this.agendaEvents = parsed;
                 }
             }
         }
         catch { }
         container.innerHTML = '';
+        const heroTitle = document.getElementById('agenda-hero-title');
+        const heroTime = document.getElementById('agenda-hero-time');
+        const heroSub = document.getElementById('agenda-hero-sub');
+        const delBtn = document.getElementById('agenda-btn-delete-event');
         const selected = this.agendaEvents.find((e) => e.id === this.selectedAgendaEventId) || this.agendaEvents[0];
         if (selected) {
             this.selectedAgendaEventId = selected.id;
-            const heroTitle = document.getElementById('agenda-hero-title');
-            const heroTime = document.getElementById('agenda-hero-time');
-            const heroSub = document.getElementById('agenda-hero-sub');
             if (heroTitle)
                 heroTitle.textContent = selected.title;
             if (heroTime)
                 heroTime.textContent = selected.timeStr;
+            const now = new Date();
+            const curMins = now.getHours() * 60 + now.getMinutes();
+            const diff = selected.mins - curMins;
+            let dynamicSub = selected.subtitle || `TODAY • AT ${selected.timeStr}`;
+            if (diff > 0 && diff <= 120) {
+                dynamicSub = `NEXT • IN ${diff} MIN`;
+            }
+            else if (diff === 0) {
+                dynamicSub = `HAPPENING NOW`;
+            }
             if (heroSub)
-                heroSub.textContent = selected.subtitle || 'NEXT • IN 48 MIN';
+                heroSub.textContent = dynamicSub;
+            if (delBtn)
+                delBtn.style.display = 'inline-flex';
+        }
+        else {
+            this.selectedAgendaEventId = '';
+            if (heroTitle)
+                heroTitle.textContent = 'No upcoming events';
+            if (heroTime)
+                heroTime.textContent = '--:--';
+            if (heroSub)
+                heroSub.textContent = 'TODAY • ALL CLEAR';
+            if (delBtn)
+                delBtn.style.display = 'none';
         }
         this.agendaEvents.forEach((ev) => {
             // 08:00 (480 mins) to 20:00 (1200 mins) = 720 mins span
@@ -8613,6 +8669,39 @@ class CanvasEngine {
                 this.renderAgendaTimeline();
             });
             container.appendChild(capsule);
+        });
+    }
+    checkAgendaNotifications() {
+        if (!this.agendaEvents || !this.agendaEvents.length)
+            return;
+        const now = new Date();
+        const curMins = now.getHours() * 60 + now.getMinutes();
+        this.agendaEvents.forEach(ev => {
+            const diff = ev.mins - curMins;
+            // 10 minutes before event
+            if (diff === 10 && !this.agendaNotificationWarned.has(`10m_${ev.id}`)) {
+                this.agendaNotificationWarned.add(`10m_${ev.id}`);
+                this.mascot.sounds.playChirp();
+                this.triggerNotification({
+                    id: `agenda-10m-${ev.id}`,
+                    title: `Agenda • In 10 min`,
+                    body: `${ev.title} at ${ev.timeStr}`,
+                    kind: 'info',
+                    durationMs: 5500
+                });
+            }
+            // Starting now (diff === 0)
+            if (diff === 0 && !this.agendaNotificationWarned.has(`now_${ev.id}`)) {
+                this.agendaNotificationWarned.add(`now_${ev.id}`);
+                this.mascot.sounds.playAlert();
+                this.triggerNotification({
+                    id: `agenda-now-${ev.id}`,
+                    title: `Agenda • Starting Now`,
+                    body: `${ev.title} (${ev.timeStr})`,
+                    kind: 'pop',
+                    durationMs: 6500
+                });
+            }
         });
     }
     renderAgendaMonth() {
@@ -9102,6 +9191,7 @@ class CanvasEngine {
                 card.className = 'clip-card clip-card-image';
                 card.draggable = true;
                 const resText = (item.width && item.height) ? `${item.width} × ${item.height}` : 'Screenshot';
+                const imgSrc = item.thumbnail || (item.filePath ? `file://${item.filePath.replace(/\\/g, '/')}` : '');
                 card.innerHTML = `
           <div class="clip-card-header">
             <div class="clip-header-left">
@@ -9121,7 +9211,7 @@ class CanvasEngine {
             </div>
           </div>
           <div class="clip-thumb-wrap">
-            <img class="clip-thumb-img" src="${item.thumbnail || ''}" alt="Screenshot" draggable="false" />
+            <img class="clip-thumb-img" src="${imgSrc}" alt="Screenshot" draggable="false" />
             <span class="clip-badge-drag">Drag Out</span>
           </div>
           <div class="clip-image-meta">

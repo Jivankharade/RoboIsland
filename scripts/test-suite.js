@@ -641,6 +641,45 @@ async function runTests() {
   assert('Visualizer maintains separate state for compact and expanded modes', canvasEngineSrc.includes('compactVizBars') && canvasEngineSrc.includes('expandedVizBars'));
   assert('Header music button reflects real-time audio levels in DOM', canvasEngineSrc.includes("btnHeaderMusic.querySelectorAll('.header-eq-bars span')"));
 
+  // --- 26. Testing TwoCode Lyrics Font, Clipboard Image Thumbnails, & Agenda Customization ---
+  console.log('\n--- 26. Testing TwoCode Lyrics Font, Clipboard Image Thumbnails, & Agenda Customization ---');
+  const productivityEngineSrc = fs.readFileSync(path.join(__dirname, '../src/main/productivity-engine.ts'), 'utf-8');
+  
+  // 1. TwoCode font parity
+  assert('canvasEngine uses exact TwoCode lyrics font string: 600 13px Inter, "Segoe UI", sans-serif',
+    canvasEngineSrc.includes("LYRICS_FONT = '600 13px Inter, \"Segoe UI\", sans-serif';") &&
+    canvasEngineSrc.includes("const twoCodeLyricsFont = '600 13px Inter, \"Segoe UI\", sans-serif';"));
+  assert('canvasEngine scales long lyrics matching TwoCode regex replace',
+    canvasEngineSrc.includes("twoCodeLyricsFont.replace(/\\d+(\\.\\d+)?px/,"));
+
+  // 2. Clipboard image thumbnail sizing
+  assert('productivityEngine scales clipboard image thumbnails with proportional aspect ratio',
+    productivityEngineSrc.includes('const scale = Math.min(1, Math.min(maxW / origW, maxH / origH));') &&
+    productivityEngineSrc.includes('nativeImg.resize({ width: targetW, height: targetH, quality: \'better\' })'));
+  assert('island.css specifies minimum height and clean thumb wrapper for clipboard images',
+    islandCss.includes('.clip-card-image') &&
+    islandCss.includes('min-height: 145px;') &&
+    islandCss.includes('.clip-thumb-wrap') &&
+    islandCss.includes('height: 102px;'));
+
+  // 3. Agenda customization and sound alerts
+  assert('index.html provides event delete button in hero section',
+    indexHtml.includes('id="agenda-btn-delete-event"'));
+  assert('index.html provides Clear Defaults button in customize popover',
+    indexHtml.includes('id="agenda-clear-all-events-btn"'));
+  assert('canvasEngine supports deleting events with sound confirmation',
+    canvasEngineSrc.includes("getElementById('agenda-btn-delete-event')") &&
+    canvasEngineSrc.includes('this.mascot.sounds.playChirp();'));
+  assert('canvasEngine supports clearing default events to start fresh',
+    canvasEngineSrc.includes("getElementById('agenda-clear-all-events-btn')") &&
+    canvasEngineSrc.includes("localStorage.setItem('roboisland_agenda_events', JSON.stringify(this.agendaEvents));"));
+  assert('canvasEngine schedules 15s notification checker with chirp (10m) and alert (0m)',
+    canvasEngineSrc.includes('checkAgendaNotifications()') &&
+    canvasEngineSrc.includes('this.mascot.sounds.playChirp()') &&
+    canvasEngineSrc.includes('this.mascot.sounds.playAlert()') &&
+    canvasEngineSrc.includes('agenda-10m-') &&
+    canvasEngineSrc.includes('agenda-now-'));
+
   // Summary
   console.log('\n====================================================');
   console.log(`TEST SUMMARY: ${passed} PASSED, ${failed} FAILED`);

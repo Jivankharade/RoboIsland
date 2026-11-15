@@ -83,6 +83,20 @@ export class ProductivityEngine {
                 timestamp: Date.now()
               } as ClipboardItem;
             }
+            if (item.type === 'image' && item.filePath && fs.existsSync(item.filePath)) {
+              try {
+                const img = nativeImage.createFromPath(item.filePath);
+                const size = img.getSize();
+                item.width = size.width;
+                item.height = size.height;
+                const maxW = 380;
+                const maxH = 240;
+                const scale = Math.min(1, Math.min(maxW / (size.width || 300), maxH / (size.height || 200)));
+                const tw = Math.max(1, Math.round((size.width || 300) * scale));
+                const th = Math.max(1, Math.round((size.height || 200) * scale));
+                item.thumbnail = img.resize({ width: tw, height: th, quality: 'better' }).toDataURL();
+              } catch {}
+            }
             return item as ClipboardItem;
           }).filter(item => {
             if (item.type === 'image') {
@@ -128,10 +142,17 @@ export class ProductivityEngine {
                   const filePath = path.join(this.clipboardImagesDir, fileName);
                   fs.writeFileSync(filePath, buf);
 
-                  // Generate thumbnail data URL
+                  // Generate thumbnail data URL with proportional aspect ratio
                   const nativeImg = nativeImage.createFromBuffer(buf);
                   const size = nativeImg.getSize();
-                  const thumbImg = size.width > 300 ? nativeImg.resize({ width: 300 }) : nativeImg;
+                  const origW = size.width || 300;
+                  const origH = size.height || 200;
+                  const maxW = 380;
+                  const maxH = 240;
+                  const scale = Math.min(1, Math.min(maxW / origW, maxH / origH));
+                  const targetW = Math.max(1, Math.round(origW * scale));
+                  const targetH = Math.max(1, Math.round(origH * scale));
+                  const thumbImg = nativeImg.resize({ width: targetW, height: targetH, quality: 'better' });
                   const thumbnail = thumbImg.toDataURL();
 
                   const clipItem: ClipboardItem = {

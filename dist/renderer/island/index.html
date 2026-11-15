@@ -642,14 +642,20 @@
           <!-- Hero Event Row: NEXT IN X MIN, Title, Day/Month/+, Time -->
           <div class="agenda-hero-row">
             <div class="agenda-hero-left">
-              <div class="agenda-hero-subtitle" id="agenda-hero-sub">NEXT • IN 48 MIN</div>
+              <div class="agenda-hero-subtitle-wrap">
+                <div class="agenda-hero-subtitle" id="agenda-hero-sub">NEXT • IN 48 MIN</div>
+                <button type="button" class="agenda-del-event-btn" id="agenda-btn-delete-event" title="Delete selected event">
+                  <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                  <span>Delete</span>
+                </button>
+              </div>
               <h2 class="agenda-hero-title" id="agenda-hero-title">Design review</h2>
             </div>
             <div class="agenda-hero-right">
               <div class="agenda-pill-group">
                 <button type="button" class="agenda-pill-btn active" id="agenda-toggle-day">Day</button>
                 <button type="button" class="agenda-pill-btn" id="agenda-toggle-month">Month</button>
-                <button type="button" class="agenda-pill-add" id="agenda-btn-add-event" title="Add Event">+</button>
+                <button type="button" class="agenda-pill-add" id="agenda-btn-add-event" title="Add Custom Event">+</button>
               </div>
               <div class="agenda-hero-time" id="agenda-hero-time">10:30 AM</div>
             </div>
@@ -694,13 +700,14 @@
 
           <!-- Quick Add Event Popover Dialog -->
           <div class="agenda-add-event-popover hidden" id="agenda-add-event-popover">
-            <div class="agenda-popover-title">New Event</div>
+            <div class="agenda-popover-title">Customize Agenda</div>
             <div class="agenda-popover-inputs">
-              <input type="text" id="agenda-input-title" placeholder="Event title..." maxlength="32">
+              <input type="text" id="agenda-input-title" placeholder="Event title (e.g. Project Sync)..." maxlength="32">
               <input type="time" id="agenda-input-time" value="14:00">
             </div>
             <div class="agenda-popover-btns">
-              <button type="button" id="agenda-save-event-btn" class="agenda-save-btn">Add Event</button>
+              <button type="button" id="agenda-save-event-btn" class="agenda-save-btn">Save Event</button>
+              <button type="button" id="agenda-clear-all-events-btn" class="agenda-clear-defaults-btn" title="Remove predefined demo events">Clear Defaults</button>
               <button type="button" id="agenda-cancel-event-btn" class="agenda-cancel-btn">Cancel</button>
             </div>
           </div>
