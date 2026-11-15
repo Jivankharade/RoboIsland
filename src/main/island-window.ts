@@ -9,6 +9,13 @@ export class IslandWindow {
   private isDragging = false;
   private isTucked = false;
   private currentMode: 'rest' | 'compact' | 'expanded' = 'compact';
+  private capsuleBounds: { width: number; height: number; topY: number; isSplit?: boolean; splitSpan?: number } = {
+    width: 98,
+    height: 26,
+    topY: 10,
+    isSplit: false,
+    splitSpan: 0
+  };
 
   constructor() {
     this.createWindow();
@@ -108,24 +115,20 @@ export class IslandWindow {
       if (this.currentMode === 'expanded' || this.isDragging) {
         this.setInteractive(true);
       } else if (this.isTucked) {
-        const tuckHalfW = 80;
+        const tuckHalfW = 40;
         const inHoverZone = relX >= (cx - tuckHalfW) && relX <= (cx + tuckHalfW) &&
                             relY >= 0 && relY <= 14;
         this.setInteractive(inHoverZone);
-      } else if (this.currentMode === 'rest') {
-        const restHalfW = 100;
-        const restH = 40;
-        const inHoverZone = relX >= (cx - restHalfW) && relX <= (cx + restHalfW) &&
-                            relY >= 0 && relY <= restH;
-        this.setInteractive(inHoverZone);
       } else {
-        // When in compact mode, ensure hover activation zone is sufficiently wide (±20px margin)
-        // so setInteractive(true) activates before clicks land, eliminating click-dropping to background windows.
-        // Compact capsule is up to 370px wide during speedometer / volume pops.
-        const compactHalfW = 190;
-        const compactH = 64;
-        const inHoverZone = relX >= (cx - compactHalfW) && relX <= (cx + compactHalfW) &&
-                            relY >= 0 && relY <= compactH;
+        const curW = (this.capsuleBounds.isSplit && this.capsuleBounds.splitSpan)
+          ? this.capsuleBounds.splitSpan
+          : (this.capsuleBounds.width || (this.currentMode === 'rest' ? 98 : 200));
+        const curH = this.capsuleBounds.height || (this.currentMode === 'rest' ? 26 : 36);
+        const curTopY = typeof this.capsuleBounds.topY === 'number' ? this.capsuleBounds.topY : 10;
+        const halfW = curW / 2;
+        // Exact capsule hover zone (+1px subpixel tolerance) - zero dead-zone outside the capsule
+        const inHoverZone = relX >= (cx - halfW - 1) && relX <= (cx + halfW + 1) &&
+                            relY >= (curTopY - 1) && relY <= (curTopY + curH + 1);
         this.setInteractive(inHoverZone);
       }
 
@@ -146,7 +149,8 @@ export class IslandWindow {
 
     this.isInteractive = effectiveInteractive;
     this.window.setIgnoreMouseEvents(!effectiveInteractive, { forward: true });
-    if (effectiveInteractive) {
+    // Only focus the window in expanded mode. Never steal OS focus simply on hover in rest/compact mode.
+    if (effectiveInteractive && this.currentMode === 'expanded') {
       try { this.window.focus(); } catch {}
     }
   }
@@ -280,6 +284,20 @@ export class IslandWindow {
   private setupIPC(): void {
     ipcMain.on('island:set-interactive', (_event, interactive: boolean) => {
       this.setInteractive(interactive);
+    });
+
+    ipcMain.on('island:capsule-bounds', (_event, bounds: { width: number; height: number; topY: number; isSplit?: boolean; splitSpan?: number }) => {
+      if (bounds && typeof bounds.width === 'number') {
+        this.capsuleBounds = bounds;
+      }
+    });
+
+    ipcMain.on('island:focus', () => {
+      try {
+        if (this.window && !this.window.isDestroyed()) {
+          this.window.focus();
+        }
+      } catch {}
     });
 
     ipcMain.on('island:set-dragging', (_event, dragging: boolean) => {

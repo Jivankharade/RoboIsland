@@ -6,6 +6,9 @@ const api = {
     setInteractive: (interactive) => {
         electron_1.ipcRenderer.send('island:set-interactive', interactive);
     },
+    updateCapsuleBounds: (bounds) => {
+        electron_1.ipcRenderer.send('island:capsule-bounds', bounds);
+    },
     focusWindow: () => {
         electron_1.ipcRenderer.send('island:focus');
     },

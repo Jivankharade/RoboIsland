@@ -5,6 +5,9 @@ const api = {
   setInteractive: (interactive: boolean) => {
     ipcRenderer.send('island:set-interactive', interactive);
   },
+  updateCapsuleBounds: (bounds: { width: number; height: number; topY: number; isSplit?: boolean; splitSpan?: number }) => {
+    ipcRenderer.send('island:capsule-bounds', bounds);
+  },
   focusWindow: () => {
     ipcRenderer.send('island:focus');
   },

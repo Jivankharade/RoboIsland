@@ -1521,6 +1521,8 @@ export class CanvasEngine {
   private _isPowerSaving = false;
   private _powerSavingFrameInterval = 0; // ms between frames in power-saving mode (0 = disabled)
   private _lastPowerSaveFrame = 0;
+  private lastSentBoundsW = 0;
+  private lastSentBoundsH = 0;
 
   constructor() {
     this.canvas = document.getElementById('island-canvas') as HTMLCanvasElement;
@@ -1531,8 +1533,26 @@ export class CanvasEngine {
     this.initDomOverlay();
     this.setupEvents();
     this.loadInitialData();
+    this.reportCapsuleBounds();
 
     requestAnimationFrame(this.renderLoop.bind(this));
+  }
+
+  public reportCapsuleBounds(): void {
+    if (typeof window === 'undefined' || !window.roboIsland?.updateCapsuleBounds) return;
+    const curW = Math.round(this.mode === 'expanded' ? Math.max(this.targetWidth, this.currentWidth) : this.currentWidth);
+    const curH = Math.round(this.mode === 'expanded' ? Math.max(this.targetHeight, this.currentHeight) : this.currentHeight);
+    const bubbleSize = this.currentHeight;
+    const isSplit = this.isSplitIslandActive();
+    const totalSpan = isSplit ? Math.round(curW + 8 + bubbleSize) : curW;
+
+    window.roboIsland.updateCapsuleBounds({
+      width: curW,
+      height: curH,
+      topY: this.getTopY(),
+      isSplit,
+      splitSpan: totalSpan
+    });
   }
 
   private initCanvasSize(): void {
@@ -1893,10 +1913,10 @@ export class CanvasEngine {
       const effectiveH = this.mode === 'expanded' ? Math.max(this.targetHeight, this.currentHeight) : this.currentHeight;
       const halfW = effectiveW / 2;
       const insideIsland =
-        e.clientX >= cx - halfW - 14 &&
-        e.clientX <= cx + halfW + 14 &&
-        e.clientY >= 0 &&
-        e.clientY <= topY + effectiveH + 14;
+        e.clientX >= cx - halfW &&
+        e.clientX <= cx + halfW &&
+        e.clientY >= topY &&
+        e.clientY <= topY + effectiveH;
 
       if (insideIsland) {
         e.preventDefault();
@@ -1915,10 +1935,10 @@ export class CanvasEngine {
       const effectiveH = this.mode === 'expanded' ? Math.max(this.targetHeight, this.currentHeight) : this.currentHeight;
       const halfW = effectiveW / 2;
       const insideIsland =
-        e.clientX >= cx - halfW - 14 &&
-        e.clientX <= cx + halfW + 14 &&
-        e.clientY >= 0 &&
-        e.clientY <= topY + effectiveH + 14;
+        e.clientX >= cx - halfW &&
+        e.clientX <= cx + halfW &&
+        e.clientY >= topY &&
+        e.clientY <= topY + effectiveH;
 
       if (insideIsland) {
         e.preventDefault();
@@ -1936,6 +1956,11 @@ export class CanvasEngine {
           } else if (window.roboIsland?.toggleTuck) {
             window.roboIsland.toggleTuck();
           }
+        }
+      } else {
+        // Explicitly clear interactivity if a right-click landed outside the island
+        if (window.roboIsland) {
+          window.roboIsland.setInteractive(false);
         }
       }
     }, true);
@@ -2642,6 +2667,7 @@ export class CanvasEngine {
       this.targetHeight = 26;
       this.targetRadius = 13;
     }
+    this.reportCapsuleBounds();
   }
 
   public canAutoCollapse(): boolean {
@@ -2920,28 +2946,25 @@ export class CanvasEngine {
     }
 
     if (this.mode === 'rest') {
-      // 32×18 px capsule with comfortable hover target
-      const restHalfW = Math.max(halfW, 18);
-      const restH = Math.max(effectiveH, 18);
-      inBounds = this.pointerX >= cx - restHalfW &&
-                 this.pointerX <= cx + restHalfW &&
+      inBounds = this.pointerX >= cx - halfW &&
+                 this.pointerX <= cx + halfW &&
                  this.pointerY >= topY &&
-                 this.pointerY <= topY + restH;
+                 this.pointerY <= topY + effectiveH;
     } else if (this.isSplitIslandActive()) {
       // Feature C: Split-Island Dual Bubble hit testing [ Pill ] ( ○ )
       const bubbleSize = this.currentHeight;
       const totalSpan = this.currentWidth + 8 + bubbleSize;
       const pillLeft = cx - totalSpan / 2;
-      inBounds = this.pointerX >= pillLeft - 6 &&
-                 this.pointerX <= pillLeft + totalSpan + 6 &&
+      inBounds = this.pointerX >= pillLeft &&
+                 this.pointerX <= pillLeft + totalSpan &&
                  this.pointerY >= topY &&
                  this.pointerY <= topY + this.currentHeight;
     } else {
-      const marginX = this.mode === 'compact' ? 14 : 0;
-      const marginY = this.mode === 'compact' ? 6 : 0;
+      const marginX = this.mode === 'compact' ? 1 : 0;
+      const marginY = this.mode === 'compact' ? 1 : 0;
       inBounds = this.pointerX >= cx - halfW - marginX &&
                  this.pointerX <= cx + halfW + marginX &&
-                 this.pointerY >= Math.max(0, topY - marginY) &&
+                 this.pointerY >= topY - marginY &&
                  this.pointerY <= topY + effectiveH + marginY;
     }
 
@@ -3099,6 +3122,7 @@ export class CanvasEngine {
     const ctxMenu = document.getElementById('island-context-menu');
     if (ctxMenu) ctxMenu.classList.add('hidden');
     this.updateTargetDimensions();
+    this.reportCapsuleBounds();
     if (window.roboIsland?.notifyModeChanged) {
       window.roboIsland.notifyModeChanged('rest');
     }
@@ -3113,6 +3137,7 @@ export class CanvasEngine {
       if (this.mascot.mood === 'happy') this.mascot.setMood('neutral');
     }, 1800);
     this.updateTargetDimensions();
+    this.reportCapsuleBounds();
     this.mascot.sounds.playChirp();
     if (window.roboIsland?.notifyModeChanged) {
       window.roboIsland.notifyModeChanged(targetMode);
@@ -3136,6 +3161,7 @@ export class CanvasEngine {
       }
     }
     this.updateTargetDimensions();
+    this.reportCapsuleBounds();
   }
 
   public getTucked(): boolean {
@@ -3162,6 +3188,7 @@ export class CanvasEngine {
     this.mode = 'expanded';
     this.setPopover('none');
     this.updateTargetDimensions();
+    this.reportCapsuleBounds();
     this.mascot.sounds.playChirp();
     if (window.roboIsland) {
       window.roboIsland.setInteractive(true);
@@ -3187,6 +3214,7 @@ export class CanvasEngine {
       this.domOverlayEl.classList.add('hidden');
     }
     this.updateTargetDimensions();
+    this.reportCapsuleBounds();
     if (playSound) {
       this.mascot.sounds.playChirp();
     }
@@ -3287,15 +3315,20 @@ export class CanvasEngine {
       y >= topY &&
       y <= topY + effectiveH;
 
-    // Desktop/margin outside-click collapses expanded island immediately
-    if (!inBounds && this.mode === 'expanded') {
-      if (this.canAutoCollapse()) {
-        if (this.config && this.config.restModeEnabled && !this.mediaState.active && !this.focusState.active) {
-          this.enterRest();
-        } else {
-          this.collapse();
+    // Outside-click handling: collapses expanded island or immediately releases interactivity
+    if (!inBounds) {
+      if (this.mode === 'expanded') {
+        if (this.canAutoCollapse()) {
+          if (this.config && this.config.restModeEnabled && !this.mediaState.active && !this.focusState.active) {
+            this.enterRest();
+          } else {
+            this.collapse();
+          }
         }
-        return;
+      } else {
+        if (window.roboIsland) {
+          window.roboIsland.setInteractive(false);
+        }
       }
       return;
     }
@@ -3857,6 +3890,15 @@ export class CanvasEngine {
     if (Math.abs(this.currentRadius - this.targetRadius) < 0.3 && Math.abs(this.islandSpring.vRadius) < 3) {
       this.currentRadius = this.targetRadius;
       this.islandSpring.vRadius = 0;
+    }
+
+    // Real-time synchronization of exact visible capsule bounds to Electron main process
+    const roundedW = Math.round(this.mode === 'expanded' ? Math.max(this.targetWidth, this.currentWidth) : this.currentWidth);
+    const roundedH = Math.round(this.mode === 'expanded' ? Math.max(this.targetHeight, this.currentHeight) : this.currentHeight);
+    if (roundedW !== this.lastSentBoundsW || roundedH !== this.lastSentBoundsH) {
+      this.lastSentBoundsW = roundedW;
+      this.lastSentBoundsH = roundedH;
+      this.reportCapsuleBounds();
     }
 
     // Smooth album ambient tint color transition (RGB lerp)

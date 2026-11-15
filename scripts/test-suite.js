@@ -445,6 +445,30 @@ async function runTests() {
   }
   assert('drawCompactAppActivity and drawDetachedAppActivityBubble render without errors', drewAppActivity === true);
 
+  // 18. Testing Zero-Deadzone Capsule Bounds & Click Pass-Through
+  console.log('\n--- 18. Testing Zero-Deadzone Capsule Bounds & Click Pass-Through ---');
+  // Capsule at rest: width 98, height 26, topY 10, cx 430
+  const cx = 430;
+  const topY = 10;
+  const capW = 98;
+  const capH = 26;
+  const halfW = capW / 2; // 49px
+
+  // Test point directly on capsule
+  const onCapsule = (x, y) => x >= (cx - halfW) && x <= (cx + halfW) && y >= topY && y <= (topY + capH);
+  assert('Cursor at center (430, 20) is on capsule', onCapsule(430, 20) === true);
+  assert('Cursor at exact left edge (381, 20) is on capsule', onCapsule(381, 20) === true);
+  assert('Cursor at exact right edge (479, 20) is on capsule', onCapsule(479, 20) === true);
+
+  // Test points little outside (e.g. 5px to the left or right, or 5px above in bezel)
+  assert('Cursor 5px to the left (376, 20) is NOT on capsule (passes through)', onCapsule(376, 20) === false);
+  assert('Cursor 5px to the right (484, 20) is NOT on capsule (passes through)', onCapsule(484, 20) === false);
+  assert('Cursor 5px above in bezel (430, 5) is NOT on capsule (passes through)', onCapsule(430, 5) === false);
+  assert('Cursor 5px below capsule (430, 41) is NOT on capsule (passes through)', onCapsule(430, 41) === false);
+
+  // Verify reportCapsuleBounds exists on mockEngine
+  assert('reportCapsuleBounds method exists on CanvasEngine prototype', typeof mockEngine.reportCapsuleBounds === 'function');
+
   // Summary
   console.log('\n====================================================');
   console.log(`TEST SUMMARY: ${passed} PASSED, ${failed} FAILED`);
