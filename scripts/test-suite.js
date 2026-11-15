@@ -580,14 +580,16 @@ async function runTests() {
     assert(`Feature "${tab}" dimensions: ${expectedW}x${expectedH}px`, mockEngine.targetWidth === expectedW && mockEngine.targetHeight === expectedH);
   });
 
-  // --- 23. Testing File Tray Distinction, AI Tab Indigo Theme, Download Motion Fix ---
-  console.log('\n--- 23. Testing File Tray Distinction, AI Tab Indigo Theme, Download Motion Fix ---');
-  assert('island.css styles tray tab with AirDrop cyan glow', islandCss.includes('[data-active-tab="tray"]') && islandCss.includes('0, 210, 255'));
-  assert('island.css styles tray active dock item with AirDrop cyan', islandCss.includes('.nav-item.active[data-tab="tray"]') && islandCss.includes('#00d2ff'));
-  assert('index.html tray big icon uses AirDrop cyan stroke', indexHtml.includes('stroke="#00d2ff"'));
+  // --- 23. Testing File Tray vs Clipboard Distinction, AI Indigo Theme, Download Motion Fix ---
+  console.log('\n--- 23. Testing File Tray vs Clipboard Distinction, AI Indigo Theme, Download Motion Fix ---');
+  assert('island.css styles tray tab with AirDrop mint/teal glow', islandCss.includes('[data-active-tab="tray"]') && islandCss.includes('0, 199, 190'));
+  assert('island.css styles tray active dock item with AirDrop mint/teal', islandCss.includes('.nav-item.active[data-tab="tray"]') && islandCss.includes('#00c7be'));
+  assert('island.css styles clipboard tab with Apple Royal Blue glow', islandCss.includes('[data-active-tab="clipboard"]') && islandCss.includes('10, 132, 255'));
+  assert('island.css styles clipboard active dock item with Apple Royal Blue', islandCss.includes('.nav-item.active[data-tab="clipboard"]') && islandCss.includes('#0a84ff'));
   assert('island.css styles chat tab with Cyber AI Indigo glow', islandCss.includes('[data-active-tab="chat"]') && islandCss.includes('99, 102, 241'));
   assert('island.css styles chat active dock item with Cyber AI Indigo', islandCss.includes('.nav-item.active[data-tab="chat"]') && islandCss.includes('#818cf8'));
-  assert('island.css styles Spotify lyrics with dark frosted background', islandCss.includes('rgba(10, 10, 14'));
+  assert('island.css styles Spotify lyrics with subtle frosted glass background', islandCss.includes('rgba(255, 255, 255, 0.04)') && islandCss.includes('backdrop-filter: blur(14px)'));
+  assert('island.css has smooth lyrics-roll animation', islandCss.includes('.media-lyrics-wrap.lyrics-roll .lyrics-line') && islandCss.includes('@keyframes lyricRollUp'));
 
   // Test stable download notification width (zero jitter/motion)
   mockEngine.mode = 'rest';
@@ -603,6 +605,17 @@ async function runTests() {
   mockEngine.getLyricNow = () => ({ text: 'One two three four get on the dance floor', k: 1 });
   mockEngine.updateTargetDimensions();
   assert('Music pill expands up to 440px for full 42-char lyrics', mockEngine.targetWidth >= 380);
+
+  // --- 24. Testing Multi-Note Shelf & Management ---
+  console.log('\n--- 24. Testing Multi-Note Shelf & Management ---');
+  assert('index.html contains #notes-shelf-bar', indexHtml.includes('id="notes-shelf-bar"'));
+  assert('index.html contains #notes-shelf-list container', indexHtml.includes('id="notes-shelf-list"'));
+  assert('index.html contains #btn-notes-shelf-add button', indexHtml.includes('id="btn-notes-shelf-add"'));
+  assert('index.html contains #notes-count-badge', indexHtml.includes('id="notes-count-badge"'));
+  assert('island.css styles .notes-shelf-bar', islandCss.includes('.notes-shelf-bar'));
+  assert('island.css styles .note-chip', islandCss.includes('.note-chip'));
+  assert('island.css styles .note-chip.active with gold border & glow', islandCss.includes('.note-chip.active'));
+  assert('island.css styles .note-chip-del delete button', islandCss.includes('.note-chip-del'));
 
   // Summary
   console.log('\n====================================================');

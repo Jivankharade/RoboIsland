@@ -1683,34 +1683,47 @@ export class CanvasEngine {
 
   /**
    * Spotify-Style Synced Lyrics Stream DOM updater:
-   * Keeps prev (dark & faint), active (bright white bold), and next (dark & faint) synchronized.
+   * Keeps prev (dark & faint), active (bright white bold), and next (dark & faint) synchronized
+   * with smooth vertical roll transitions matching TwoCode & Spotify.
    */
   public updateLyricsDom(): void {
+    const wrapEl = document.getElementById('media-lyrics-wrap');
     const prevEl = document.getElementById('lyrics-line-prev');
     const activeEl = document.getElementById('lyrics-line-active');
     const nextEl = document.getElementById('lyrics-line-next');
     if (!activeEl) return;
 
+    let newPrev = '';
+    let newNow = 'Play music to sync live lyrics';
+    let newNext = '';
+
     if (this.mediaState.playing && this.mediaState.active) {
       if (this.hasSyncedLyrics()) {
         const lyr = this.getLyricAround();
         if (lyr && (lyr.now || lyr.before || lyr.next)) {
-          if (prevEl) prevEl.textContent = lyr.before || '';
-          activeEl.textContent = lyr.now || '♪';
-          if (nextEl) nextEl.textContent = lyr.next || '';
-          return;
+          newPrev = lyr.before || '';
+          newNow = lyr.now || '♪';
+          newNext = lyr.next || '';
+        } else {
+          newNow = this.mediaState.title ? `♪ ${this.mediaState.title}` : 'Playing';
+          newNext = this.mediaState.artist || '';
         }
+      } else {
+        newNow = this.mediaState.title ? `♪ ${this.mediaState.title}` : 'Playing';
+        newNext = this.mediaState.artist || '';
       }
-      // Playing but no synced lyrics available
-      if (prevEl) prevEl.textContent = '';
-      activeEl.textContent = this.mediaState.title ? `♪ ${this.mediaState.title}` : 'Playing';
-      if (nextEl) nextEl.textContent = this.mediaState.artist || '';
-    } else {
-      // Idle / standby
-      if (prevEl) prevEl.textContent = '';
-      activeEl.textContent = 'Play music to sync live lyrics';
-      if (nextEl) nextEl.textContent = '';
     }
+
+    if (activeEl.textContent !== newNow) {
+      activeEl.textContent = newNow;
+      if (wrapEl) {
+        wrapEl.classList.remove('lyrics-roll');
+        void wrapEl.offsetWidth; // force reflow for smooth animation
+        wrapEl.classList.add('lyrics-roll');
+      }
+    }
+    if (prevEl && prevEl.textContent !== newPrev) prevEl.textContent = newPrev;
+    if (nextEl && nextEl.textContent !== newNext) nextEl.textContent = newNext;
   }
 
   private lastTime = performance.now();
@@ -8284,7 +8297,7 @@ export class CanvasEngine {
       setTwoToneTitle('Music ', 'Player', tint);
       document.getElementById('panel-music')?.classList.add('active');
     } else if (tab === 'tray') {
-      setTwoToneTitle('File ', 'Tray', '#00d2ff');
+      setTwoToneTitle('File ', 'Tray', '#00c7be');
       if (phoneBtn) phoneBtn.classList.remove('hidden');
       document.getElementById('panel-tray')?.classList.add('active');
       this.loadTrayShelf();
@@ -8293,7 +8306,7 @@ export class CanvasEngine {
       document.getElementById('panel-notes')?.classList.add('active');
       this.initNotesUI();
     } else if (tab === 'clipboard') {
-      setTwoToneTitle('Clip', 'board', '#64d2ff');
+      setTwoToneTitle('Clip', 'board', '#0a84ff');
       document.getElementById('panel-clipboard')?.classList.add('active');
       this.loadClipboardList();
     } else if (tab === 'chat') {
@@ -8380,10 +8393,10 @@ export class CanvasEngine {
         accent = '#bf5af2';
         break;
       case 'tray':
-        // Apple AirDrop Electric Cyan (distinct from Notes yellow)
-        primary = 'rgba(0, 210, 255, 0.50)';
-        secondary = 'rgba(0, 150, 255, 0.22)';
-        accent = '#00d2ff';
+        // Apple AirDrop Mint / Teal
+        primary = 'rgba(0, 199, 190, 0.52)';
+        secondary = 'rgba(0, 150, 180, 0.22)';
+        accent = '#00c7be';
         break;
       case 'notes':
         // Warm golden amber notepad
@@ -8392,10 +8405,10 @@ export class CanvasEngine {
         accent = '#ffd60a';
         break;
       case 'clipboard':
-        // Electric ice cyan
-        primary = 'rgba(100, 210, 255, 0.50)';
-        secondary = 'rgba(0, 150, 255, 0.22)';
-        accent = '#64d2ff';
+        // Apple macOS Deep Electric Blue
+        primary = 'rgba(10, 132, 255, 0.52)';
+        secondary = 'rgba(0, 100, 220, 0.22)';
+        accent = '#0a84ff';
         break;
       case 'home':
       case 'settings':
@@ -8413,10 +8426,12 @@ export class CanvasEngine {
   }
 
   private isNotesInitialized = false;
+  private notesList: Array<{ id: string; title: string; body: string; updatedAt: number }> = [];
+  private activeNoteId: string = '';
 
   /**
    * Apple Notes Pad Experience (#panel-notes)
-   * Real quick-note editor with persistence, word/char counts, checklist, and timestamps
+   * Real multi-note manager with dynamic shelf, persistence, word/char counts, checklist, and timestamps
    */
   public initNotesUI(): void {
     if (!this.domOverlayEl) return;
@@ -8425,7 +8440,76 @@ export class CanvasEngine {
     const textArea = document.getElementById('notes-textarea') as HTMLTextAreaElement | null;
     const statsBadge = document.getElementById('notes-stats-badge');
     const statusBadge = document.getElementById('notes-status-badge');
+    const countBadge = document.getElementById('notes-count-badge');
     const lastEditedEl = document.getElementById('notes-last-edited');
+    const shelfList = document.getElementById('notes-shelf-list');
+
+    // 1. Load notes from localStorage (with seamless migration from legacy single note)
+    const loadNotesData = () => {
+      try {
+        const raw = localStorage.getItem('roboisland_notes_all');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            this.notesList = parsed;
+          }
+        }
+      } catch {}
+
+      if (!this.notesList.length) {
+        // Migration from single legacy note
+        try {
+          const legacyRaw = localStorage.getItem('roboisland_apple_note');
+          if (legacyRaw) {
+            const legacy = JSON.parse(legacyRaw);
+            if (legacy && (legacy.title || legacy.body)) {
+              this.notesList = [{
+                id: 'note-1',
+                title: legacy.title || '',
+                body: legacy.body || '',
+                updatedAt: legacy.updatedAt || Date.now()
+              }];
+            }
+          }
+        } catch {}
+      }
+
+      if (!this.notesList.length) {
+        this.notesList = [{
+          id: 'note-' + Date.now(),
+          title: '',
+          body: '',
+          updatedAt: Date.now()
+        }];
+      }
+
+      const savedActiveId = localStorage.getItem('roboisland_active_note_id');
+      if (savedActiveId && this.notesList.some(n => n.id === savedActiveId)) {
+        this.activeNoteId = savedActiveId;
+      } else {
+        this.activeNoteId = this.notesList[0].id;
+      }
+    };
+
+    const persistNotes = () => {
+      try {
+        localStorage.setItem('roboisland_notes_all', JSON.stringify(this.notesList));
+        localStorage.setItem('roboisland_active_note_id', this.activeNoteId);
+        // Also keep legacy note updated with active note for backward compatibility
+        const cur = getActiveNote();
+        if (cur) {
+          localStorage.setItem('roboisland_apple_note', JSON.stringify({
+            title: cur.title,
+            body: cur.body,
+            updatedAt: cur.updatedAt
+          }));
+        }
+      } catch {}
+    };
+
+    const getActiveNote = () => {
+      return this.notesList.find(n => n.id === this.activeNoteId) || this.notesList[0];
+    };
 
     const updateStats = () => {
       const text = (textArea?.value || '') + ' ' + (titleInput?.value || '');
@@ -8434,6 +8518,138 @@ export class CanvasEngine {
       if (statsBadge) {
         statsBadge.textContent = `${words} ${words === 1 ? 'word' : 'words'} • ${chars} ${chars === 1 ? 'char' : 'chars'}`;
       }
+      if (countBadge) {
+        countBadge.textContent = `${this.notesList.length} ${this.notesList.length === 1 ? 'Note' : 'Notes'}`;
+      }
+    };
+
+    const updateLastEdited = (updatedAt: number) => {
+      if (!lastEditedEl) return;
+      const dt = new Date(updatedAt || Date.now());
+      const isToday = dt.toDateString() === new Date().toDateString();
+      const timeStr = dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      lastEditedEl.textContent = isToday
+        ? `Last edited today at ${timeStr}`
+        : `Last edited ${dt.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${timeStr}`;
+    };
+
+    const renderShelf = () => {
+      if (!shelfList) return;
+      shelfList.innerHTML = '';
+      this.notesList.forEach((n, idx) => {
+        const chip = document.createElement('div');
+        chip.className = `note-chip${n.id === this.activeNoteId ? ' active' : ''}`;
+        chip.dataset.id = n.id;
+
+        const rawTitle = n.title.trim() || n.body.trim().split('\n')[0] || `Note ${idx + 1}`;
+        const displayTitle = rawTitle.length > 18 ? rawTitle.slice(0, 18) + '…' : rawTitle;
+
+        chip.innerHTML = `
+          <span class="note-chip-title" title="${n.title || 'Untitled'}">${displayTitle}</span>
+          <button type="button" class="note-chip-del" data-id="${n.id}" title="Delete note">×</button>
+        `;
+
+        chip.addEventListener('click', (e) => {
+          if ((e.target as HTMLElement).closest('.note-chip-del')) return;
+          e.stopPropagation();
+          switchActiveNote(n.id);
+        });
+
+        const delBtn = chip.querySelector('.note-chip-del');
+        delBtn?.addEventListener('click', (e) => {
+          e.stopPropagation();
+          deleteNote(n.id);
+        });
+
+        shelfList.appendChild(chip);
+      });
+      updateStats();
+    };
+
+    const switchActiveNote = (id: string) => {
+      // Save current inputs before switching
+      const cur = getActiveNote();
+      if (cur) {
+        cur.title = titleInput?.value || '';
+        cur.body = textArea?.value || '';
+        cur.updatedAt = Date.now();
+      }
+
+      this.activeNoteId = id;
+      persistNotes();
+
+      const next = getActiveNote();
+      if (next) {
+        if (titleInput) titleInput.value = next.title || '';
+        if (textArea) textArea.value = next.body || '';
+        updateLastEdited(next.updatedAt);
+      }
+
+      renderShelf();
+      updateStats();
+    };
+
+    const createNewNote = () => {
+      // Save current note first
+      const cur = getActiveNote();
+      if (cur) {
+        cur.title = titleInput?.value || '';
+        cur.body = textArea?.value || '';
+        cur.updatedAt = Date.now();
+      }
+
+      const newId = 'note-' + Date.now();
+      const newNote = {
+        id: newId,
+        title: '',
+        body: '',
+        updatedAt: Date.now()
+      };
+      this.notesList.push(newNote);
+      this.activeNoteId = newId;
+      persistNotes();
+
+      if (titleInput) titleInput.value = '';
+      if (textArea) textArea.value = '';
+      updateLastEdited(newNote.updatedAt);
+      renderShelf();
+      updateStats();
+
+      // Scroll shelf to right so the new note is visible
+      if (shelfList) shelfList.scrollLeft = shelfList.scrollWidth;
+      titleInput?.focus();
+    };
+
+    const deleteNote = (id: string) => {
+      if (this.notesList.length <= 1) {
+        // Only one note left: just clear it
+        const single = this.notesList[0];
+        single.title = '';
+        single.body = '';
+        single.updatedAt = Date.now();
+        if (titleInput) titleInput.value = '';
+        if (textArea) textArea.value = '';
+        persistNotes();
+        renderShelf();
+        updateStats();
+        return;
+      }
+
+      const idx = this.notesList.findIndex(n => n.id === id);
+      this.notesList = this.notesList.filter(n => n.id !== id);
+      if (this.activeNoteId === id) {
+        const nextNote = this.notesList[Math.min(idx, this.notesList.length - 1)];
+        this.activeNoteId = nextNote ? nextNote.id : this.notesList[0].id;
+        const active = getActiveNote();
+        if (active) {
+          if (titleInput) titleInput.value = active.title || '';
+          if (textArea) textArea.value = active.body || '';
+          updateLastEdited(active.updatedAt);
+        }
+      }
+      persistNotes();
+      renderShelf();
+      updateStats();
     };
 
     let saveTimer: any = null;
@@ -8446,40 +8662,41 @@ export class CanvasEngine {
       clearTimeout(saveTimer);
       saveTimer = setTimeout(() => {
         try {
-          const noteData = {
-            title: titleInput?.value || '',
-            body: textArea?.value || '',
-            updatedAt: Date.now()
-          };
-          localStorage.setItem('roboisland_apple_note', JSON.stringify(noteData));
+          const cur = getActiveNote();
+          if (cur) {
+            cur.title = titleInput?.value || '';
+            cur.body = textArea?.value || '';
+            cur.updatedAt = Date.now();
+            persistNotes();
+            updateLastEdited(cur.updatedAt);
+
+            // Update active chip title live in the shelf
+            const activeChip = shelfList?.querySelector(`.note-chip[data-id="${cur.id}"] .note-chip-title`);
+            if (activeChip) {
+              const rawTitle = cur.title.trim() || cur.body.trim().split('\n')[0] || 'Untitled';
+              activeChip.textContent = rawTitle.length > 18 ? rawTitle.slice(0, 18) + '…' : rawTitle;
+            }
+          }
           if (statusBadge) {
             statusBadge.textContent = 'Auto-Saved';
             statusBadge.style.color = '#ffd60a';
             statusBadge.style.borderColor = 'rgba(255, 214, 10, 0.25)';
           }
-          if (lastEditedEl) {
-            const now = new Date();
-            const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            lastEditedEl.textContent = `Last edited today at ${timeStr}`;
-          }
         } catch {}
       }, 300);
     };
 
-    // Load saved note on first load if inputs are empty
-    try {
-      const raw = localStorage.getItem('roboisland_apple_note');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (titleInput && !titleInput.value) titleInput.value = parsed.title || '';
-        if (textArea && !textArea.value) textArea.value = parsed.body || '';
-        if (parsed.updatedAt && lastEditedEl) {
-          const dt = new Date(parsed.updatedAt);
-          lastEditedEl.textContent = `Last edited ${dt.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-        }
-      }
-    } catch {}
-
+    // Initialize or load notes on tab activation
+    if (!this.notesList.length) {
+      loadNotesData();
+    }
+    const currentNote = getActiveNote();
+    if (currentNote) {
+      if (titleInput && titleInput.value !== currentNote.title) titleInput.value = currentNote.title || '';
+      if (textArea && textArea.value !== currentNote.body) textArea.value = currentNote.body || '';
+      updateLastEdited(currentNote.updatedAt);
+    }
+    renderShelf();
     updateStats();
 
     if (this.isNotesInitialized) return;
@@ -8495,23 +8712,26 @@ export class CanvasEngine {
       triggerSave();
     });
 
-    // Helper: + New Note
+    // Helper: + New Note in header
     const btnNew = document.getElementById('btn-notes-new');
     btnNew?.addEventListener('click', (e) => {
       e.stopPropagation();
-      if (titleInput) titleInput.value = '';
-      if (textArea) textArea.value = '';
-      triggerSave();
-      updateStats();
-      titleInput?.focus();
+      createNewNote();
     });
 
-    // Helper: Clear
+    // Helper: + Note in shelf
+    const btnShelfAdd = document.getElementById('btn-notes-shelf-add');
+    btnShelfAdd?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      createNewNote();
+    });
+
+    // Helper: Clear current note
     const btnClear = document.getElementById('btn-notes-clear');
     btnClear?.addEventListener('click', (e) => {
       e.stopPropagation();
       if (!titleInput?.value && !textArea?.value) return;
-      if (window.confirm('Are you sure you want to clear this note?')) {
+      if (window.confirm('Clear content of this note?')) {
         if (titleInput) titleInput.value = '';
         if (textArea) textArea.value = '';
         triggerSave();
@@ -9278,7 +9498,7 @@ export class CanvasEngine {
           </div>
           <div class="clip-image-meta">
             <span>PNG • ${resText}</span>
-            <span style="color:#64d2ff; font-weight:500;">Click to copy</span>
+            <span style="color:#0a84ff; font-weight:500;">Click to copy</span>
           </div>
         `;
 

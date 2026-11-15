@@ -718,6 +718,7 @@
                 </svg>
               </span>
               <span class="notes-header-title">Quick Notes</span>
+              <span id="notes-count-badge" class="notes-count-badge">1 Note</span>
               <span id="notes-status-badge" class="notes-status-badge">Auto-Saved</span>
             </div>
             <div class="notes-header-right">
@@ -737,6 +738,20 @@
                 <span>Clear</span>
               </button>
             </div>
+          </div>
+
+          <!-- Multiple Notes Quick Shelf / Tab Selector -->
+          <div class="notes-shelf-bar" id="notes-shelf-bar">
+            <div class="notes-shelf-scroll" id="notes-shelf-list">
+              <!-- Dynamically populated note chips -->
+            </div>
+            <button id="btn-notes-shelf-add" class="notes-shelf-add-btn" type="button" title="Create New Note">
+              <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              <span>Note</span>
+            </button>
           </div>
 
           <!-- Note Content Area -->
