@@ -48,6 +48,7 @@ const weather_service_1 = require("./weather-service");
 const system_metrics_1 = require("./system-metrics");
 const game_mode_1 = require("./game-mode");
 const license_manager_1 = require("./license-manager");
+const download_monitor_1 = require("./download-monitor");
 // Enforce single instance lock
 const gotTheLock = electron_1.app.requestSingleInstanceLock();
 if (!gotTheLock) {
@@ -70,6 +71,7 @@ let aiMonitorHub = null;
 let buddyManager = null;
 let productivityEngine = null;
 let aiProviderManager = null;
+let downloadMonitor = null;
 electron_1.app.whenReady().then(() => {
     // Initialize config & startup
     startup_manager_1.StartupManager.init();
@@ -79,6 +81,7 @@ electron_1.app.whenReady().then(() => {
     weather_service_1.weatherService.startPolling();
     // Initialize Engines
     mediaEngine = new media_engine_1.MediaEngine();
+    downloadMonitor = new download_monitor_1.DownloadMonitor();
     aiMonitorHub = new ai_monitor_hub_1.AiMonitorHub();
     buddyManager = new buddy_manager_1.BuddyManager();
     productivityEngine = new productivity_engine_1.ProductivityEngine();

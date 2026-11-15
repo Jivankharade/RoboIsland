@@ -260,6 +260,67 @@ function SetRadio($kind, $on) {
   Say @{ radio = @{ kind = $kind; ok = $ok; why = $why } }
 }
 
+$script:notifInit = $false
+$script:lastNotifId = 0
+$script:notifListener = $null
+$script:notifListType = $null
+$script:notifAt = [DateTime]::MinValue
+
+function CheckNotifications {
+  try {
+    if (-not $script:notifListener) {
+      [void][Windows.UI.Notifications.Management.UserNotificationListener, Windows.UI.Notifications, ContentType = WindowsRuntime]
+      $script:notifListener = [Windows.UI.Notifications.Management.UserNotificationListener]::Current
+      $script:notifListType = [System.Collections.Generic.IReadOnlyList[Windows.UI.Notifications.UserNotification]]
+    }
+    if ($script:notifListener.GetAccessStatus() -ne [Windows.UI.Notifications.Management.UserNotificationListenerAccessStatus]::Allowed) { return }
+
+    $toasts = Await ($script:notifListener.GetNotificationsAsync([Windows.UI.Notifications.NotificationKinds]::Toast)) $script:notifListType
+    if (-not $toasts -or $toasts.Count -eq 0) { return }
+
+    # On first run, record the highest ID so past notifications aren't re-spammed
+    if (-not $script:notifInit) {
+      $script:notifInit = $true
+      $max = 0
+      foreach ($t in $toasts) { if ($t.Id -gt $max) { $max = $t.Id } }
+      $script:lastNotifId = $max
+      return
+    }
+
+    # Process new incoming toast notification
+    foreach ($n in $toasts) {
+      if ($n.Id -gt $script:lastNotifId) {
+        $script:lastNotifId = $n.Id
+        $app = [string]$n.AppInfo.DisplayInfo.DisplayName
+        $binding = $n.Notification.Visual.GetBinding([Windows.UI.Notifications.KnownNotificationBindings]::ToastGeneric)
+        if ($binding) {
+          $texts = @($binding.GetTextElements() | ForEach-Object { [string]$_.Text })
+          $title = if ($texts.Count -ge 1 -and $texts[0]) { $texts[0] } else { $app }
+          $body = if ($texts.Count -ge 2) { ($texts[1..($texts.Count - 1)] -join ' ') } else { '' }
+
+          $kind = 'info'
+          $lowApp = $app.ToLower()
+          if ($lowApp -match 'whatsapp') { $kind = 'whatsapp' }
+          elseif ($lowApp -match 'mail' -or $lowApp -match 'outlook' -or $lowApp -match 'thunderbird') { $kind = 'mail' }
+          elseif ($lowApp -match 'telegram') { $kind = 'telegram' }
+          elseif ($lowApp -match 'discord') { $kind = 'discord' }
+          elseif ($lowApp -match 'slack' -or $lowApp -match 'teams') { $kind = 'chat' }
+
+          Say @{
+            toast = @{
+              id = $n.Id
+              app = $app
+              title = $title
+              body = $body
+              kind = $kind
+            }
+          }
+        }
+      }
+    }
+  } catch {}
+}
+
 $reader = New-Object System.IO.StreamReader([Console]::OpenStandardInput())
 $pending = $reader.ReadLineAsync()
 $last = ''; $lastArt = ''; $nextLook = [DateTime]::MinValue; $lastPos = 0; $lastAt = [DateTime]::UtcNow; $lastPlaying = $false
@@ -331,5 +392,6 @@ while ($true) {
   if ([DateTime]::UtcNow -ge $fullAt) { $fullAt = [DateTime]::UtcNow.AddMilliseconds(1000); CheckFull }
   if ($guardOn -and [DateTime]::UtcNow -ge $frontAt) { $frontAt = [DateTime]::UtcNow.AddMilliseconds(400); CheckFront }
   if ([DateTime]::UtcNow -ge $volAt) { $volAt = [DateTime]::UtcNow.AddMilliseconds(150); CheckVolume }
+  if ([DateTime]::UtcNow -ge $script:notifAt) { $script:notifAt = [DateTime]::UtcNow.AddMilliseconds(1200); CheckNotifications }
   Start-Sleep -Milliseconds 100
 }

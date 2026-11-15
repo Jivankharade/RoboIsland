@@ -294,6 +294,23 @@ class MediaEngine {
                 });
                 return;
             }
+            // 4. Windows Toast Notifications (WhatsApp, Mail, Telegram, System Toasts)
+            if (data.toast) {
+                const t = data.toast;
+                electron_1.BrowserWindow.getAllWindows().forEach(win => {
+                    if (!win.isDestroyed()) {
+                        win.webContents.send('island:notify', {
+                            id: 'toast-' + t.id,
+                            app: t.app,
+                            title: t.app && t.title && !t.title.toLowerCase().includes(t.app.toLowerCase()) ? `${t.app}: ${t.title}` : t.title,
+                            body: t.body,
+                            kind: t.kind || 'info',
+                            durationMs: 5000
+                        });
+                    }
+                });
+                return;
+            }
             // 4. Media Playback State (Windows SMTC: Spotify, YouTube, Browsers)
             if (typeof data.active === 'boolean') {
                 let coverUrl = this.smtcState.coverUrl;

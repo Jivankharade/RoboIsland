@@ -13,6 +13,7 @@ import { weatherService } from './weather-service';
 import { systemMetricsEngine } from './system-metrics';
 import { gameModeManager } from './game-mode';
 import { LicenseManager } from './license-manager';
+import { DownloadMonitor } from './download-monitor';
 
 // Enforce single instance lock
 const gotTheLock = app.requestSingleInstanceLock();
@@ -40,6 +41,7 @@ let aiMonitorHub: AiMonitorHub | null = null;
 let buddyManager: BuddyManager | null = null;
 let productivityEngine: ProductivityEngine | null = null;
 let aiProviderManager: AIProviderManager | null = null;
+let downloadMonitor: DownloadMonitor | null = null;
 
 app.whenReady().then(() => {
   // Initialize config & startup
@@ -52,6 +54,7 @@ app.whenReady().then(() => {
 
   // Initialize Engines
   mediaEngine = new MediaEngine();
+  downloadMonitor = new DownloadMonitor();
   aiMonitorHub = new AiMonitorHub();
   buddyManager = new BuddyManager();
   productivityEngine = new ProductivityEngine();

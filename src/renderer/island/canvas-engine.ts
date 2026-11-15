@@ -41,7 +41,9 @@ export interface IslandNotification {
   id: string;
   title: string;
   body?: string;
-  kind?: 'done' | 'question' | 'error' | 'warn' | 'pop' | 'badge' | 'info';
+  app?: string;
+  kind?: 'done' | 'question' | 'error' | 'warn' | 'pop' | 'badge' | 'info' | 'whatsapp' | 'mail' | 'download' | 'telegram' | 'discord' | 'chat';
+  filePath?: string;
   durationMs?: number;
   actions?: Array<{
     id: string;
@@ -218,6 +220,18 @@ export class CanvasEngine {
     switch (kind) {
       case 'done':
         return '#22e05a'; // TwoCode green
+      case 'whatsapp':
+        return '#25d366'; // WhatsApp brand green
+      case 'mail':
+        return '#0078d4'; // Outlook / Apple Mail blue
+      case 'download':
+        return '#00d2ff'; // Apple Mac download cyan
+      case 'telegram':
+        return '#229ed9'; // Telegram blue
+      case 'discord':
+        return '#5865f2'; // Discord blurple
+      case 'chat':
+        return '#27c93f'; // Chat green
       case 'question':
         return '#ff9a1f'; // TwoCode orange
       case 'error':
@@ -1561,9 +1575,11 @@ export class CanvasEngine {
     if (this.isNotificationActive()) {
       const n = this.activeNotification!;
       const hasActions = Boolean(n.actions && n.actions.length > 0);
-      this.targetWidth = hasActions ? 430 : Math.max(260, Math.min(390, 90 + (n.title.length * 8.5)));
-      this.targetHeight = 36;
-      this.targetRadius = 18;
+      const hasBody = Boolean(n.body && n.body.trim().length > 0);
+      const textLen = Math.max(n.title.length, (n.body || '').length * 0.65);
+      this.targetWidth = hasActions ? 430 : Math.max(280, Math.min(410, 100 + textLen * 7.5));
+      this.targetHeight = hasBody ? 42 : 36;
+      this.targetRadius = hasBody ? 21 : 18;
       return;
     }
 
@@ -2356,8 +2372,11 @@ export class CanvasEngine {
           }
         }
       }
-      // If notification has no interactive actions and user clicks the pill, dismiss it
+      // If notification has no interactive actions and user clicks the pill, dismiss it (or reveal file if download)
       if (inBounds && (!this.activeNotification?.actions || this.activeNotification.actions.length === 0)) {
+        if (this.activeNotification?.filePath && window.roboIsland?.showItemInFolder) {
+          window.roboIsland.showItemInFolder(this.activeNotification.filePath);
+        }
         this.clearNotification();
         return;
       }
@@ -3354,8 +3373,92 @@ export class CanvasEngine {
     const right = pillLeft + W - 14;
     const color = this.getNotificationColor(n.kind);
 
-    // Left Icon: Claude sparkle mark for questions, or mascot eyes
-    if (n.kind === 'question') {
+    // Left Icon / App Badge (WhatsApp, Mail, Download, Done, AI Sparkle, Mascot Eyes)
+    const iconR = 10;
+    const iconCx = left + 8;
+    const iconCy = cy;
+
+    if (n.kind === 'whatsapp') {
+      // WhatsApp brand green circular badge with phone/chat handset icon
+      this.ctx.save();
+      this.ctx.beginPath();
+      this.ctx.arc(iconCx, iconCy, iconR, 0, Math.PI * 2);
+      this.ctx.fillStyle = '#25d366';
+      this.ctx.fill();
+
+      // Handset silhouette in white
+      this.ctx.fillStyle = '#ffffff';
+      this.ctx.beginPath();
+      this.ctx.arc(iconCx, iconCy, 5, 0, Math.PI * 2);
+      this.ctx.fill();
+      this.ctx.fillStyle = '#25d366';
+      this.ctx.beginPath();
+      this.ctx.arc(iconCx, iconCy, 3, 0, Math.PI * 2);
+      this.ctx.fill();
+      this.ctx.fillStyle = '#ffffff';
+      this.ctx.fillRect(iconCx - 2, iconCy - 4, 4, 8);
+      this.ctx.restore();
+    } else if (n.kind === 'mail') {
+      // Mail blue circular badge with envelope icon
+      this.ctx.save();
+      this.ctx.beginPath();
+      this.ctx.arc(iconCx, iconCy, iconR, 0, Math.PI * 2);
+      this.ctx.fillStyle = '#0078d4';
+      this.ctx.fill();
+
+      // Envelope icon
+      this.ctx.strokeStyle = '#ffffff';
+      this.ctx.lineWidth = 1.4;
+      this.ctx.lineCap = 'round';
+      this.ctx.lineJoin = 'round';
+      const ew = 10, eh = 7;
+      this.ctx.strokeRect(iconCx - ew / 2, iconCy - eh / 2, ew, eh);
+      this.ctx.beginPath();
+      this.ctx.moveTo(iconCx - ew / 2, iconCy - eh / 2);
+      this.ctx.lineTo(iconCx, iconCy + 0.5);
+      this.ctx.lineTo(iconCx + ew / 2, iconCy - eh / 2);
+      this.ctx.stroke();
+      this.ctx.restore();
+    } else if (n.kind === 'download') {
+      // Download cyan circular badge with downward arrow
+      this.ctx.save();
+      this.ctx.beginPath();
+      this.ctx.arc(iconCx, iconCy, iconR, 0, Math.PI * 2);
+      this.ctx.fillStyle = '#00d2ff';
+      this.ctx.fill();
+
+      // Downward arrow
+      this.ctx.strokeStyle = '#081018';
+      this.ctx.lineWidth = 1.6;
+      this.ctx.lineCap = 'round';
+      this.ctx.lineJoin = 'round';
+      this.ctx.beginPath();
+      this.ctx.moveTo(iconCx, iconCy - 4.5);
+      this.ctx.lineTo(iconCx, iconCy + 3);
+      this.ctx.moveTo(iconCx - 3.5, iconCy);
+      this.ctx.lineTo(iconCx, iconCy + 3.5);
+      this.ctx.lineTo(iconCx + 3.5, iconCy);
+      this.ctx.stroke();
+      this.ctx.restore();
+    } else if (n.kind === 'done') {
+      // Done green circular badge with checkmark
+      this.ctx.save();
+      this.ctx.beginPath();
+      this.ctx.arc(iconCx, iconCy, iconR, 0, Math.PI * 2);
+      this.ctx.fillStyle = '#22e05a';
+      this.ctx.fill();
+
+      this.ctx.strokeStyle = '#ffffff';
+      this.ctx.lineWidth = 1.6;
+      this.ctx.lineCap = 'round';
+      this.ctx.lineJoin = 'round';
+      this.ctx.beginPath();
+      this.ctx.moveTo(iconCx - 3.5, iconCy + 0.5);
+      this.ctx.lineTo(iconCx - 1, iconCy + 3);
+      this.ctx.lineTo(iconCx + 4, iconCy - 2.5);
+      this.ctx.stroke();
+      this.ctx.restore();
+    } else if (n.kind === 'question') {
       this.ctx.save();
       this.ctx.strokeStyle = '#d97757';
       this.ctx.lineWidth = 2.4;

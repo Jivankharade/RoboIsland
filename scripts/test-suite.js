@@ -237,6 +237,15 @@ async function runTests() {
   assert('Parsed LRC produces timeMs and t stamps', parsedLines.length === 2 && parsedLines[0].timeMs === 12500);
   assert('Parsed LRC accurately extracts line text', parsedLines[0].text === 'Look at the stars');
 
+  // 10. Testing Download Monitor & Dynamic Island Notifications
+  console.log('\n--- 10. Testing Download Monitor & Toast Notification Kinds ---');
+  assert('download-monitor.js exists in dist/main', fs.existsSync(path.resolve(__dirname, '../dist/main/download-monitor.js')));
+  const { CanvasEngine } = require('../dist/renderer/island/canvas-engine.js');
+  const getColor = CanvasEngine.prototype.getNotificationColor;
+  assert('Notification color for WhatsApp matches #25d366', getColor('whatsapp') === '#25d366');
+  assert('Notification color for Mail matches #0078d4', getColor('mail') === '#0078d4');
+  assert('Notification color for Download matches #00d2ff', getColor('download') === '#00d2ff');
+
   // Summary
   console.log('\n====================================================');
   console.log(`TEST SUMMARY: ${passed} PASSED, ${failed} FAILED`);
