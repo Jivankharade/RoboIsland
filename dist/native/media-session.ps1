@@ -265,6 +265,64 @@ $script:lastNotifId = 0
 $script:notifListener = $null
 $script:notifListType = $null
 $script:notifAt = [DateTime]::MinValue
+$script:wpnDbPath = "$env:LOCALAPPDATA\Microsoft\Windows\Notifications\wpndatabase.db"
+
+try {
+  Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+
+public class WhatsAppNotificationHelper {
+    [DllImport("winsqlite3.dll", EntryPoint = "sqlite3_open_v2", CallingConvention = CallingConvention.Cdecl)]
+    public static extern int sqlite3_open_v2([MarshalAs(UnmanagedType.LPStr)] string filename, out IntPtr ppDb, int flags, IntPtr zVfs);
+
+    [DllImport("winsqlite3.dll", EntryPoint = "sqlite3_prepare_v2", CallingConvention = CallingConvention.Cdecl)]
+    public static extern int sqlite3_prepare_v2(IntPtr db, [MarshalAs(UnmanagedType.LPStr)] string zSql, int nByte, out IntPtr ppStmt, IntPtr pzTail);
+
+    [DllImport("winsqlite3.dll", EntryPoint = "sqlite3_step", CallingConvention = CallingConvention.Cdecl)]
+    public static extern int sqlite3_step(IntPtr pStmt);
+
+    [DllImport("winsqlite3.dll", EntryPoint = "sqlite3_column_text", CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr sqlite3_column_text(IntPtr pStmt, int iCol);
+
+    [DllImport("winsqlite3.dll", EntryPoint = "sqlite3_finalize", CallingConvention = CallingConvention.Cdecl)]
+    public static extern int sqlite3_finalize(IntPtr pStmt);
+
+    [DllImport("winsqlite3.dll", EntryPoint = "sqlite3_close", CallingConvention = CallingConvention.Cdecl)]
+    public static extern int sqlite3_close(IntPtr db);
+
+    public const int SQLITE_OPEN_READONLY = 0x00000001;
+    public const int SQLITE_ROW = 100;
+    public const int SQLITE_OK = 0;
+
+    public static string GetTagForId(string dbPath, uint notifId) {
+        IntPtr db = IntPtr.Zero;
+        string tag = "";
+        try {
+            int rc = sqlite3_open_v2(dbPath, out db, SQLITE_OPEN_READONLY, IntPtr.Zero);
+            if (rc != SQLITE_OK) return "";
+
+            string sql = "SELECT Tag FROM Notification WHERE Id = " + notifId + " LIMIT 1;";
+            IntPtr stmt = IntPtr.Zero;
+            rc = sqlite3_prepare_v2(db, sql, -1, out stmt, IntPtr.Zero);
+            if (rc == SQLITE_OK && stmt != IntPtr.Zero) {
+                if (sqlite3_step(stmt) == SQLITE_ROW) {
+                    IntPtr ptr = sqlite3_column_text(stmt, 0);
+                    if (ptr != IntPtr.Zero) {
+                        tag = Marshal.PtrToStringAnsi(ptr);
+                    }
+                }
+                sqlite3_finalize(stmt);
+            }
+        } catch {}
+        finally {
+            if (db != IntPtr.Zero) sqlite3_close(db);
+        }
+        return tag;
+    }
+}
+"@ -ErrorAction SilentlyContinue
+} catch {}
 
 function CheckNotifications {
   try {
@@ -310,6 +368,17 @@ function CheckNotifications {
           elseif ($lowApp -match 'teams') { $kind = 'teams' }
           elseif ($lowApp -match 'spotify') { $kind = 'spotify' }
 
+          $waPhone = ''
+          $waTag = ''
+          if ($kind -eq 'whatsapp') {
+            try {
+              $waTag = [WhatsAppNotificationHelper]::GetTagForId($script:wpnDbPath, [uint32]$n.Id)
+              if ($waTag -match '^(\+?\d+)@') {
+                $waPhone = $matches[1] -replace '\+', ''
+              }
+            } catch {}
+          }
+
           Say @{
             toast = @{
               id = $n.Id
@@ -317,6 +386,8 @@ function CheckNotifications {
               title = $title
               body = $body
               kind = $kind
+              phone = $waPhone
+              tag = $waTag
             }
           }
         }

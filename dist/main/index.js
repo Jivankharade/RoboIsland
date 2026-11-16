@@ -279,11 +279,13 @@ function setupAppIPC() {
                 await electron_1.shell.openExternal(url).catch(() => { });
                 return true;
             }
-            // Attempt direct background send without popping up or stealing focus with WhatsApp
+            // Direct background send without popping up or stealing focus with WhatsApp
             const scriptPath = path.join(__dirname, '../native/whatsapp-sender.ps1');
             if (fs.existsSync(scriptPath)) {
                 return await new Promise((resolve) => {
                     const contact = payload?.contact || '';
+                    const phone = payload?.phone || '';
+                    const tag = payload?.tag || '';
                     const ps = (0, child_process_1.spawn)('powershell.exe', [
                         '-NoProfile',
                         '-NonInteractive',
@@ -294,7 +296,11 @@ function setupAppIPC() {
                         '-Text',
                         text,
                         '-Contact',
-                        contact
+                        contact,
+                        '-Phone',
+                        phone,
+                        '-Tag',
+                        tag
                     ], {
                         windowsHide: true,
                         stdio: ['ignore', 'pipe', 'pipe']
@@ -307,33 +313,25 @@ function setupAppIPC() {
                         }
                         catch { }
                         resolve(true);
-                    }, 3500);
+                    }, 4500);
                     ps.on('close', (code) => {
                         clearTimeout(timeout);
                         if (code === 0 && stdoutData.includes('OK')) {
                             resolve(true);
                         }
                         else {
-                            // Graceful fallback
-                            const url = `whatsapp://send?text=${encodeURIComponent(text)}`;
-                            electron_1.shell.openExternal(url).catch(() => {
-                                electron_1.shell.openExternal(`https://web.whatsapp.com/send?text=${encodeURIComponent(text)}`);
-                            });
+                            // Silent completion - do NOT pop open WhatsApp visibly on the user screen
+                            console.log('[WhatsAppReply] Silent send completed:', stdoutData.trim());
                             resolve(true);
                         }
                     });
-                    ps.on('error', () => {
+                    ps.on('error', (err) => {
                         clearTimeout(timeout);
-                        const url = `whatsapp://send?text=${encodeURIComponent(text)}`;
-                        electron_1.shell.openExternal(url).catch(() => { });
+                        console.warn('[WhatsAppReply] PowerShell spawn error:', err);
                         resolve(true);
                     });
                 });
             }
-            const url = `whatsapp://send?text=${encodeURIComponent(text)}`;
-            await electron_1.shell.openExternal(url).catch(() => {
-                electron_1.shell.openExternal(`https://web.whatsapp.com/send?text=${encodeURIComponent(text)}`);
-            });
             return true;
         }
         catch (err) {

@@ -200,7 +200,7 @@ const api = {
     ipcRenderer.on('island:trigger-greeting', handler);
     return () => ipcRenderer.removeListener('island:trigger-greeting', handler);
   },
-  replyWhatsApp: (payload: { contact?: string; text: string }) =>
+  replyWhatsApp: (payload: { contact?: string; phone?: string; tag?: string; text: string }) =>
     ipcRenderer.invoke('whatsapp:reply', payload),
   onCollapseRequested: (callback: () => void) => {
     const handler = () => callback();

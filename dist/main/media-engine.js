@@ -381,7 +381,9 @@ class MediaEngine {
                             title: t.app && t.title && !t.title.toLowerCase().includes(t.app.toLowerCase()) ? `${t.app}: ${t.title}` : t.title,
                             body: t.body,
                             kind: t.kind || 'info',
-                            durationMs: 5000
+                            durationMs: 5000,
+                            phone: t.phone || '',
+                            tag: t.tag || ''
                         });
                     }
                 });

@@ -57,6 +57,8 @@ export interface IslandNotification {
     primary?: boolean;
   }>;
   sessionId?: string;
+  phone?: string;
+  tag?: string;
 }
 
 // ============================================================================
@@ -812,8 +814,10 @@ export class CanvasEngine {
 
     const wa = this.parseWhatsAppDetails(this.activeNotification?.title, this.activeNotification?.body);
     const contact = wa.isGroup ? (wa.groupName || wa.senderName) : wa.senderName;
+    const phone = this.activeNotification?.phone || '';
+    const tag = this.activeNotification?.tag || '';
     if (window.roboIsland?.replyWhatsApp) {
-      window.roboIsland.replyWhatsApp({ contact, text });
+      window.roboIsland.replyWhatsApp({ contact, phone, tag, text });
     }
 
     if (input) input.value = '';
