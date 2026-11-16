@@ -1027,6 +1027,36 @@
           if (btnTestWhatsApp) btnTestWhatsApp.textContent = "Test WhatsApp";
         }, 1500);
       });
+      const btnTestWaGroup = document.getElementById("btn-test-wa-group");
+      btnTestWaGroup?.addEventListener("click", () => {
+        window.settingsApi?.postNotification?.({
+          id: "test-wagroup-" + Date.now(),
+          app: "WhatsApp",
+          title: "Tech Developers",
+          body: "Alice: Have you checked the latest release build?",
+          kind: "whatsapp",
+          durationMs: 5e3
+        });
+        btnTestWaGroup.textContent = "Pushed!";
+        setTimeout(() => {
+          if (btnTestWaGroup) btnTestWaGroup.textContent = "Test WA Group";
+        }, 1500);
+      });
+      const btnTestWaCall = document.getElementById("btn-test-wa-call");
+      btnTestWaCall?.addEventListener("click", () => {
+        window.settingsApi?.postNotification?.({
+          id: "test-wacall-" + Date.now(),
+          app: "WhatsApp",
+          title: "WhatsApp Voice Call",
+          body: "Rahul Sharma",
+          kind: "whatsapp",
+          durationMs: 15e3
+        });
+        btnTestWaCall.textContent = "Ringing...";
+        setTimeout(() => {
+          if (btnTestWaCall) btnTestWaCall.textContent = "Test WA Call";
+        }, 2e3);
+      });
       const btnTestChrome = document.getElementById("btn-test-chrome");
       btnTestChrome?.addEventListener("click", () => {
         window.settingsApi?.postNotification?.({

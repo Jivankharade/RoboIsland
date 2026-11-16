@@ -1887,6 +1887,80 @@
       const k = kind || (this && this.activeNotification ? this.activeNotification.kind : "");
       return _CanvasEngine.resolveNotificationKindStatic(k, status, app, title);
     }
+    /**
+     * WhatsApp Deep Parsing: Accurately identifies sender, group name, direct message, or call type
+     */
+    parseWhatsAppDetails(rawTitle, rawBody) {
+      let title = (rawTitle || "").replace(/^WhatsApp:\s*/i, "").trim();
+      let body = (rawBody || "").trim();
+      const lowerTitle = title.toLowerCase();
+      const lowerBody = body.toLowerCase();
+      const isVideoCall = lowerTitle.includes("video call") || lowerBody.includes("video call");
+      const isVoiceCall = lowerTitle.includes("voice call") || lowerBody.includes("voice call") || lowerTitle.includes("call") && !lowerTitle.includes("caller") || lowerBody.includes("call") && !lowerBody.includes("called");
+      const isMissed = lowerTitle.includes("missed") || lowerBody.includes("missed");
+      const isCallNotification = isVideoCall || isVoiceCall || isMissed;
+      if (isCallNotification) {
+        let callType = "voice";
+        if (isMissed) {
+          callType = "missed";
+        } else if (isVideoCall) {
+          callType = "video";
+        }
+        let caller = title;
+        if (lowerTitle.includes("call") || lowerTitle.includes("whatsapp") || lowerTitle.includes("incoming")) {
+          caller = body && !lowerBody.includes("call") && !lowerBody.includes("incoming") ? body : title.replace(/whatsapp|incoming|voice|video|missed|call|:/gi, "").trim() || "Incoming Call";
+        } else if (lowerBody.includes("call") || lowerBody.includes("incoming")) {
+          caller = title;
+        }
+        return {
+          isCall: true,
+          callType,
+          isGroup: false,
+          senderName: caller || "Unknown Caller",
+          messageText: isMissed ? "Missed Call" : isVideoCall ? "Incoming Video Call..." : "Incoming Voice Call..."
+        };
+      }
+      if (title.includes(" @ ")) {
+        const parts = title.split(" @ ");
+        const sender = parts[0].trim();
+        const group = parts[1].trim();
+        return {
+          isCall: false,
+          isGroup: true,
+          groupName: group,
+          senderName: sender,
+          messageText: body
+        };
+      }
+      const colonMatch = body.match(/^([^:\n]{1,35}):\s*(.*)$/s);
+      if (colonMatch && title && !title.toLowerCase().includes("whatsapp")) {
+        const cleanGroup = title.replace(/\s*\(\d+\s*messages?\)/i, "").trim();
+        return {
+          isCall: false,
+          isGroup: true,
+          groupName: cleanGroup,
+          senderName: colonMatch[1].trim(),
+          messageText: colonMatch[2].trim()
+        };
+      }
+      if (/\(\d+\s*messages?\)/i.test(title)) {
+        const cleanGroup = title.replace(/\s*\(\d+\s*messages?\)/i, "").trim();
+        return {
+          isCall: false,
+          isGroup: true,
+          groupName: cleanGroup,
+          senderName: cleanGroup,
+          messageText: body
+        };
+      }
+      const cleanSender = title || "WhatsApp";
+      return {
+        isCall: false,
+        isGroup: false,
+        senderName: cleanSender,
+        messageText: body
+      };
+    }
     getNotificationColor(kind, status) {
       const s = status || (this && this.activeNotification ? this.activeNotification.status : void 0);
       const resolvedKind = this && typeof this.resolveNotificationKind === "function" ? this.resolveNotificationKind(kind, s) : _CanvasEngine.resolveNotificationKindStatic(kind, s);
@@ -2036,6 +2110,16 @@
       if (resolved && resolved !== "info") {
         n.kind = resolved;
       }
+      if (n.kind === "whatsapp") {
+        const wa = this.parseWhatsAppDetails(n.title, n.body);
+        if (wa.isCall && wa.callType !== "missed") {
+          n.actions = [
+            { id: "wa-decline", label: "Decline", primary: false },
+            { id: "wa-answer", label: "Answer", primary: true }
+          ];
+          n.durationMs = n.durationMs || 15e3;
+        }
+      }
       this.activeNotification = n;
       const duration = n.durationMs || (n.actions && n.actions.length > 0 ? 0 : 4e3);
       this.notificationUntil = duration > 0 ? performance.now() + duration : 0;
@@ -2131,9 +2215,12 @@
       const bar = document.getElementById("whatsapp-quick-reply-bar");
       const input = document.getElementById("whatsapp-reply-input");
       const sendBtn = document.getElementById("whatsapp-reply-send-btn");
+      const wa = this.parseWhatsAppDetails(this.activeNotification?.title, this.activeNotification?.body);
+      const target = wa.isGroup ? wa.groupName || wa.senderName : wa.senderName;
       if (bar && input) {
         bar.classList.remove("hidden");
         input.value = "";
+        input.placeholder = `Reply to ${target}...`;
         if (sendBtn) sendBtn.classList.remove("active");
         setTimeout(() => {
           input.focus();
@@ -2163,7 +2250,8 @@
       } catch {
       }
       this.mascot.setMood("happy", 4e3);
-      const contact = this.activeNotification?.title || "";
+      const wa = this.parseWhatsAppDetails(this.activeNotification?.title, this.activeNotification?.body);
+      const contact = wa.isGroup ? wa.groupName || wa.senderName : wa.senderName;
       if (window.roboIsland?.replyWhatsApp) {
         window.roboIsland.replyWhatsApp({ contact, text });
       }
@@ -2195,6 +2283,10 @@
       if (this.mode !== "compact" || this.isTucked) return false;
       if (performance.now() < this.chargerSurgeUntil || performance.now() < this.volumeHudUntil || performance.now() < this.speedometerHudUntil || performance.now() < this.airdropHudUntil) {
         return false;
+      }
+      const isDualActive = this.focusState.active && Boolean(this.mediaState.playing || this.mediaState.active && this.mediaState.title);
+      if (this.mode === "compact" && !this.isTucked && isDualActive) {
+        return this.mode === "compact" && !this.isTucked && isDualActive;
       }
       const isMusicActive = Boolean(this.mediaState.playing || this.mediaState.active && this.mediaState.title);
       const hasFocus = this.focusState.active;
@@ -3864,6 +3956,10 @@
             this.focusState.active = true;
             this.focusState.remainingSeconds = Math.ceil(f.left() / 1e3);
             this.focusState.totalSeconds = Math.ceil(f.length() / 1e3);
+            if (!wasFocusActive) {
+              this.updateTargetDimensions();
+            }
+            this.requestRender();
           } else {
             if (wasFocusActive && f.left() <= 0) {
               AudioSynth.getInstance().play("done");
@@ -3877,6 +3973,10 @@
                 durationMs: 4500
               });
             }
+            if (wasFocusActive) {
+              this.updateTargetDimensions();
+              this.requestRender();
+            }
             this.focusState.active = false;
             this.focusState.remainingSeconds = f.chosen();
             this.focusState.totalSeconds = f.chosen();
@@ -3885,8 +3985,11 @@
         } else {
           if (this.focusState.active && this.focusState.remainingSeconds > 0) {
             this.focusState.remainingSeconds--;
+            this.requestRender();
             if (this.focusState.remainingSeconds === 0) {
               this.focusState.active = false;
+              this.updateTargetDimensions();
+              this.requestRender();
               this.triggerNotification({
                 id: "focus-complete-" + Date.now(),
                 title: "Focus Session Complete!",
@@ -4100,6 +4203,20 @@
         return;
       }
       if (this.mode === "rest") {
+        if (this.focusState.active) {
+          const isDualActive = Boolean(this.mediaState.playing || this.mediaState.active && this.mediaState.title);
+          if (isDualActive) {
+            const dynamicMusicW = Math.max(300, Math.min(440, Math.round((this.mediaState.title || "").length * 7.8 + 104)));
+            this.targetWidth = this.isHovered ? dynamicMusicW + 8 : dynamicMusicW;
+            this.targetHeight = 36;
+            this.targetRadius = 18;
+          } else {
+            this.targetWidth = this.isHovered ? 258 : 250;
+            this.targetHeight = 36;
+            this.targetRadius = 18;
+          }
+          return;
+        }
         if (performance.now() < this.airdropHudUntil) {
           this.targetWidth = this.isHovered ? 350 : 340;
           this.targetHeight = 44;
@@ -4162,15 +4279,9 @@
       } else if (this.focusState.active) {
         const isDualActive = Boolean(this.mediaState.playing || this.mediaState.active && this.mediaState.title);
         if (isDualActive) {
-          let textLen = (this.mediaState.title || "").length;
-          if (this.hasSyncedLyrics()) {
-            const lyric = this.getLyricNow();
-            if (lyric && lyric.text) {
-              textLen = Math.max(textLen, lyric.text.length);
-            }
-          }
-          const dynamicMusicW = Math.max(300, Math.min(440, Math.round(textLen * 7.8 + 104)));
-          this.targetWidth = this.isHovered ? dynamicMusicW + 8 : dynamicMusicW;
+          const hasLyrics = this.hasSyncedLyrics();
+          const baseWidth = hasLyrics ? Math.round(Math.max(280, Math.min(440, (this.lyricsWidest || 140) + 106))) : 250;
+          this.targetWidth = this.isHovered ? baseWidth + 8 : baseWidth;
           this.targetHeight = 36;
           this.targetRadius = 18;
         } else {
@@ -4585,6 +4696,7 @@
       }
     }
     enterRest() {
+      if (this.focusState.active || this.mediaState.active && this.mediaState.title) return;
       if (this.collapseTimer) {
         clearTimeout(this.collapseTimer);
         this.collapseTimer = null;
@@ -4817,6 +4929,17 @@
               this.submitWhatsAppReply();
               return;
             }
+            if (key === "cWhatsAppAnswer") {
+              if (window.roboIsland?.openExternal) {
+                window.roboIsland.openExternal("whatsapp://");
+              }
+              this.clearNotification();
+              return;
+            }
+            if (key === "cWhatsAppDecline") {
+              this.clearNotification();
+              return;
+            }
             if (key === "cOpenFile") {
               if (this.activeNotification?.filePath && window.roboIsland?.showItemInFolder) {
                 window.roboIsland.showItemInFolder(this.activeNotification.filePath);
@@ -4877,6 +5000,14 @@
         if (inBounds && (!this.activeNotification?.actions || this.activeNotification.actions.length === 0)) {
           const resolvedKind = this.resolveNotificationKind(this.activeNotification?.kind, this.activeNotification?.status, this.activeNotification?.app, this.activeNotification?.title);
           if (resolvedKind === "whatsapp" && !this.isWhatsAppReplying) {
+            const wa = this.parseWhatsAppDetails(this.activeNotification?.title, this.activeNotification?.body);
+            if (wa.isCall) {
+              if (window.roboIsland?.openExternal) {
+                window.roboIsland.openExternal("whatsapp://");
+              }
+              this.clearNotification();
+              return;
+            }
             this.openWhatsAppReply();
             return;
           }
@@ -4895,6 +5026,12 @@
         }
       }
       if (this.mode === "rest") {
+        if (this.focusState.active) {
+          this.activeTab = "focus";
+          this.showDomTab("focus");
+          this.expand();
+          return;
+        }
         if (performance.now() < this.airdropHudUntil) {
           this.airdropHudUntil = 0;
           this.updateTargetDimensions();
@@ -5803,7 +5940,9 @@
           this.ctx.stroke();
         }
         this.ctx.restore();
-        this.mascot.drawFloatingEyes(this.ctx, mid, cy + 0.5, 0.95);
+        if (this.currentWidth >= 180) {
+          this.mascot.drawFloatingEyes(this.ctx, mid, cy + 0.5, 0.95);
+        }
         const min = Math.floor(this.focusState.remainingSeconds / 60);
         const sec = this.focusState.remainingSeconds % 60;
         const timeStr = `${min}:${String(sec).padStart(2, "0")}`;
@@ -6671,13 +6810,14 @@
         const badgeCx = left + 8;
         this.ctx.save();
         this.drawAppleAppIcon(badgeCx, headCy, badgeR, "whatsapp");
-        const sender = (n.title || "WhatsApp").replace(/^WhatsApp:\s*/i, "");
+        const wa = this.parseWhatsAppDetails(n.title, n.body);
+        const target = wa.isGroup ? wa.groupName || wa.senderName : wa.senderName;
         this.ctx.font = '600 12px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
         this.ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
         this.ctx.textAlign = "left";
         this.ctx.textBaseline = "middle";
         const maxHeadW = right - (badgeCx + badgeR + 10) - 24;
-        const truncSender = this.truncateText(`Reply to ${sender}`, maxHeadW, this.ctx.font);
+        const truncSender = this.truncateText(`Reply to ${target}`, maxHeadW, this.ctx.font);
         this.ctx.fillText(truncSender, badgeCx + badgeR + 8, headCy);
         const closeSize = 18;
         const closeX = right - closeSize;
@@ -6778,31 +6918,48 @@
           if (!item) continue;
           const bx = curRight - bw;
           const isPrimary = item.primary ?? item.id === "allow";
+          const isAnswer = item.id === "wa-answer";
+          const isDecline = item.id === "wa-decline";
           const isHovered = this.isHovered && this.isInsideHit(this.pointerX, this.pointerY, { x: bx, y: by, width: bw, height: bh });
           this.ctx.save();
           this.ctx.beginPath();
           this.ctx.roundRect(bx, by, bw, bh, 8);
-          this.ctx.fillStyle = isPrimary ? isHovered ? "#e5e5ea" : "#ffffff" : isHovered ? "#3a3a3c" : "#2c2c2e";
+          this.ctx.fillStyle = isAnswer ? isHovered ? "#34c759" : "#30d158" : isDecline ? isHovered ? "#ff3b30" : "#ff453a" : isPrimary ? isHovered ? "#e5e5ea" : "#ffffff" : isHovered ? "#3a3a3c" : "#2c2c2e";
           this.ctx.fill();
           this.ctx.font = '600 12px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
-          this.ctx.fillStyle = isPrimary ? "#000000" : "#ffffff";
+          this.ctx.fillStyle = isAnswer || isDecline ? "#ffffff" : isPrimary ? "#000000" : "#ffffff";
           this.ctx.textAlign = "center";
           this.ctx.textBaseline = "middle";
           this.ctx.fillText(item.label, bx + bw / 2, cy);
           this.ctx.restore();
-          const hitKey = item.id === "allow" ? "cAllow" : item.id === "deny" ? "cDeny" : `action_${item.id}`;
+          const hitKey = item.id === "allow" ? "cAllow" : item.id === "deny" ? "cDeny" : item.id === "wa-answer" ? "cWhatsAppAnswer" : item.id === "wa-decline" ? "cWhatsAppDecline" : `action_${item.id}`;
           this.notificationHits[hitKey] = { x: bx, y: by, width: bw, height: bh };
           curRight -= bw + 8;
         }
         const maxTextW = Math.max(50, curRight - textLeft - 8);
         const titleFont = '600 13px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
-        const truncTitle = this.truncateText(n.title, maxTextW, titleFont);
+        const isCall = n.kind === "whatsapp" && actions.some((a) => a.id === "wa-answer");
         this.ctx.save();
-        this.ctx.font = titleFont;
-        this.ctx.fillStyle = "#ffffff";
         this.ctx.textAlign = "left";
-        this.ctx.textBaseline = "middle";
-        this.ctx.fillText(truncTitle, textLeft, cy);
+        if (isCall) {
+          const wa = this.parseWhatsAppDetails(n.title, n.body);
+          const callHeading = wa.callType === "video" ? "Video Call" : "Incoming Call";
+          this.ctx.font = '600 11px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
+          this.ctx.fillStyle = "#25d366";
+          this.ctx.textBaseline = "bottom";
+          this.ctx.fillText(callHeading, textLeft, cy - 1);
+          this.ctx.font = '600 12px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
+          this.ctx.fillStyle = "#ffffff";
+          this.ctx.textBaseline = "top";
+          const truncCaller = this.truncateText(wa.senderName, maxTextW, this.ctx.font);
+          this.ctx.fillText(truncCaller, textLeft, cy + 1);
+        } else {
+          const truncTitle = this.truncateText(n.title, maxTextW, titleFont);
+          this.ctx.font = titleFont;
+          this.ctx.fillStyle = "#ffffff";
+          this.ctx.textBaseline = "middle";
+          this.ctx.fillText(truncTitle, textLeft, cy);
+        }
         this.ctx.restore();
       } else {
         const hasBody = Boolean(n.body && n.body.trim().length > 0);
@@ -6924,18 +7081,33 @@
           this.notificationHits["cOpenApp"] = { x: openX, y: openY, width: openW, height: openH };
           actionRight -= openW + 6;
         }
+        let displayTitle = n.title;
+        let displayBody = n.body;
+        if (n.kind === "whatsapp") {
+          const wa = this.parseWhatsAppDetails(n.title, n.body);
+          if (wa.isGroup) {
+            displayTitle = `${wa.groupName}`;
+            displayBody = `${wa.senderName}: ${wa.messageText}`;
+          } else if (wa.isCall) {
+            displayTitle = wa.callType === "video" ? "Video Call" : "Incoming Call";
+            displayBody = wa.senderName;
+          } else {
+            displayTitle = wa.senderName;
+            displayBody = wa.messageText;
+          }
+        }
         const maxTextW = Math.max(80, actionRight - textLeft - 6);
-        const truncTitle = this.truncateText(n.title, maxTextW, titleFont);
+        const truncTitle = this.truncateText(displayTitle, maxTextW, titleFont);
         this.ctx.save();
         this.ctx.textAlign = "left";
-        if (hasBody) {
-          const truncBody = this.truncateText(n.body, maxTextW, bodyFont);
+        if (hasBody && displayBody) {
+          const truncBody = this.truncateText(displayBody, maxTextW, bodyFont);
           this.ctx.font = titleFont;
           this.ctx.fillStyle = color;
           this.ctx.textBaseline = "bottom";
           this.ctx.fillText(truncTitle, textLeft, cy - 1);
           this.ctx.font = bodyFont;
-          this.ctx.fillStyle = "rgba(255, 255, 255, 0.65)";
+          this.ctx.fillStyle = "rgba(255, 255, 255, 0.72)";
           this.ctx.textBaseline = "top";
           this.ctx.fillText(truncBody, textLeft, cy + 2);
         } else {
@@ -8323,9 +8495,12 @@
           const f = window.__roboFocus || window.__twocodeFocus;
           if (f) {
             f.toggle();
+            this.focusState.active = Boolean(f.active());
           } else {
             this.focusState.active = !this.focusState.active;
           }
+          this.updateTargetDimensions();
+          this.requestRender();
           this.mascot.sounds.playChirp();
         });
       }
