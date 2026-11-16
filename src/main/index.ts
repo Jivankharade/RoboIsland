@@ -1,5 +1,7 @@
 import { app, BrowserWindow, clipboard, globalShortcut, ipcMain, shell, session, desktopCapturer } from 'electron';
 import * as path from 'path';
+import * as fs from 'fs';
+import { spawn } from 'child_process';
 import { IslandWindow } from './island-window';
 import { TrayManager } from './tray-manager';
 import { StartupManager } from './startup-manager';
@@ -257,6 +259,59 @@ function setupAppIPC(): void {
     if (!text) return false;
     try {
       clipboard.writeText(text);
+
+      // Attempt direct background send without popping up or stealing focus with WhatsApp
+      const scriptPath = path.join(__dirname, '../native/whatsapp-sender.ps1');
+      if (fs.existsSync(scriptPath)) {
+        return await new Promise<boolean>((resolve) => {
+          const contact = payload?.contact || '';
+          const ps = spawn('powershell.exe', [
+            '-NoProfile',
+            '-NonInteractive',
+            '-ExecutionPolicy',
+            'Bypass',
+            '-File',
+            scriptPath,
+            '-Text',
+            text,
+            '-Contact',
+            contact
+          ], {
+            windowsHide: true,
+            stdio: ['ignore', 'pipe', 'pipe']
+          });
+
+          let stdoutData = '';
+          ps.stdout?.on('data', (d) => { stdoutData += d.toString(); });
+
+          const timeout = setTimeout(() => {
+            try { ps.kill(); } catch {}
+            resolve(true);
+          }, 3500);
+
+          ps.on('close', (code) => {
+            clearTimeout(timeout);
+            if (code === 0 && stdoutData.includes('OK')) {
+              resolve(true);
+            } else {
+              // Graceful fallback
+              const url = `whatsapp://send?text=${encodeURIComponent(text)}`;
+              shell.openExternal(url).catch(() => {
+                shell.openExternal(`https://web.whatsapp.com/send?text=${encodeURIComponent(text)}`);
+              });
+              resolve(true);
+            }
+          });
+
+          ps.on('error', () => {
+            clearTimeout(timeout);
+            const url = `whatsapp://send?text=${encodeURIComponent(text)}`;
+            shell.openExternal(url).catch(() => {});
+            resolve(true);
+          });
+        });
+      }
+
       const url = `whatsapp://send?text=${encodeURIComponent(text)}`;
       await shell.openExternal(url).catch(() => {
         shell.openExternal(`https://web.whatsapp.com/send?text=${encodeURIComponent(text)}`);

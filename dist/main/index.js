@@ -35,6 +35,8 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 const electron_1 = require("electron");
 const path = __importStar(require("path"));
+const fs = __importStar(require("fs"));
+const child_process_1 = require("child_process");
 const island_window_1 = require("./island-window");
 const tray_manager_1 = require("./tray-manager");
 const startup_manager_1 = require("./startup-manager");
@@ -264,6 +266,57 @@ function setupAppIPC() {
             return false;
         try {
             electron_1.clipboard.writeText(text);
+            // Attempt direct background send without popping up or stealing focus with WhatsApp
+            const scriptPath = path.join(__dirname, '../native/whatsapp-sender.ps1');
+            if (fs.existsSync(scriptPath)) {
+                return await new Promise((resolve) => {
+                    const contact = payload?.contact || '';
+                    const ps = (0, child_process_1.spawn)('powershell.exe', [
+                        '-NoProfile',
+                        '-NonInteractive',
+                        '-ExecutionPolicy',
+                        'Bypass',
+                        '-File',
+                        scriptPath,
+                        '-Text',
+                        text,
+                        '-Contact',
+                        contact
+                    ], {
+                        windowsHide: true,
+                        stdio: ['ignore', 'pipe', 'pipe']
+                    });
+                    let stdoutData = '';
+                    ps.stdout?.on('data', (d) => { stdoutData += d.toString(); });
+                    const timeout = setTimeout(() => {
+                        try {
+                            ps.kill();
+                        }
+                        catch { }
+                        resolve(true);
+                    }, 3500);
+                    ps.on('close', (code) => {
+                        clearTimeout(timeout);
+                        if (code === 0 && stdoutData.includes('OK')) {
+                            resolve(true);
+                        }
+                        else {
+                            // Graceful fallback
+                            const url = `whatsapp://send?text=${encodeURIComponent(text)}`;
+                            electron_1.shell.openExternal(url).catch(() => {
+                                electron_1.shell.openExternal(`https://web.whatsapp.com/send?text=${encodeURIComponent(text)}`);
+                            });
+                            resolve(true);
+                        }
+                    });
+                    ps.on('error', () => {
+                        clearTimeout(timeout);
+                        const url = `whatsapp://send?text=${encodeURIComponent(text)}`;
+                        electron_1.shell.openExternal(url).catch(() => { });
+                        resolve(true);
+                    });
+                });
+            }
             const url = `whatsapp://send?text=${encodeURIComponent(text)}`;
             await electron_1.shell.openExternal(url).catch(() => {
                 electron_1.shell.openExternal(`https://web.whatsapp.com/send?text=${encodeURIComponent(text)}`);

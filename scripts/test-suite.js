@@ -497,7 +497,7 @@ async function runTests() {
 
   // Clean Centered Dock verification
   assert('index.html removed you@gmail.com as requested', !indexHtml.includes('you@gmail.com'));
-  assert('index.html contains nav-dock-spacer-left for true dock centering', indexHtml.includes('class="nav-dock-spacer-left"'));
+  assert('island.css centers island-bottom-nav horizontally with justify-content: center', islandCss.includes('#island-bottom-nav') && islandCss.includes('justify-content: center'));
   assert('index.html contains nav-dock-center wrapper', indexHtml.includes('class="nav-dock-center"'));
   assert('index.html contains data-tab="agenda" dock item', indexHtml.includes('data-tab="agenda"'));
 
@@ -679,6 +679,35 @@ async function runTests() {
     canvasEngineSrc.includes('this.mascot.sounds.playAlert()') &&
     canvasEngineSrc.includes('agenda-10m-') &&
     canvasEngineSrc.includes('agenda-now-'));
+
+  // --- 27. Testing WhatsApp Direct Reply & Bottom Dock Dead-Center Alignment ---
+  console.log('\n--- 27. Testing WhatsApp Direct Reply & Bottom Dock Dead-Center Alignment ---');
+  const waSenderPs1 = fs.readFileSync(path.join(__dirname, '../src/native/whatsapp-sender.ps1'), 'utf-8');
+  assert('src/native/whatsapp-sender.ps1 exists and defines Win32 P/Invoke',
+    waSenderPs1.includes('public class WhatsAppSenderNative') &&
+    waSenderPs1.includes('GetForegroundWindow') &&
+    waSenderPs1.includes('SetWindowPos') &&
+    waSenderPs1.includes('SendEnter'));
+  assert('whatsapp-sender.ps1 moves window offscreen (-32000, -32000) so user never sees it open',
+    waSenderPs1.includes('-32000, -32000'));
+  assert('whatsapp-sender.ps1 directly sends the message via SendEnter()',
+    waSenderPs1.includes('[WhatsAppSenderNative]::SendEnter()'));
+  assert('whatsapp-sender.ps1 minimizes WhatsApp and restores previous active window',
+    waSenderPs1.includes('ShowWindow($targetHwnd, 6)') &&
+    waSenderPs1.includes('SetForegroundWindow($prevForeground)'));
+
+  assert('index.ts delegates whatsapp:reply to native background powershell helper with windowsHide',
+    indexTs.includes("path.join(__dirname, '../native/whatsapp-sender.ps1')") &&
+    indexTs.includes('windowsHide: true') &&
+    indexTs.includes("ipcMain.handle('whatsapp:reply'"));
+
+  assert('island.css enforces true center alignment for island-bottom-nav',
+    islandCss.includes('#island-bottom-nav') &&
+    islandCss.includes('justify-content: center;') &&
+    islandCss.includes('width: 100%;'));
+  assert('island.css removed asymmetrical nav-dock-spacer-left',
+    !islandCss.includes('.nav-dock-spacer-left {') &&
+    !indexHtml.includes('class="nav-dock-spacer-left"'));
 
   // Summary
   console.log('\n====================================================');
