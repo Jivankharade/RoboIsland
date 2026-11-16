@@ -249,6 +249,7 @@ async function runTests() {
   assert('Notification color for Snipping Tool matches #8b5cf6', getColor('snipping') === '#8b5cf6');
   assert('Notification color for Terminal matches #38bdf8', getColor('terminal') === '#38bdf8');
   assert('Notification color for Chrome matches #4285f4', getColor('chrome') === '#4285f4');
+  assert('Notification color for Brave matches #fb542b', getColor('brave') === '#fb542b');
   assert('Notification color for Mail matches #0078d4', getColor('mail') === '#0078d4');
   assert('Notification color for active Download matches #00d2ff', getColor('download') === '#00d2ff');
   assert('Download complete notification color matches #22e05a (Green Smile)', getColor('download', 'complete') === '#22e05a');
@@ -256,6 +257,7 @@ async function runTests() {
   assert('Notification RGB for Chrome matches r:66, g:133, b:244', getRgb('chrome').r === 66 && getRgb('chrome').g === 133);
   assert('Notification RGB for Antigravity matches r:129, g:140, b:248', getRgb('antigravity').r === 129 && getRgb('antigravity').g === 140);
   assert('resolveNotificationKindStatic detects Antigravity', CanvasEngine.resolveNotificationKindStatic('info', undefined, 'Antigravity') === 'antigravity');
+  assert('resolveNotificationKindStatic detects Brave Browser', CanvasEngine.resolveNotificationKindStatic('info', undefined, 'Brave Browser') === 'brave');
   assert('resolveNotificationKindStatic detects Windows Defender', CanvasEngine.resolveNotificationKindStatic('info', undefined, 'Windows Security') === 'defender');
   assert('resolveNotificationKindStatic detects Snipping Tool', CanvasEngine.resolveNotificationKindStatic('info', undefined, 'Snipping Tool') === 'snipping');
   assert('resolveNotificationKindStatic detects Terminal', CanvasEngine.resolveNotificationKindStatic('info', undefined, 'PowerShell') === 'terminal');
@@ -280,6 +282,8 @@ async function runTests() {
   assert('Exact clean filename extracted without .crdownload', cleanName === 'VSCodeUserSetup-x64.exe');
   assert('Unconfirmed placeholder is detected by regex', /^unconfirmed/i.test('Unconfirmed 83921.crdownload'));
   assert('tryResolveChromeTargetName method exists on DownloadMonitor', typeof dm.tryResolveChromeTargetName === 'function');
+  assert('tryResolveBrowserTargetName method exists on DownloadMonitor', typeof dm.tryResolveBrowserTargetName === 'function');
+  assert('isGenericDownloadName detects Brave Download', dm.isGenericDownloadName('Brave Download') === true);
   assert('scanDownloadsDir method exists on DownloadMonitor', typeof dm.scanDownloadsDir === 'function');
   dm.dispose();
 
@@ -318,6 +322,7 @@ async function runTests() {
 
   assert('drawAppleAppIcon returns true for WhatsApp', mockEngine.drawAppleAppIcon(0, 0, 11, 'whatsapp') === true);
   assert('drawAppleAppIcon returns true for Chrome', mockEngine.drawAppleAppIcon(0, 0, 11, 'chrome') === true);
+  assert('drawAppleAppIcon returns true for Brave', mockEngine.drawAppleAppIcon(0, 0, 11, 'brave') === true);
   assert('drawAppleAppIcon returns true for Mail', mockEngine.drawAppleAppIcon(0, 0, 11, 'mail') === true);
   assert('drawAppleAppIcon returns true for Download', mockEngine.drawAppleAppIcon(0, 0, 11, 'download') === true);
   assert('drawAppleAppIcon returns true for Snipping Tool', mockEngine.drawAppleAppIcon(0, 0, 11, 'info', undefined, 'Snipping Tool') === true);

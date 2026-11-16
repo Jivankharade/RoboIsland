@@ -15,6 +15,7 @@ export interface ActiveDownloadInfo {
   startTime: number;
   lastBytes?: number;
   lastTime?: number;
+  browser?: string;
 }
 
 export class DownloadMonitor {
@@ -67,21 +68,49 @@ export class DownloadMonitor {
   }
 
   /**
-   * Fast non-blocking tail scan of Chrome / Edge history binary (<12ms)
+   * Fast non-blocking tail scan of Brave / Chrome / Edge history binary (<12ms)
    * Resolves the real target filename for "Unconfirmed *.crdownload" placeholders
    */
   public tryResolveChromeTargetName(placeholder: string): string | null {
+    const res = this.tryResolveBrowserTargetName(placeholder);
+    return res ? res.name : null;
+  }
+
+  public tryResolveBrowserTargetName(placeholder: string): { name: string; browser: string } | null {
+    const localAppData = process.env.LOCALAPPDATA || '';
+    const homeDir = process.env.HOME || app.getPath('home');
+
     const historyCandidates = [
-      path.join(process.env.LOCALAPPDATA || '', 'Google', 'Chrome', 'User Data', 'Default', 'History'),
-      path.join(process.env.LOCALAPPDATA || '', 'Microsoft', 'Edge', 'User Data', 'Default', 'History')
+      // 1. Brave Browser (Windows)
+      { path: path.join(localAppData, 'BraveSoftware', 'Brave-Browser', 'User Data', 'Default', 'History'), browser: 'brave' },
+      { path: path.join(localAppData, 'BraveSoftware', 'Brave-Browser', 'User Data', 'Profile 1', 'History'), browser: 'brave' },
+      { path: path.join(localAppData, 'BraveSoftware', 'Brave-Browser-Beta', 'User Data', 'Default', 'History'), browser: 'brave' },
+      { path: path.join(localAppData, 'BraveSoftware', 'Brave-Browser-Nightly', 'User Data', 'Default', 'History'), browser: 'brave' },
+
+      // 2. Google Chrome (Windows)
+      { path: path.join(localAppData, 'Google', 'Chrome', 'User Data', 'Default', 'History'), browser: 'chrome' },
+      { path: path.join(localAppData, 'Google', 'Chrome', 'User Data', 'Profile 1', 'History'), browser: 'chrome' },
+
+      // 3. Microsoft Edge (Windows)
+      { path: path.join(localAppData, 'Microsoft', 'Edge', 'User Data', 'Default', 'History'), browser: 'edge' },
+      { path: path.join(localAppData, 'Microsoft', 'Edge', 'User Data', 'Profile 1', 'History'), browser: 'edge' },
+
+      // 4. Brave Browser (Linux Fedora / KDE Plasma / Flatpak)
+      { path: path.join(homeDir, '.config', 'BraveSoftware', 'Brave-Browser', 'Default', 'History'), browser: 'brave' },
+      { path: path.join(homeDir, '.config', 'BraveSoftware', 'Brave-Browser', 'Profile 1', 'History'), browser: 'brave' },
+      { path: path.join(homeDir, '.var', 'app', 'com.brave.Browser', 'config', 'BraveSoftware', 'Brave-Browser', 'Default', 'History'), browser: 'brave' },
+
+      // 5. Google Chrome & Microsoft Edge (Linux)
+      { path: path.join(homeDir, '.config', 'google-chrome', 'Default', 'History'), browser: 'chrome' },
+      { path: path.join(homeDir, '.config', 'microsoft-edge', 'Default', 'History'), browser: 'edge' }
     ];
 
-    for (const hPath of historyCandidates) {
-      if (!fs.existsSync(hPath)) continue;
+    for (const cand of historyCandidates) {
+      if (!fs.existsSync(cand.path)) continue;
       try {
-        const stat = fs.statSync(hPath);
+        const stat = fs.statSync(cand.path);
         if (stat.size <= 0) continue;
-        const fd = fs.openSync(hPath, 'r');
+        const fd = fs.openSync(cand.path, 'r');
         const bufSize = Math.min(stat.size, 128 * 1024); // read last 128KB tail
         const buf = Buffer.alloc(bufSize);
         fs.readSync(fd, buf, 0, bufSize, Math.max(0, stat.size - bufSize));
@@ -89,14 +118,22 @@ export class DownloadMonitor {
         const str = buf.toString('latin1');
         const matches = str.match(/([a-zA-Z0-9_\-\.\(\) ]{3,80}\.(mp4|mp3|zip|exe|pdf|docx|xlsx|iso|mkv|msi|tar|gz|jpg|png|webp|crx|7z|dmg|pkg))/gi);
         if (matches && matches.length > 0) {
-          const cand = matches[matches.length - 1];
-          if (cand && !/^unconfirmed/i.test(cand)) {
-            return cand;
+          const matched = matches[matches.length - 1];
+          if (matched && !/^unconfirmed/i.test(matched)) {
+            return { name: matched, browser: cand.browser };
           }
         }
       } catch {}
     }
     return null;
+  }
+
+  public isGenericDownloadName(name: string): boolean {
+    return /^unconfirmed/i.test(name) ||
+           name === 'Chrome Download' ||
+           name === 'Brave Download' ||
+           name === 'Browser Download' ||
+           name === 'Downloading File...';
   }
 
   public formatBytes(bytes: number): string {
@@ -126,11 +163,17 @@ export class DownloadMonitor {
     if (isCrDownload || isPartDownload) {
       const fullPath = path.join(this.downloadsPath, filename);
       let cleanName = filename.replace(/\.(crdownload|part)$/i, '');
+      let detectedBrowser: string | undefined;
 
-      // Resolve actual target filename from Chrome History or fallback cleanly
+      // Resolve actual target filename from Brave / Chrome / Edge History or fallback cleanly
       if (/^unconfirmed/i.test(cleanName)) {
-        const resolved = this.tryResolveChromeTargetName(filename);
-        cleanName = resolved || 'Chrome Download';
+        const resolved = this.tryResolveBrowserTargetName(filename);
+        if (resolved) {
+          cleanName = resolved.name;
+          detectedBrowser = resolved.browser;
+        } else {
+          cleanName = 'Downloading File...';
+        }
       }
 
       if (!this.activeDownloads.has(filename)) {
@@ -151,7 +194,8 @@ export class DownloadMonitor {
           lastBytes: bytes,
           lastTime: now,
           status: 'downloading',
-          startTime: now
+          startTime: now,
+          browser: detectedBrowser
         };
 
         this.activeDownloads.set(filename, info);
@@ -162,7 +206,7 @@ export class DownloadMonitor {
     } else {
       // A non-temporary file appeared or was renamed: check if it matches a pending download
       for (const [tempName, info] of this.activeDownloads.entries()) {
-        if (filename.toLowerCase() === info.cleanName.toLowerCase() || info.cleanName === 'Chrome Download') {
+        if (filename.toLowerCase() === info.cleanName.toLowerCase() || this.isGenericDownloadName(info.cleanName)) {
           const finalPath = path.join(this.downloadsPath, filename);
           if (fs.existsSync(finalPath)) {
             this.activeDownloads.delete(tempName);
@@ -293,12 +337,13 @@ export class DownloadMonitor {
             info.speedStr = `${this.formatBytes(speedBytesPerSec)}/s`;
           }
 
-          // Try re-resolving clean name if it's still 'Chrome Download'
-          if (info.cleanName === 'Chrome Download') {
-            const resolved = this.tryResolveChromeTargetName(info.filename);
+          // Try re-resolving clean name if it's still a generic placeholder
+          if (this.isGenericDownloadName(info.cleanName)) {
+            const resolved = this.tryResolveBrowserTargetName(info.filename);
             if (resolved) {
-              info.cleanName = resolved;
-              info.finalPath = path.join(this.downloadsPath, resolved);
+              info.cleanName = resolved.name;
+              info.browser = resolved.browser;
+              info.finalPath = path.join(this.downloadsPath, resolved.name);
             }
           }
 
@@ -330,12 +375,19 @@ export class DownloadMonitor {
     });
   }
 
+  private getDownloadAppName(info: ActiveDownloadInfo): string {
+    if (info.browser === 'brave') return 'Brave';
+    if (info.browser === 'chrome') return 'Chrome';
+    if (info.browser === 'edge') return 'Edge';
+    return 'Downloads';
+  }
+
   private broadcastDownloadActive(info: ActiveDownloadInfo): void {
     const sizeStr = this.formatBytes(info.bytes);
     const speed = info.speedStr ? ` • ${info.speedStr}` : '';
     const payload = {
       id: 'dl-progress-' + info.cleanName,
-      app: 'Downloads',
+      app: this.getDownloadAppName(info),
       title: info.cleanName,
       body: `${sizeStr}${speed}`,
       kind: 'download',
@@ -356,7 +408,7 @@ export class DownloadMonitor {
   private broadcastDownloadComplete(info: ActiveDownloadInfo): void {
     const payload = {
       id: 'dl-complete-' + Date.now(),
-      app: 'Downloads',
+      app: this.getDownloadAppName(info),
       title: 'Download Complete',
       body: info.cleanName,
       kind: 'download',
@@ -375,7 +427,7 @@ export class DownloadMonitor {
   private broadcastDownloadError(info: ActiveDownloadInfo): void {
     const payload = {
       id: 'dl-error-' + Date.now(),
-      app: 'Downloads',
+      app: this.getDownloadAppName(info),
       title: 'Download Cancelled',
       body: info.cleanName,
       kind: 'download',

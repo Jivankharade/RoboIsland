@@ -376,6 +376,8 @@ class CanvasEngine {
                 return 'explorer';
             if (app.includes('chrome') || title.includes('chrome'))
                 return 'chrome';
+            if (app.includes('brave') || title.includes('brave'))
+                return 'brave';
             if (app.includes('mail') || app.includes('outlook') || app.includes('thunderbird') || title.includes('mail'))
                 return 'mail';
             if (app.includes('edge') || title.includes('edge'))
@@ -436,6 +438,8 @@ class CanvasEngine {
                 return '#007acc'; // VS Code blue
             case 'chrome':
                 return '#4285f4'; // Google Chrome blue
+            case 'brave':
+                return '#fb542b'; // Brave lion fiery orange
             case 'mail':
                 return '#0078d4'; // Outlook / Apple Mail blue
             case 'edge':
@@ -4921,6 +4925,50 @@ class CanvasEngine {
             this.ctx.fillStyle = '#4285f4';
             this.ctx.beginPath();
             this.ctx.arc(iconCx, iconCy, 2.3, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.restore();
+            return true;
+        }
+        // Brave Browser Apple Mac / iOS Icon
+        if (k === 'brave') {
+            const grad = this.ctx.createLinearGradient(sx, sy, sx, sy + size);
+            grad.addColorStop(0, '#ff602e');
+            grad.addColorStop(1, '#e63900');
+            this.ctx.beginPath();
+            this.ctx.roundRect(sx, sy, size, size, cr);
+            this.ctx.fillStyle = grad;
+            this.ctx.fill();
+            // Specular glass sheen
+            const sheen = this.ctx.createLinearGradient(sx, sy, sx, sy + size * 0.5);
+            sheen.addColorStop(0, 'rgba(255, 255, 255, 0.45)');
+            sheen.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            this.ctx.fillStyle = sheen;
+            this.ctx.beginPath();
+            this.ctx.roundRect(sx, sy, size, size * 0.5, [cr, cr, 0, 0]);
+            this.ctx.fill();
+            this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
+            this.ctx.lineWidth = 0.8;
+            this.ctx.stroke();
+            // Brave Lion Silhouette Glyph in crisp white
+            this.ctx.fillStyle = '#ffffff';
+            this.ctx.beginPath();
+            this.ctx.moveTo(iconCx, iconCy + 5.5);
+            this.ctx.lineTo(iconCx - 4.8, iconCy + 1.2);
+            this.ctx.lineTo(iconCx - 5.2, iconCy - 2.5);
+            this.ctx.lineTo(iconCx - 3.2, iconCy - 4.8);
+            this.ctx.lineTo(iconCx - 1.2, iconCy - 3.2);
+            this.ctx.lineTo(iconCx, iconCy - 4.5);
+            this.ctx.lineTo(iconCx + 1.2, iconCy - 3.2);
+            this.ctx.lineTo(iconCx + 3.2, iconCy - 4.8);
+            this.ctx.lineTo(iconCx + 5.2, iconCy - 2.5);
+            this.ctx.lineTo(iconCx + 4.8, iconCy + 1.2);
+            this.ctx.closePath();
+            this.ctx.fill();
+            // Lion face inner cut / eyes
+            this.ctx.fillStyle = '#e63900';
+            this.ctx.beginPath();
+            this.ctx.arc(iconCx - 2.0, iconCy - 0.5, 0.7, 0, Math.PI * 2);
+            this.ctx.arc(iconCx + 2.0, iconCy - 0.5, 0.7, 0, Math.PI * 2);
             this.ctx.fill();
             this.ctx.restore();
             return true;
