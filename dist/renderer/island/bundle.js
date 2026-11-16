@@ -790,6 +790,7 @@
       if (!this.isBlinking && this.mood !== "sleepy" && !this.isSleeping) {
         this.isBlinking = true;
         this.blinkProgress = 0;
+        this.nextBlinkTimer = 3 + Math.random() * 2.5;
       }
     }
     /**
@@ -5425,7 +5426,7 @@
           if (!isBusy && this._hasRenderedSettledFrame) {
             this._isRenderingActive = false;
             if (!this._idleWakeupTimer) {
-              const nextBlink = Math.max(800, (this.mascot.nextBlinkTimer || 3.5) * 1e3);
+              const nextBlink = Math.max(3e3, (this.mascot.nextBlinkTimer && this.mascot.nextBlinkTimer > 0.5 ? this.mascot.nextBlinkTimer : 3 + Math.random() * 2.5) * 1e3);
               this._idleWakeupTimer = setTimeout(() => {
                 this._idleWakeupTimer = null;
                 if (this.mascot && typeof this.mascot.triggerBlink === "function") {
@@ -5619,7 +5620,7 @@
         this._hasRenderedSettledFrame = true;
         this._isRenderingActive = false;
         if (!this._idleWakeupTimer) {
-          const nextBlink = Math.max(800, (this.mascot.nextBlinkTimer || 3.5) * 1e3);
+          const nextBlink = Math.max(3e3, (this.mascot.nextBlinkTimer && this.mascot.nextBlinkTimer > 0.5 ? this.mascot.nextBlinkTimer : 3 + Math.random() * 2.5) * 1e3);
           this._idleWakeupTimer = setTimeout(() => {
             this._idleWakeupTimer = null;
             if (this.mascot && typeof this.mascot.triggerBlink === "function") {

@@ -570,6 +570,7 @@ class RoboMascot {
         if (!this.isBlinking && this.mood !== 'sleepy' && !this.isSleeping) {
             this.isBlinking = true;
             this.blinkProgress = 0;
+            this.nextBlinkTimer = 3.0 + Math.random() * 2.5;
         }
     }
     /**

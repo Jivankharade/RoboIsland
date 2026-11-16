@@ -4552,7 +4552,7 @@ export class CanvasEngine {
         if (!isBusy && this._hasRenderedSettledFrame) {
           this._isRenderingActive = false;
           if (!this._idleWakeupTimer) {
-            const nextBlink = Math.max(800, (this.mascot.nextBlinkTimer || 3.5) * 1000);
+            const nextBlink = Math.max(3000, (this.mascot.nextBlinkTimer && this.mascot.nextBlinkTimer > 0.5 ? this.mascot.nextBlinkTimer : 3.0 + Math.random() * 2.5) * 1000);
             this._idleWakeupTimer = setTimeout(() => {
               this._idleWakeupTimer = null;
               if (this.mascot && typeof this.mascot.triggerBlink === 'function') {
@@ -4795,7 +4795,7 @@ export class CanvasEngine {
       this._hasRenderedSettledFrame = true;
       this._isRenderingActive = false;
       if (!this._idleWakeupTimer) {
-        const nextBlink = Math.max(800, (this.mascot.nextBlinkTimer || 3.5) * 1000);
+        const nextBlink = Math.max(3000, (this.mascot.nextBlinkTimer && this.mascot.nextBlinkTimer > 0.5 ? this.mascot.nextBlinkTimer : 3.0 + Math.random() * 2.5) * 1000);
         this._idleWakeupTimer = setTimeout(() => {
           this._idleWakeupTimer = null;
           if (this.mascot && typeof this.mascot.triggerBlink === 'function') {
