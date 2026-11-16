@@ -49,6 +49,7 @@ class ProductivityEngine {
     lastImageHash = '';
     clipboardPath;
     clipboardImagesDir;
+    clipboardWatcherTimer = null;
     // File Tray
     trayFiles = [];
     activeFilePath = null;
@@ -139,7 +140,11 @@ class ProductivityEngine {
         }
     }
     startClipboardWatcher() {
-        setInterval(async () => {
+        if (this.clipboardWatcherTimer) {
+            clearInterval(this.clipboardWatcherTimer);
+            this.clipboardWatcherTimer = null;
+        }
+        this.clipboardWatcherTimer = setInterval(async () => {
             try {
                 // 1. Check Image / Screenshot in clipboard (Electron 45 W3C Clipboard API)
                 const hasPng = await electron_1.clipboard.has('image/png').catch(() => false);
@@ -1318,6 +1323,10 @@ class ProductivityEngine {
         return this.dropServer;
     }
     dispose() {
+        if (this.clipboardWatcherTimer) {
+            clearInterval(this.clipboardWatcherTimer);
+            this.clipboardWatcherTimer = null;
+        }
         if (this.dropServer) {
             try {
                 this.dropServer.closeAllConnections?.();

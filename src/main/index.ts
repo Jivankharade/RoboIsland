@@ -341,6 +341,7 @@ app.on('will-quit', () => {
   mediaEngine?.dispose();
   aiMonitorHub?.dispose();
   productivityEngine?.dispose();
+  downloadMonitor?.dispose();
   aiProviderManager?.abortStream();
   weatherService.dispose();
   systemMetricsEngine.dispose();

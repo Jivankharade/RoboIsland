@@ -26,6 +26,7 @@ export class ProductivityEngine {
   private lastImageHash = '';
   private clipboardPath: string;
   private clipboardImagesDir: string;
+  private clipboardWatcherTimer: NodeJS.Timeout | null = null;
 
   // File Tray
   private trayFiles: string[] = [];
@@ -120,7 +121,11 @@ export class ProductivityEngine {
   }
 
   private startClipboardWatcher(): void {
-    setInterval(async () => {
+    if (this.clipboardWatcherTimer) {
+      clearInterval(this.clipboardWatcherTimer);
+      this.clipboardWatcherTimer = null;
+    }
+    this.clipboardWatcherTimer = setInterval(async () => {
       try {
         // 1. Check Image / Screenshot in clipboard (Electron 45 W3C Clipboard API)
         const hasPng = await clipboard.has('image/png').catch(() => false);
@@ -1318,6 +1323,10 @@ export class ProductivityEngine {
   }
 
   public dispose(): void {
+    if (this.clipboardWatcherTimer) {
+      clearInterval(this.clipboardWatcherTimer);
+      this.clipboardWatcherTimer = null;
+    }
     if (this.dropServer) {
       try {
         (this.dropServer as any).closeAllConnections?.();

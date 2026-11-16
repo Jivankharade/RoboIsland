@@ -344,6 +344,7 @@ electron_1.app.on('will-quit', () => {
     mediaEngine?.dispose();
     aiMonitorHub?.dispose();
     productivityEngine?.dispose();
+    downloadMonitor?.dispose();
     aiProviderManager?.abortStream();
     weather_service_1.weatherService.dispose();
     system_metrics_1.systemMetricsEngine.dispose();
