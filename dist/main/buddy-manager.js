@@ -84,6 +84,9 @@ class BuddyManager {
         win.webContents.send('buddy:state', { state: 'carrying' });
     }
     async inspectTarget(x, y) {
+        if (process.platform !== 'win32') {
+            return { title: 'Active Window', process: 'Application', image: '' };
+        }
         let scriptPath = path.join(__dirname, '../native/buddy-helper.ps1');
         scriptPath = scriptPath.replace('app.asar', 'app.asar.unpacked');
         return new Promise((resolve) => {

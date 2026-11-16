@@ -219,6 +219,17 @@ export class DocumentConverter {
    */
   private async convertWord(sourcePath: string, target: string): Promise<ConversionResult> {
     const outPath = this.getDestinationPath(sourcePath, target);
+
+    if (process.platform === 'linux') {
+      try {
+        await execAsync(`libreoffice --headless --convert-to ${target} "${sourcePath}" --outdir "${path.dirname(outPath)}" 2>/dev/null`);
+        if (fs.existsSync(outPath)) {
+          return { success: true, outputPath: outPath, fileName: path.basename(outPath) };
+        }
+      } catch {}
+      return { success: false, error: 'Could not convert Word document on Linux (LibreOffice required)' };
+    }
+
     const escapedSource = sourcePath.replace(/'/g, "''");
     const escapedOut = outPath.replace(/'/g, "''");
 
@@ -264,6 +275,17 @@ export class DocumentConverter {
     }
 
     const outPath = this.getDestinationPath(sourcePath, 'pdf');
+
+    if (process.platform === 'linux') {
+      try {
+        await execAsync(`libreoffice --headless --convert-to pdf "${sourcePath}" --outdir "${path.dirname(outPath)}" 2>/dev/null`);
+        if (fs.existsSync(outPath)) {
+          return { success: true, outputPath: outPath, fileName: path.basename(outPath) };
+        }
+      } catch {}
+      return { success: false, error: 'Could not convert PowerPoint document on Linux (LibreOffice required)' };
+    }
+
     const escapedSource = sourcePath.replace(/'/g, "''");
     const escapedOut = outPath.replace(/'/g, "''");
 

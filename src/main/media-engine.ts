@@ -1,4 +1,4 @@
-import { spawn, ChildProcess } from 'child_process';
+import { spawn, exec, ChildProcess } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as crypto from 'crypto';
@@ -252,9 +252,15 @@ export class MediaEngine {
   }
 
   // ==========================================================================
-  // Windows SMTC Native Process (PowerShell Helper)
+  // Windows SMTC Native Process (PowerShell Helper) & Linux MPRIS2 Worker
   // ==========================================================================
+  private linuxMediaTimer: NodeJS.Timeout | null = null;
+
   private startWorker(): void {
+    if (process.platform === 'linux') {
+      this.startLinuxMediaWorker();
+      return;
+    }
     if (process.platform !== 'win32') return;
 
     let scriptPath = path.join(__dirname, '../native/media-session.ps1');
@@ -301,6 +307,46 @@ export class MediaEngine {
     } catch (err) {
       console.error('[MediaEngine] Failed to spawn PowerShell helper:', err);
     }
+  }
+
+  private startLinuxMediaWorker(): void {
+    if (this.linuxMediaTimer) {
+      clearInterval(this.linuxMediaTimer);
+      this.linuxMediaTimer = null;
+    }
+
+    const pollLinuxMedia = () => {
+      // Query MPRIS2 metadata via playerctl or D-Bus qdbus fallback
+      exec(
+        `playerctl metadata --format '{"active":true,"playing":"{{lc(status)}}","title":"{{markup_escape(title)}}","artist":"{{markup_escape(artist)}}","album":"{{markup_escape(album)}}","position":{{position}},"art":"{{mpris:artUrl}}"}' 2>/dev/null`,
+        (_err, stdout) => {
+          if (!stdout || !stdout.trim()) {
+            if (this.smtcState.active) {
+              this.handleWorkerLine(JSON.stringify({ active: false }));
+            }
+            return;
+          }
+          try {
+            const parsed = JSON.parse(stdout.trim());
+            const isPlaying = parsed.playing === 'playing';
+            this.handleWorkerLine(JSON.stringify({
+              active: Boolean(parsed.title),
+              playing: isPlaying,
+              title: parsed.title || '',
+              artist: parsed.artist || '',
+              album: parsed.album || '',
+              // playerctl returns position in microseconds (us); convert to ms
+              position: Math.round((Number(parsed.position) || 0) / 1000),
+              art: parsed.art || ''
+            }));
+          } catch {}
+        }
+      );
+    };
+
+    // Low CPU: Poll every 1200ms when running on Linux
+    this.linuxMediaTimer = setInterval(pollLinuxMedia, 1200);
+    pollLinuxMedia();
   }
 
   private handleWorkerLine(line: string): void {
@@ -360,12 +406,16 @@ export class MediaEngine {
         return;
       }
 
-      // 4. Media Playback State (Windows SMTC: Spotify, YouTube, Browsers)
+      // 4. Media Playback State (Windows SMTC / Linux MPRIS2: Spotify, YouTube, Browsers)
       if (typeof data.active === 'boolean') {
         let coverUrl = this.smtcState.coverUrl;
         if (data.art) {
-          const isJpeg = data.art.startsWith('/9j/') || data.art.startsWith('data:image/jpeg');
-          coverUrl = data.art.startsWith('data:') ? data.art : `data:image/${isJpeg ? 'jpeg' : 'png'};base64,${data.art}`;
+          if (data.art.startsWith('http://') || data.art.startsWith('https://') || data.art.startsWith('file://') || data.art.startsWith('data:')) {
+            coverUrl = data.art;
+          } else {
+            const isJpeg = data.art.startsWith('/9j/') || data.art.startsWith('data:image/jpeg');
+            coverUrl = `data:image/${isJpeg ? 'jpeg' : 'png'};base64,${data.art}`;
+          }
         } else if (data.title !== this.smtcState.title) {
           coverUrl = undefined;
         }
@@ -494,6 +544,37 @@ export class MediaEngine {
   }
 
   public sendCommand(cmd: string): void {
+    if (process.platform === 'linux') {
+      try {
+        if (cmd === 'toggle') {
+          exec('playerctl play-pause 2>/dev/null || qdbus org.mpris.MediaPlayer2.* /org/mpris/MediaPlayer2 org.mpris.MediaPlayer2.Player.PlayPause 2>/dev/null');
+        } else if (cmd === 'next') {
+          exec('playerctl next 2>/dev/null || qdbus org.mpris.MediaPlayer2.* /org/mpris/MediaPlayer2 org.mpris.MediaPlayer2.Player.Next 2>/dev/null');
+        } else if (cmd === 'previous') {
+          exec('playerctl previous 2>/dev/null || qdbus org.mpris.MediaPlayer2.* /org/mpris/MediaPlayer2 org.mpris.MediaPlayer2.Player.Previous 2>/dev/null');
+        } else if (cmd.startsWith('seek ')) {
+          const targetMs = Number(cmd.split(' ')[1]) || 0;
+          const targetSec = (targetMs / 1000).toFixed(2);
+          exec(`playerctl position ${targetSec} 2>/dev/null`);
+        } else if (cmd.startsWith('vol ')) {
+          const level = Number(cmd.split(' ')[1]) || 0;
+          exec(`wpctl set-volume @DEFAULT_AUDIO_SINK@ ${level / 100} 2>/dev/null || pactl set-sink-volume @DEFAULT_SINK@ ${level}% 2>/dev/null || amixer set Master ${level}% 2>/dev/null`);
+        } else if (cmd.startsWith('mute ')) {
+          const isMute = cmd.split(' ')[1] === '1';
+          exec(`wpctl set-mute @DEFAULT_AUDIO_SINK@ ${isMute ? '1' : '0'} 2>/dev/null || pactl set-sink-mute @DEFAULT_SINK@ ${isMute ? '1' : '0'} 2>/dev/null`);
+        } else if (cmd.startsWith('radio wifi ')) {
+          const on = cmd.split(' ')[2] === '1';
+          exec(`nmcli radio wifi ${on ? 'on' : 'off'} 2>/dev/null`);
+        } else if (cmd.startsWith('radio bt ')) {
+          const on = cmd.split(' ')[2] === '1';
+          exec(`bluetoothctl power ${on ? 'on' : 'off'} 2>/dev/null || rfkill ${on ? 'unblock' : 'block'} bluetooth 2>/dev/null`);
+        }
+      } catch (err) {
+        console.warn('[MediaEngine] Linux sendCommand error:', err);
+      }
+      return;
+    }
+
     if (this.child && this.child.stdin && !this.child.stdin.destroyed) {
       try {
         this.child.stdin.write(cmd + '\n');
@@ -951,6 +1032,10 @@ export class MediaEngine {
     if (this.spotifyPollTimer) {
       clearInterval(this.spotifyPollTimer);
       this.spotifyPollTimer = null;
+    }
+    if (this.linuxMediaTimer) {
+      clearInterval(this.linuxMediaTimer);
+      this.linuxMediaTimer = null;
     }
     try {
       this.sendCommand('quit');

@@ -29,6 +29,13 @@ app.commandLine.appendSwitch('js-flags', '--max-old-space-size=128');
 app.commandLine.appendSwitch('renderer-process-limit', '4');
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
 
+// Linux Fedora / KDE Plasma / Wayland compatibility:
+// Auto-detect Wayland vs X11/XWayland with smooth compositor integration & window decorations
+if (process.platform === 'linux') {
+  app.commandLine.appendSwitch('ozone-platform-hint', 'auto');
+  app.commandLine.appendSwitch('enable-features', 'WaylandWindowDecorations');
+}
+
 process.on('uncaughtException', (err) => {
   console.error('[RoboIsland] Uncaught exception:', err);
 });
@@ -261,6 +268,12 @@ function setupAppIPC(): void {
     if (!text) return false;
     try {
       clipboard.writeText(text);
+
+      if (process.platform === 'linux') {
+        const url = `https://web.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+        await shell.openExternal(url).catch(() => {});
+        return true;
+      }
 
       // Attempt direct background send without popping up or stealing focus with WhatsApp
       const scriptPath = path.join(__dirname, '../native/whatsapp-sender.ps1');

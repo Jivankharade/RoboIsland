@@ -59,6 +59,9 @@ export class BuddyManager {
   }
 
   public async inspectTarget(x: number, y: number): Promise<any> {
+    if (process.platform !== 'win32') {
+      return { title: 'Active Window', process: 'Application', image: '' };
+    }
     let scriptPath = path.join(__dirname, '../native/buddy-helper.ps1');
     scriptPath = scriptPath.replace('app.asar', 'app.asar.unpacked');
     return new Promise((resolve) => {

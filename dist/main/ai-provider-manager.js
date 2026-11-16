@@ -572,6 +572,13 @@ try {
                 resolve({ success: true });
                 return;
             }
+            if (process.platform === 'linux') {
+                const safeText = text.replace(/["'`$\\]/g, ' ').substring(0, 500);
+                child_process.exec(`spd-say "${safeText}" 2>/dev/null || espeak "${safeText}" 2>/dev/null`, (err) => {
+                    resolve({ success: !err });
+                });
+                return;
+            }
             if (process.platform !== 'win32') {
                 resolve({ success: true, message: 'Platform fallback' });
                 return;

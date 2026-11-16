@@ -157,7 +157,13 @@ export class IslandWindow {
     if (this.isInteractive === effectiveInteractive) return;
 
     this.isInteractive = effectiveInteractive;
-    this.window.setIgnoreMouseEvents(!effectiveInteractive, { forward: true });
+    try {
+      this.window.setIgnoreMouseEvents(!effectiveInteractive, { forward: true });
+    } catch {
+      try {
+        this.window.setIgnoreMouseEvents(!effectiveInteractive);
+      } catch {}
+    }
     // Only focus the window in expanded mode. Never steal OS focus simply on hover in rest/compact mode.
     if (effectiveInteractive && this.currentMode === 'expanded') {
       try { this.window.focus(); } catch {}

@@ -725,6 +725,55 @@ async function runTests() {
     productivityEngineSrc.includes('clipboardWatcherTimer') &&
     productivityEngineSrc.includes('clearInterval(this.clipboardWatcherTimer);'));
 
+  // --- 29. Testing Linux Fedora, Wayland & KDE Plasma 6 Compatibility ---
+  console.log('\n--- 29. Testing Linux Fedora, Wayland & KDE Plasma 6 Compatibility ---');
+  const startupManagerTs = fs.readFileSync(path.join(__dirname, '../src/main/startup-manager.ts'), 'utf-8');
+  const mediaEngineTs = fs.readFileSync(path.join(__dirname, '../src/main/media-engine.ts'), 'utf-8');
+  const aiProviderTs = fs.readFileSync(path.join(__dirname, '../src/main/ai-provider-manager.ts'), 'utf-8');
+  const docConverterTs = fs.readFileSync(path.join(__dirname, '../src/main/document-converter.ts'), 'utf-8');
+  const buddyManagerTs = fs.readFileSync(path.join(__dirname, '../src/main/buddy-manager.ts'), 'utf-8');
+
+  assert('index.ts configures Wayland Ozone auto-platform hints and WaylandWindowDecorations',
+    indexTs.includes('ozone-platform-hint') &&
+    indexTs.includes('WaylandWindowDecorations'));
+
+  assert('index.ts handles Linux WhatsApp send fallback gracefully via browser',
+    indexTs.includes("process.platform === 'linux'") &&
+    indexTs.includes('web.whatsapp.com/send'));
+
+  assert('startup-manager.ts creates FreeDesktop XDG autostart desktop entry for Fedora & KDE Plasma',
+    startupManagerTs.includes('.config') &&
+    startupManagerTs.includes('autostart') &&
+    startupManagerTs.includes('roboisland.desktop') &&
+    startupManagerTs.includes('[Desktop Entry]') &&
+    startupManagerTs.includes('Type=Application'));
+
+  assert('media-engine.ts implements Linux MPRIS2 media worker with playerctl query',
+    mediaEngineTs.includes('startLinuxMediaWorker') &&
+    mediaEngineTs.includes('playerctl metadata') &&
+    mediaEngineTs.includes('linuxMediaTimer'));
+
+  assert('media-engine.ts implements Linux PipeWire wpctl & pactl volume and playback controls',
+    mediaEngineTs.includes('wpctl set-volume') &&
+    mediaEngineTs.includes('wpctl set-mute') &&
+    mediaEngineTs.includes('playerctl play-pause'));
+
+  assert('media-engine.ts safely cleans up linuxMediaTimer on dispose',
+    mediaEngineTs.includes('if (this.linuxMediaTimer)') &&
+    mediaEngineTs.includes('clearInterval(this.linuxMediaTimer);'));
+
+  assert('ai-provider-manager.ts provides Linux TTS speech support via spd-say and espeak',
+    aiProviderTs.includes('spd-say') &&
+    aiProviderTs.includes('espeak'));
+
+  assert('document-converter.ts provides Linux headless LibreOffice conversion support',
+    docConverterTs.includes('libreoffice --headless --convert-to') &&
+    docConverterTs.includes("process.platform === 'linux'"));
+
+  assert('buddy-manager.ts and island-window.ts safely handle non-Windows platforms and Wayland input forwarding',
+    buddyManagerTs.includes("process.platform !== 'win32'") &&
+    islandWindowTs.includes('setIgnoreMouseEvents(!effectiveInteractive'));
+
   // Summary
   console.log('\n====================================================');
   console.log(`TEST SUMMARY: ${passed} PASSED, ${failed} FAILED`);

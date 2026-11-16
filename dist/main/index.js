@@ -61,6 +61,12 @@ if (!gotTheLock) {
 electron_1.app.commandLine.appendSwitch('js-flags', '--max-old-space-size=128');
 electron_1.app.commandLine.appendSwitch('renderer-process-limit', '4');
 electron_1.app.commandLine.appendSwitch('disable-renderer-backgrounding');
+// Linux Fedora / KDE Plasma / Wayland compatibility:
+// Auto-detect Wayland vs X11/XWayland with smooth compositor integration & window decorations
+if (process.platform === 'linux') {
+    electron_1.app.commandLine.appendSwitch('ozone-platform-hint', 'auto');
+    electron_1.app.commandLine.appendSwitch('enable-features', 'WaylandWindowDecorations');
+}
 process.on('uncaughtException', (err) => {
     console.error('[RoboIsland] Uncaught exception:', err);
 });
@@ -268,6 +274,11 @@ function setupAppIPC() {
             return false;
         try {
             electron_1.clipboard.writeText(text);
+            if (process.platform === 'linux') {
+                const url = `https://web.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+                await electron_1.shell.openExternal(url).catch(() => { });
+                return true;
+            }
             // Attempt direct background send without popping up or stealing focus with WhatsApp
             const scriptPath = path.join(__dirname, '../native/whatsapp-sender.ps1');
             if (fs.existsSync(scriptPath)) {
