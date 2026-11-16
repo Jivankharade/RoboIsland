@@ -128,22 +128,27 @@ class IslandWindow {
     lastSentRelY = -9999;
     startCursorTracking() {
         if (this.cursorTimer)
-            clearInterval(this.cursorTimer);
-        this.cursorTimer = setInterval(() => {
-            if (!this.window || this.window.isDestroyed() || !this.window.isVisible())
+            clearTimeout(this.cursorTimer);
+        const tick = () => {
+            if (!this.window || this.window.isDestroyed() || !this.window.isVisible()) {
+                this.cursorTimer = setTimeout(tick, 200);
                 return;
+            }
             const cursor = electron_1.screen.getCursorScreenPoint();
             const bounds = this.cachedBounds || (this.cachedBounds = this.window.getBounds());
             const insideWindow = cursor.x >= bounds.x && cursor.x < bounds.x + bounds.width &&
                 cursor.y >= bounds.y && cursor.y < bounds.y + bounds.height;
-            // Low-CPU optimization: When outside the window and already reported outside, avoid redundant IPC spam
+            // Low-CPU optimization: When outside the window and already reported outside, avoid redundant IPC spam and back off poll frequency
             if (!insideWindow && !this.wasInsideWindow && this.currentMode !== 'expanded' && !this.isInteractive) {
+                this.cursorTimer = setTimeout(tick, 75);
                 return;
             }
             const key = `${cursor.x},${cursor.y},${bounds.x},${bounds.y}`;
             const now = Date.now();
-            if (key === this.lastCursorKey && now - this.lastCursorAt < 1000)
+            if (key === this.lastCursorKey && now - this.lastCursorAt < 1000) {
+                this.cursorTimer = setTimeout(tick, insideWindow ? 32 : 75);
                 return;
+            }
             this.lastCursorKey = key;
             this.lastCursorAt = now;
             const config = config_store_1.configStore.get();
@@ -175,6 +180,7 @@ class IslandWindow {
             }
             // Avoid redundant IPC when pointer is stationary inside window
             if (insideWindow === this.wasInsideWindow && Math.abs(relX - this.lastSentRelX) < 0.5 && Math.abs(relY - this.lastSentRelY) < 0.5) {
+                this.cursorTimer = setTimeout(tick, insideWindow ? 32 : 75);
                 return;
             }
             this.wasInsideWindow = insideWindow;
@@ -185,7 +191,9 @@ class IslandWindow {
                 y: relY,
                 insideWindow
             });
-        }, 32);
+            this.cursorTimer = setTimeout(tick, insideWindow ? 32 : 75);
+        };
+        this.cursorTimer = setTimeout(tick, 32);
     }
     setInteractive(interactive) {
         if (!this.window || this.window.isDestroyed())

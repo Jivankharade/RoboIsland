@@ -482,8 +482,18 @@ export class RoboMascot {
 
     // Subtle, smooth gaze tracking with exponential damping returning smoothly to center
     const gazeDamping = 1 - Math.exp(-8 * dt);
-    this.lookX += (this.targetLookX + moodLookBiasX + this.saccadeX - this.lookX) * gazeDamping;
-    this.lookY += (this.targetLookY + moodLookBiasY + this.saccadeY - this.lookY) * gazeDamping;
+    const targetGazeX = this.targetLookX + moodLookBiasX + this.saccadeX;
+    const targetGazeY = this.targetLookY + moodLookBiasY + this.saccadeY;
+    if (Math.abs(targetGazeX - this.lookX) < 0.002) {
+      this.lookX = targetGazeX;
+    } else {
+      this.lookX += (targetGazeX - this.lookX) * gazeDamping;
+    }
+    if (Math.abs(targetGazeY - this.lookY) < 0.002) {
+      this.lookY = targetGazeY;
+    } else {
+      this.lookY += (targetGazeY - this.lookY) * gazeDamping;
+    }
 
     // 2. Jump and Spring Physics (gravity and landing squash)
     if (this.isJumping) {
@@ -506,6 +516,11 @@ export class RoboMascot {
     const springForce = -springK * (this.heightFactor - 1.0) - springDamping * this.wobbleVelocity;
     this.wobbleVelocity += springForce * dt;
     this.heightFactor += this.wobbleVelocity * dt;
+
+    if (Math.abs(this.heightFactor - 1.0) < 0.003 && Math.abs(this.wobbleVelocity) < 0.05) {
+      this.heightFactor = 1.0;
+      this.wobbleVelocity = 0;
+    }
 
     // Volume/area conservation: width factor inversely proportional to square root of height factor
     this.widthFactor = 1.0 / Math.max(0.3, Math.sqrt(Math.max(0.1, this.heightFactor)));
@@ -647,6 +662,16 @@ export class RoboMascot {
       this.pokeCount = 0;
       this.sounds.playAlert();
       this.speak('Whoa, dizzy!', 2.0);
+    }
+  }
+
+  /**
+   * Explicitly triggers an idle natural blink cycle (150ms animation)
+   */
+  public triggerBlink(): void {
+    if (!this.isBlinking && this.mood !== 'sleepy' && !this.isSleeping) {
+      this.isBlinking = true;
+      this.blinkProgress = 0;
     }
   }
 

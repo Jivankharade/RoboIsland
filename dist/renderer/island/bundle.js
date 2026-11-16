@@ -640,8 +640,18 @@
       this.saccadeX += (this.targetSaccadeX - this.saccadeX) * 0.2;
       this.saccadeY = 0;
       const gazeDamping = 1 - Math.exp(-8 * dt);
-      this.lookX += (this.targetLookX + moodLookBiasX + this.saccadeX - this.lookX) * gazeDamping;
-      this.lookY += (this.targetLookY + moodLookBiasY + this.saccadeY - this.lookY) * gazeDamping;
+      const targetGazeX = this.targetLookX + moodLookBiasX + this.saccadeX;
+      const targetGazeY = this.targetLookY + moodLookBiasY + this.saccadeY;
+      if (Math.abs(targetGazeX - this.lookX) < 2e-3) {
+        this.lookX = targetGazeX;
+      } else {
+        this.lookX += (targetGazeX - this.lookX) * gazeDamping;
+      }
+      if (Math.abs(targetGazeY - this.lookY) < 2e-3) {
+        this.lookY = targetGazeY;
+      } else {
+        this.lookY += (targetGazeY - this.lookY) * gazeDamping;
+      }
       if (this.isJumping) {
         this.jumpY += this.jumpVelocity * dt;
         this.jumpVelocity += 460 * dt;
@@ -659,6 +669,10 @@
       const springForce = -springK * (this.heightFactor - 1) - springDamping * this.wobbleVelocity;
       this.wobbleVelocity += springForce * dt;
       this.heightFactor += this.wobbleVelocity * dt;
+      if (Math.abs(this.heightFactor - 1) < 3e-3 && Math.abs(this.wobbleVelocity) < 0.05) {
+        this.heightFactor = 1;
+        this.wobbleVelocity = 0;
+      }
       this.widthFactor = 1 / Math.max(0.3, Math.sqrt(Math.max(0.1, this.heightFactor)));
       this.tiltAngle += (0 - this.tiltAngle) * 0.14;
       this.idleFloatPhase += dt * 2.2;
@@ -767,6 +781,15 @@
         this.pokeCount = 0;
         this.sounds.playAlert();
         this.speak("Whoa, dizzy!", 2);
+      }
+    }
+    /**
+     * Explicitly triggers an idle natural blink cycle (150ms animation)
+     */
+    triggerBlink() {
+      if (!this.isBlinking && this.mood !== "sleepy" && !this.isSleeping) {
+        this.isBlinking = true;
+        this.blinkProgress = 0;
       }
     }
     /**
@@ -1565,43 +1588,8 @@
       return _SystemAudioVisualizer.instance;
     }
     async startListening() {
-      if (this.stream || this.starting || this.failed) return;
-      this.starting = true;
-      try {
-        if (typeof navigator !== "undefined" && navigator.mediaDevices?.getDisplayMedia) {
-          const stream = await navigator.mediaDevices.getDisplayMedia({
-            audio: true,
-            video: { width: 16, height: 16, frameRate: 1 }
-          });
-          stream.getVideoTracks().forEach((t) => t.stop());
-          const audioTracks = stream.getAudioTracks();
-          if (!audioTracks.length) {
-            throw new Error("no audio track");
-          }
-          const AudioCtx = window.AudioContext || window.webkitAudioContext;
-          if (!AudioCtx) throw new Error("AudioContext unavailable");
-          const ctx = new AudioCtx();
-          if (ctx.state === "suspended") {
-            ctx.resume().catch(() => {
-            });
-          }
-          const analyser = ctx.createAnalyser();
-          analyser.fftSize = 128;
-          analyser.smoothingTimeConstant = 0.6;
-          analyser.minDecibels = -80;
-          const source = ctx.createMediaStreamSource(stream);
-          source.connect(analyser);
-          this.stream = stream;
-          this.ctx = ctx;
-          this.analyser = analyser;
-          this.data = new Uint8Array(analyser.frequencyBinCount);
-          this.failed = false;
-        }
-      } catch {
-        this.failed = true;
-      } finally {
-        this.starting = false;
-      }
+      this.failed = false;
+      this.starting = false;
     }
     stopListening() {
       if (this.stream) {
@@ -3130,9 +3118,11 @@
       return ms < 0 ? 0 : amp * Math.exp(-damp * ms / 1e3) * Math.sin(2 * Math.PI * hz * ms / 1e3);
     }
     kickJelly(amp = 0.12, hz = 2.6, damp = 5.5) {
+      const nowMs = performance.now();
       if (!this.kicks) this.kicks = [];
-      this.kicks.push({ at: performance.now(), amp, hz, damp });
-      if (this.kicks.length > 6) this.kicks.shift();
+      this.kicks = this.kicks.filter((k) => nowMs - k.at < 1200);
+      this.kicks.push({ at: nowMs, amp, hz, damp });
+      if (this.kicks.length > 4) this.kicks.shift();
       this.requestRender();
     }
     // Hybrid DOM Expanded UI Overlay (Rollback safety via config.expandedUiMode)
@@ -5418,6 +5408,10 @@
         return;
       }
       const isTransitioning = Math.abs(this.currentWidth - this.targetWidth) >= 0.25 || Math.abs(this.currentHeight - this.targetHeight) >= 0.25 || Math.abs(this.currentRadius - this.targetRadius) >= 0.25 || Math.abs(this.islandSpring.vWidth) >= 0.4 || Math.abs(this.islandSpring.vHeight) >= 0.4;
+      if (this.kicks && this.kicks.length > 0) {
+        const nowMs = performance.now();
+        this.kicks = this.kicks.filter((k) => nowMs - k.at < 1200);
+      }
       const isJellyActive = Boolean(this.kicks && this.kicks.length > 0);
       const isMediaActive = Boolean(this.mediaState.playing && this.mediaState.active);
       const isHudActive = this.volumeHudUntil > 0 && performance.now() < this.volumeHudUntil || this.speedometerHudUntil > 0 && performance.now() < this.speedometerHudUntil || this.chargerSurgeUntil > 0 && performance.now() < this.chargerSurgeUntil || this.airdropHudUntil > 0 && performance.now() < this.airdropHudUntil || this.greetingUntil > 0 && performance.now() < this.greetingUntil || this.appActivityUntil > 0 && performance.now() < this.appActivityUntil || this.isNotificationActive() || this.isStartupHelloBusy;
@@ -5425,7 +5419,7 @@
       const isInteracting = this.isHovered || this.isDraggingOver || this.isWhatsAppReplying || this.transferProgress !== null;
       const isTuckAnimating = this.isTucked && performance.now() - this.tuckChangedAt < 250;
       const isBusy = isTransitioning || isJellyActive || isMediaActive || isHudActive || isMascotActive || isInteracting || isTuckAnimating || this.mode === "expanded" && this.config.expandedUiMode === "canvas";
-      const isIdleRest = this.mode === "rest" && !this.isHovered && !this.mediaState.playing && !this.isNotificationActive() && performance.now() > this.greetingUntil && performance.now() > this.volumeHudUntil && performance.now() > this.speedometerHudUntil && performance.now() > this.chargerSurgeUntil && performance.now() > this.airdropHudUntil && Math.abs(this.currentWidth - this.targetWidth) < 0.3 && Math.abs(this.islandSpring.vWidth) < 0.3;
+      const isIdleRest = (this.mode === "rest" || this.mode === "compact") && !this.isHovered && !this.mediaState.playing && !this.isNotificationActive() && performance.now() > this.greetingUntil && performance.now() > this.volumeHudUntil && performance.now() > this.speedometerHudUntil && performance.now() > this.chargerSurgeUntil && performance.now() > this.airdropHudUntil && Math.abs(this.currentWidth - this.targetWidth) < 0.3 && Math.abs(this.islandSpring.vWidth) < 0.3;
       if (isIdleRest) {
         if (time - this._lastIdleRestFrame < 33) {
           if (!isBusy && this._hasRenderedSettledFrame) {
@@ -5433,6 +5427,10 @@
             if (!this._idleWakeupTimer) {
               const nextBlink = Math.max(800, (this.mascot.nextBlinkTimer || 3.5) * 1e3);
               this._idleWakeupTimer = setTimeout(() => {
+                this._idleWakeupTimer = null;
+                if (this.mascot && typeof this.mascot.triggerBlink === "function") {
+                  this.mascot.triggerBlink();
+                }
                 this.requestRender();
               }, nextBlink);
             }
@@ -5623,6 +5621,10 @@
         if (!this._idleWakeupTimer) {
           const nextBlink = Math.max(800, (this.mascot.nextBlinkTimer || 3.5) * 1e3);
           this._idleWakeupTimer = setTimeout(() => {
+            this._idleWakeupTimer = null;
+            if (this.mascot && typeof this.mascot.triggerBlink === "function") {
+              this.mascot.triggerBlink();
+            }
             this.requestRender();
           }, nextBlink);
         }
@@ -5989,7 +5991,7 @@
           this.ctx.stroke();
         }
         this.ctx.restore();
-        if (this.currentWidth >= 180) {
+        if (this.currentWidth >= 230) {
           this.mascot.drawFloatingEyes(this.ctx, mid, cy + 0.5, 0.95);
         }
         const min = Math.floor(this.focusState.remainingSeconds / 60);

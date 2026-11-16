@@ -356,8 +356,14 @@ while ($true) {
     } catch {}
     $pending = $reader.ReadLineAsync(); $nextLook = [DateTime]::MinValue; $last = '' # answer right away, also after a seek
   }
+  $isActive = $lastPlaying -or ($out -and $out.active)
+  $mediaInterval = if ($isActive) { 750 } else { 1800 }
+  $volInterval = if ($isActive) { 500 } else { 1200 }
+  $fullInterval = if ($isActive) { 1500 } else { 3500 }
+  $sleepMs = if ($isActive) { 250 } else { 600 }
+
   if ([DateTime]::UtcNow -ge $nextLook) {
-    $nextLook = [DateTime]::UtcNow.AddMilliseconds(700)
+    $nextLook = [DateTime]::UtcNow.AddMilliseconds($mediaInterval)
     try {
       $s = Pick
       if (-not $s) { $out = @{ active = $false } }
@@ -393,9 +399,9 @@ while ($true) {
       }
     } catch { Say @{ active = $false; error = $_.Exception.Message } }
   }
-  if ([DateTime]::UtcNow -ge $fullAt) { $fullAt = [DateTime]::UtcNow.AddMilliseconds(1000); CheckFull }
-  if ($guardOn -and [DateTime]::UtcNow -ge $frontAt) { $frontAt = [DateTime]::UtcNow.AddMilliseconds(400); CheckFront }
-  if ([DateTime]::UtcNow -ge $volAt) { $volAt = [DateTime]::UtcNow.AddMilliseconds(300); CheckVolume }
-  if ([DateTime]::UtcNow -ge $script:notifAt) { $script:notifAt = [DateTime]::UtcNow.AddMilliseconds(1200); CheckNotifications }
-  Start-Sleep -Milliseconds 200
+  if ([DateTime]::UtcNow -ge $fullAt) { $fullAt = [DateTime]::UtcNow.AddMilliseconds($fullInterval); CheckFull }
+  if ($guardOn -and [DateTime]::UtcNow -ge $frontAt) { $frontAt = [DateTime]::UtcNow.AddMilliseconds(500); CheckFront }
+  if ([DateTime]::UtcNow -ge $volAt) { $volAt = [DateTime]::UtcNow.AddMilliseconds($volInterval); CheckVolume }
+  if ([DateTime]::UtcNow -ge $script:notifAt) { $script:notifAt = [DateTime]::UtcNow.AddMilliseconds(1500); CheckNotifications }
+  try { [void]$pending.AsyncWaitHandle.WaitOne($sleepMs) } catch { Start-Sleep -Milliseconds $sleepMs }
 }

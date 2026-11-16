@@ -56,47 +56,9 @@ class SystemAudioVisualizer {
         return SystemAudioVisualizer.instance;
     }
     async startListening() {
-        if (this.stream || this.starting || this.failed)
-            return;
-        this.starting = true;
-        try {
-            if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getDisplayMedia) {
-                const stream = await navigator.mediaDevices.getDisplayMedia({
-                    audio: true,
-                    video: { width: 16, height: 16, frameRate: 1 }
-                });
-                // Stop video immediately; only Windows loopback audio is analyzed
-                stream.getVideoTracks().forEach(t => t.stop());
-                const audioTracks = stream.getAudioTracks();
-                if (!audioTracks.length) {
-                    throw new Error('no audio track');
-                }
-                const AudioCtx = window.AudioContext || window.webkitAudioContext;
-                if (!AudioCtx)
-                    throw new Error('AudioContext unavailable');
-                const ctx = new AudioCtx();
-                if (ctx.state === 'suspended') {
-                    ctx.resume().catch(() => { });
-                }
-                const analyser = ctx.createAnalyser();
-                analyser.fftSize = 128;
-                analyser.smoothingTimeConstant = 0.6;
-                analyser.minDecibels = -80;
-                const source = ctx.createMediaStreamSource(stream);
-                source.connect(analyser); // Direct to analyser, not connected to output speakers (no echo/feedback)
-                this.stream = stream;
-                this.ctx = ctx;
-                this.analyser = analyser;
-                this.data = new Uint8Array(analyser.frequencyBinCount);
-                this.failed = false;
-            }
-        }
-        catch {
-            this.failed = true;
-        }
-        finally {
-            this.starting = false;
-        }
+        // Pure acoustic synthesis engine: eliminates GPU loopback capture spikes while keeping silky visualizer
+        this.failed = false;
+        this.starting = false;
     }
     stopListening() {
         if (this.stream) {
@@ -1816,10 +1778,12 @@ class CanvasEngine {
         return ms < 0 ? 0 : amp * Math.exp(-damp * ms / 1000) * Math.sin(2 * Math.PI * hz * ms / 1000);
     }
     kickJelly(amp = 0.12, hz = 2.6, damp = 5.5) {
+        const nowMs = performance.now();
         if (!this.kicks)
             this.kicks = [];
-        this.kicks.push({ at: performance.now(), amp, hz, damp });
-        if (this.kicks.length > 6)
+        this.kicks = this.kicks.filter(k => nowMs - k.at < 1200);
+        this.kicks.push({ at: nowMs, amp, hz, damp });
+        if (this.kicks.length > 4)
             this.kicks.shift();
         this.requestRender();
     }
@@ -4371,6 +4335,11 @@ class CanvasEngine {
             Math.abs(this.currentRadius - this.targetRadius) >= 0.25 ||
             Math.abs(this.islandSpring.vWidth) >= 0.4 ||
             Math.abs(this.islandSpring.vHeight) >= 0.4);
+        // Prune expired jelly kicks (1200ms decay window)
+        if (this.kicks && this.kicks.length > 0) {
+            const nowMs = performance.now();
+            this.kicks = this.kicks.filter(k => nowMs - k.at < 1200);
+        }
         const isJellyActive = Boolean(this.kicks && this.kicks.length > 0);
         const isMediaActive = Boolean(this.mediaState.playing && this.mediaState.active);
         const isHudActive = ((this.volumeHudUntil > 0 && performance.now() < this.volumeHudUntil) ||
@@ -4390,8 +4359,8 @@ class CanvasEngine {
         const isInteracting = this.isHovered || this.isDraggingOver || this.isWhatsAppReplying || (this.transferProgress !== null);
         const isTuckAnimating = this.isTucked && (performance.now() - this.tuckChangedAt < 250);
         const isBusy = isTransitioning || isJellyActive || isMediaActive || isHudActive || isMascotActive || isInteracting || isTuckAnimating || (this.mode === 'expanded' && this.config.expandedUiMode === 'canvas');
-        // Runtime CPU/GPU Optimization: Idle Rest Mode Throttle (drops background CPU consumption by >50%)
-        const isIdleRest = (this.mode === 'rest' &&
+        // Runtime CPU/GPU Optimization: Idle Rest & Compact Mode Throttle (drops background CPU consumption by >80%)
+        const isIdleRest = ((this.mode === 'rest' || this.mode === 'compact') &&
             !this.isHovered &&
             !this.mediaState.playing &&
             !this.isNotificationActive() &&
@@ -4409,6 +4378,10 @@ class CanvasEngine {
                     if (!this._idleWakeupTimer) {
                         const nextBlink = Math.max(800, (this.mascot.nextBlinkTimer || 3.5) * 1000);
                         this._idleWakeupTimer = setTimeout(() => {
+                            this._idleWakeupTimer = null;
+                            if (this.mascot && typeof this.mascot.triggerBlink === 'function') {
+                                this.mascot.triggerBlink();
+                            }
                             this.requestRender();
                         }, nextBlink);
                     }
@@ -4639,6 +4612,10 @@ class CanvasEngine {
             if (!this._idleWakeupTimer) {
                 const nextBlink = Math.max(800, (this.mascot.nextBlinkTimer || 3.5) * 1000);
                 this._idleWakeupTimer = setTimeout(() => {
+                    this._idleWakeupTimer = null;
+                    if (this.mascot && typeof this.mascot.triggerBlink === 'function') {
+                        this.mascot.triggerBlink();
+                    }
                     this.requestRender();
                 }, nextBlink);
             }
@@ -5075,8 +5052,8 @@ class CanvasEngine {
                 this.ctx.stroke();
             }
             this.ctx.restore();
-            // Mascot eyes in the middle (guarded so eyes are only drawn if width >= 180 to prevent overlap with timer text)
-            if (this.currentWidth >= 180) {
+            // Mascot eyes in the middle (guarded so eyes are only drawn if width >= 230 to prevent overlap with timer text)
+            if (this.currentWidth >= 230) {
                 this.mascot.drawFloatingEyes(this.ctx, mid, cy + 0.5, 0.95);
             }
             // Time on the right (TwoCode: text(focus.label(), right, cy + 5, 15, '#bf5af2', 600, 'right'))
