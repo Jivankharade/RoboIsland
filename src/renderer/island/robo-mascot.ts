@@ -234,7 +234,7 @@ export class RoboMascot {
   // Blinking & TwoCode idleLife random blinking/winking
   public blinkProgress = 0;
   public isBlinking = false;
-  public nextBlinkTimer = 2.5;
+  public nextBlinkTimer = 3.5;
   private nextIdleLifeBlink = performance.now() + 2500;
   private currentIdleMood: MascotMood | null = null;
 
@@ -450,10 +450,10 @@ export class RoboMascot {
     const dist = Math.sqrt(dx * dx + dy * dy);
     const maxLook = 1.0;
 
-    const isPointerOffscreen = pointerX < -500 || pointerY < -500;
+    const isPointerOffscreen = pointerX < -3000 || pointerY < -3000 || pointerX > 5000 || pointerY > 5000;
     if (!isPointerOffscreen && dist > 5) {
-      this.targetLookX = Math.max(-maxLook, Math.min(maxLook, dx / 150));
-      this.targetLookY = Math.max(-maxLook, Math.min(maxLook, dy / 120));
+      this.targetLookX = Math.max(-maxLook, Math.min(maxLook, dx / 220));
+      this.targetLookY = Math.max(-maxLook, Math.min(maxLook, dy / 180));
     } else {
       this.targetLookX = 0;
       this.targetLookY = 0;
@@ -480,8 +480,8 @@ export class RoboMascot {
     this.saccadeX += (this.targetSaccadeX - this.saccadeX) * 0.2;
     this.saccadeY = 0; // Strict 0 vertical saccade jitter during normal idle
 
-    // Subtle, smooth gaze tracking with exponential damping returning smoothly to center
-    const gazeDamping = 1 - Math.exp(-8 * dt);
+    // Responsive, silky smooth gaze tracking with exponential damping returning smoothly to center
+    const gazeDamping = 1 - Math.exp(-12 * dt);
     const targetGazeX = this.targetLookX + moodLookBiasX + this.saccadeX;
     const targetGazeY = this.targetLookY + moodLookBiasY + this.saccadeY;
     if (Math.abs(targetGazeX - this.lookX) < 0.002) {
@@ -567,11 +567,11 @@ export class RoboMascot {
       }
 
       if (this.isBlinking) {
-        this.blinkProgress += dt / 0.15; // 150ms blink duration
+        this.blinkProgress += dt / 0.24; // 240ms natural smooth cartoon blink duration
         if (this.blinkProgress >= 1.0) {
           this.isBlinking = false;
           this.blinkProgress = 0;
-          this.nextBlinkTimer = 3.0 + Math.random() * 2.5; // 3.0 - 5.5s
+          this.nextBlinkTimer = 3.5 + Math.random() * 2.5; // Natural 3.5 - 6.0s cadence
         }
       }
     }
@@ -672,25 +672,25 @@ export class RoboMascot {
     if (!this.isBlinking && this.mood !== 'sleepy' && !this.isSleeping) {
       this.isBlinking = true;
       this.blinkProgress = 0;
-      this.nextBlinkTimer = 3.0 + Math.random() * 2.5;
+      this.nextBlinkTimer = 3.5 + Math.random() * 2.5;
     }
   }
 
   /**
-   * TwoCode random life: blinking and the odd wink
+   * TwoCode random life: subtle cute wink
    * Direct parity with TwoCode twocode-fun.js lines 537-546
    */
   public idleLife(t: number, mood: MascotMood): MascotMood {
     if (mood !== 'neutral') return mood;
     if (t > this.nextIdleLifeBlink) {
-      if (t > this.nextIdleLifeBlink + 140) {
-        this.nextIdleLifeBlink = t + 2500 + Math.random() * 3500;
+      if (t > this.nextIdleLifeBlink + 200) {
+        this.nextIdleLifeBlink = t + 4000 + Math.random() * 4000;
         this.currentIdleMood = null;
       } else {
         if (!this.currentIdleMood) {
-          this.currentIdleMood = Math.random() < 0.004 ? 'wink' : 'blink';
+          this.currentIdleMood = Math.random() < 0.12 ? 'wink' : null;
         }
-        return this.currentIdleMood;
+        return this.currentIdleMood || mood;
       }
     }
     return mood;
@@ -718,16 +718,16 @@ export class RoboMascot {
       eyeGlowColor = 'rgba(255, 59, 59, 0.60)';
     }
 
-    // Cursor tracking gaze — damped to stay subtle in the pill (clamped to ±1.8px X, ±1.0px Y)
-    const lookX = Math.max(-1, Math.min(1, this.lookX)) * 1.8 * size;
-    const lookY = Math.max(-1, Math.min(1, this.lookY)) * 1.0 * size;
+    // Cursor tracking gaze — clearly visible in the capsule (clamped to ±3.6px X, ±2.0px Y)
+    const lookX = Math.max(-1, Math.min(1, this.lookX)) * 3.6 * size;
+    const lookY = Math.max(-1, Math.min(1, this.lookY)) * 2.0 * size;
 
     // Dancing bobbing or idle floating (strictly 0 during compact idle)
     const bob = (this.isDancing ? Math.sin(this.dancePhase) * 1.5 * size : (this.isCompactIdle ? 0 : this.idleFloatY * size)) + this.jumpY;
 
-    // Blink squish: animate vertical scale of eye, 0=open, 1=fully closed
+    // Blink squish: animate vertical scale of eye, 1.0=open, 0.06=fully closed
     const blinkYScale = this.isBlinking
-      ? Math.max(0.05, 1.0 - Math.sin(this.blinkProgress * Math.PI))
+      ? Math.max(0.06, 1.0 - Math.sin(this.blinkProgress * Math.PI) * 0.94)
       : 1.0;
 
     // Inactivity sleep state easing (smoothstep cubic ease-in-out: 3t^2 - 2t^3)
@@ -887,16 +887,18 @@ export class RoboMascot {
         const currentBlink = blinkYScale;
         const finalYScale = sleepHeightFactor * currentBlink;
 
-        if (finalYScale < 0.25) {
-          // At near-closure, draw sleek sleeping arc
+        if (effectiveSleep >= 0.85) {
+          // At deep sleep, draw sleek sleeping arc
           ctx.scale(eyeScale, eyeScale);
           ctx.beginPath();
           ctx.arc(0, -2, 5, Math.PI * 0.15, Math.PI * 0.85);
           ctx.stroke();
         } else {
-          ctx.scale(eyeScale, eyeScale * finalYScale);
+          // Continuous, seamless natural blink squish down to a sleek 0.6px eyelid slit with zero flicker
+          const currentHeight = Math.max(0.6, 8 * finalYScale);
+          ctx.scale(eyeScale, eyeScale);
           ctx.beginPath();
-          ctx.ellipse(0, 0, 5, 8, 0, 0, Math.PI * 2);
+          ctx.ellipse(0, 0, 5, currentHeight, 0, 0, Math.PI * 2);
           ctx.fill();
         }
       }

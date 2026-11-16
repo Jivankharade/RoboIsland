@@ -430,7 +430,7 @@
     // Blinking & TwoCode idleLife random blinking/winking
     blinkProgress = 0;
     isBlinking = false;
-    nextBlinkTimer = 2.5;
+    nextBlinkTimer = 3.5;
     nextIdleLifeBlink = performance.now() + 2500;
     currentIdleMood = null;
     // Jump, Bounce & Jelly Wobble Physics
@@ -614,10 +614,10 @@
       const dy = pointerY - headCenterY;
       const dist = Math.sqrt(dx * dx + dy * dy);
       const maxLook = 1;
-      const isPointerOffscreen = pointerX < -500 || pointerY < -500;
+      const isPointerOffscreen = pointerX < -3e3 || pointerY < -3e3 || pointerX > 5e3 || pointerY > 5e3;
       if (!isPointerOffscreen && dist > 5) {
-        this.targetLookX = Math.max(-maxLook, Math.min(maxLook, dx / 150));
-        this.targetLookY = Math.max(-maxLook, Math.min(maxLook, dy / 120));
+        this.targetLookX = Math.max(-maxLook, Math.min(maxLook, dx / 220));
+        this.targetLookY = Math.max(-maxLook, Math.min(maxLook, dy / 180));
       } else {
         this.targetLookX = 0;
         this.targetLookY = 0;
@@ -639,7 +639,7 @@
       }
       this.saccadeX += (this.targetSaccadeX - this.saccadeX) * 0.2;
       this.saccadeY = 0;
-      const gazeDamping = 1 - Math.exp(-8 * dt);
+      const gazeDamping = 1 - Math.exp(-12 * dt);
       const targetGazeX = this.targetLookX + moodLookBiasX + this.saccadeX;
       const targetGazeY = this.targetLookY + moodLookBiasY + this.saccadeY;
       if (Math.abs(targetGazeX - this.lookX) < 2e-3) {
@@ -707,11 +707,11 @@
           this.blinkProgress = 0;
         }
         if (this.isBlinking) {
-          this.blinkProgress += dt / 0.15;
+          this.blinkProgress += dt / 0.24;
           if (this.blinkProgress >= 1) {
             this.isBlinking = false;
             this.blinkProgress = 0;
-            this.nextBlinkTimer = 3 + Math.random() * 2.5;
+            this.nextBlinkTimer = 3.5 + Math.random() * 2.5;
           }
         }
       }
@@ -790,24 +790,24 @@
       if (!this.isBlinking && this.mood !== "sleepy" && !this.isSleeping) {
         this.isBlinking = true;
         this.blinkProgress = 0;
-        this.nextBlinkTimer = 3 + Math.random() * 2.5;
+        this.nextBlinkTimer = 3.5 + Math.random() * 2.5;
       }
     }
     /**
-     * TwoCode random life: blinking and the odd wink
+     * TwoCode random life: subtle cute wink
      * Direct parity with TwoCode twocode-fun.js lines 537-546
      */
     idleLife(t, mood) {
       if (mood !== "neutral") return mood;
       if (t > this.nextIdleLifeBlink) {
-        if (t > this.nextIdleLifeBlink + 140) {
-          this.nextIdleLifeBlink = t + 2500 + Math.random() * 3500;
+        if (t > this.nextIdleLifeBlink + 200) {
+          this.nextIdleLifeBlink = t + 4e3 + Math.random() * 4e3;
           this.currentIdleMood = null;
         } else {
           if (!this.currentIdleMood) {
-            this.currentIdleMood = Math.random() < 4e-3 ? "wink" : "blink";
+            this.currentIdleMood = Math.random() < 0.12 ? "wink" : null;
           }
-          return this.currentIdleMood;
+          return this.currentIdleMood || mood;
         }
       }
       return mood;
@@ -830,10 +830,10 @@
         eyeCoreColor = "#ff3b3b";
         eyeGlowColor = "rgba(255, 59, 59, 0.60)";
       }
-      const lookX = Math.max(-1, Math.min(1, this.lookX)) * 1.8 * size;
-      const lookY = Math.max(-1, Math.min(1, this.lookY)) * 1 * size;
+      const lookX = Math.max(-1, Math.min(1, this.lookX)) * 3.6 * size;
+      const lookY = Math.max(-1, Math.min(1, this.lookY)) * 2 * size;
       const bob = (this.isDancing ? Math.sin(this.dancePhase) * 1.5 * size : this.isCompactIdle ? 0 : this.idleFloatY * size) + this.jumpY;
-      const blinkYScale = this.isBlinking ? Math.max(0.05, 1 - Math.sin(this.blinkProgress * Math.PI)) : 1;
+      const blinkYScale = this.isBlinking ? Math.max(0.06, 1 - Math.sin(this.blinkProgress * Math.PI) * 0.94) : 1;
       const t = Math.max(0, Math.min(1, this.sleepProgress));
       const smoothSleep = t * t * (3 - 2 * t);
       const effectiveSleep = effectiveMood === "sleepy" ? 1 : smoothSleep;
@@ -948,15 +948,16 @@
           const sleepHeightFactor = effectiveSleep > 0 ? Math.max(0.2, 1 - effectiveSleep * 0.8) : 1;
           const currentBlink = blinkYScale;
           const finalYScale = sleepHeightFactor * currentBlink;
-          if (finalYScale < 0.25) {
+          if (effectiveSleep >= 0.85) {
             ctx.scale(eyeScale, eyeScale);
             ctx.beginPath();
             ctx.arc(0, -2, 5, Math.PI * 0.15, Math.PI * 0.85);
             ctx.stroke();
           } else {
-            ctx.scale(eyeScale, eyeScale * finalYScale);
+            const currentHeight = Math.max(0.6, 8 * finalYScale);
+            ctx.scale(eyeScale, eyeScale);
             ctx.beginPath();
-            ctx.ellipse(0, 0, 5, 8, 0, 0, Math.PI * 2);
+            ctx.ellipse(0, 0, 5, currentHeight, 0, 0, Math.PI * 2);
             ctx.fill();
           }
         }
@@ -3565,8 +3566,7 @@
         this.mascot.resetInactivity();
       });
       window.addEventListener("mouseleave", () => {
-        this.pointerX = -1e3;
-        this.pointerY = -1e3;
+        this.isHovered = false;
         this.checkHitTest();
       });
       window.addEventListener("click", (e) => {
@@ -3731,6 +3731,7 @@
             this.pointerX = pt.x;
             this.pointerY = pt.y;
             this.checkHitTest();
+            this.requestRender();
           });
         }
         window.roboIsland.onToggleExpand(() => this.toggleExpand());
@@ -5416,7 +5417,8 @@
       const isJellyActive = Boolean(this.kicks && this.kicks.length > 0);
       const isMediaActive = Boolean(this.mediaState.playing && this.mediaState.active);
       const isHudActive = this.volumeHudUntil > 0 && performance.now() < this.volumeHudUntil || this.speedometerHudUntil > 0 && performance.now() < this.speedometerHudUntil || this.chargerSurgeUntil > 0 && performance.now() < this.chargerSurgeUntil || this.airdropHudUntil > 0 && performance.now() < this.airdropHudUntil || this.greetingUntil > 0 && performance.now() < this.greetingUntil || this.appActivityUntil > 0 && performance.now() < this.appActivityUntil || this.isNotificationActive() || this.isStartupHelloBusy;
-      const isMascotActive = this.mascot.isJumping || this.mascot.isBlinking || this.mascot.blinkProgress > 0 || Math.abs(this.mascot.wobbleVelocity) >= 0.08 || this.mascot.particles && this.mascot.particles.particles.length > 0 || this.mascot.dizzyDuration > 0;
+      const isMascotGazeActive = Math.abs(this.mascot.targetLookX - this.mascot.lookX) >= 0.015 || Math.abs(this.mascot.targetLookY - this.mascot.lookY) >= 0.015;
+      const isMascotActive = this.mascot.isJumping || this.mascot.isBlinking || this.mascot.blinkProgress > 0 || isMascotGazeActive || Math.abs(this.mascot.wobbleVelocity) >= 0.08 || this.mascot.particles && this.mascot.particles.particles.length > 0 || this.mascot.dizzyDuration > 0;
       const isInteracting = this.isHovered || this.isDraggingOver || this.isWhatsAppReplying || this.transferProgress !== null;
       const isTuckAnimating = this.isTucked && performance.now() - this.tuckChangedAt < 250;
       const isBusy = isTransitioning || isJellyActive || isMediaActive || isHudActive || isMascotActive || isInteracting || isTuckAnimating || this.mode === "expanded" && this.config.expandedUiMode === "canvas";
@@ -5426,7 +5428,7 @@
           if (!isBusy && this._hasRenderedSettledFrame) {
             this._isRenderingActive = false;
             if (!this._idleWakeupTimer) {
-              const nextBlink = Math.max(3e3, (this.mascot.nextBlinkTimer && this.mascot.nextBlinkTimer > 0.5 ? this.mascot.nextBlinkTimer : 3 + Math.random() * 2.5) * 1e3);
+              const nextBlink = Math.max(3500, (this.mascot.nextBlinkTimer && this.mascot.nextBlinkTimer > 0.5 ? this.mascot.nextBlinkTimer : 3.5 + Math.random() * 2.5) * 1e3);
               this._idleWakeupTimer = setTimeout(() => {
                 this._idleWakeupTimer = null;
                 if (this.mascot && typeof this.mascot.triggerBlink === "function") {
@@ -5620,7 +5622,7 @@
         this._hasRenderedSettledFrame = true;
         this._isRenderingActive = false;
         if (!this._idleWakeupTimer) {
-          const nextBlink = Math.max(3e3, (this.mascot.nextBlinkTimer && this.mascot.nextBlinkTimer > 0.5 ? this.mascot.nextBlinkTimer : 3 + Math.random() * 2.5) * 1e3);
+          const nextBlink = Math.max(3500, (this.mascot.nextBlinkTimer && this.mascot.nextBlinkTimer > 0.5 ? this.mascot.nextBlinkTimer : 3.5 + Math.random() * 2.5) * 1e3);
           this._idleWakeupTimer = setTimeout(() => {
             this._idleWakeupTimer = null;
             if (this.mascot && typeof this.mascot.triggerBlink === "function") {

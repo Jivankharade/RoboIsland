@@ -126,6 +126,8 @@ class IslandWindow {
     cachedBounds = null;
     lastSentRelX = -9999;
     lastSentRelY = -9999;
+    lastSentScreenX = -9999;
+    lastSentScreenY = -9999;
     startCursorTracking() {
         if (this.cursorTimer)
             clearTimeout(this.cursorTimer);
@@ -138,8 +140,8 @@ class IslandWindow {
             const bounds = this.cachedBounds || (this.cachedBounds = this.window.getBounds());
             const insideWindow = cursor.x >= bounds.x && cursor.x < bounds.x + bounds.width &&
                 cursor.y >= bounds.y && cursor.y < bounds.y + bounds.height;
-            // Low-CPU optimization: When outside the window and already reported outside, avoid redundant IPC spam and back off poll frequency
-            if (!insideWindow && !this.wasInsideWindow && this.currentMode !== 'expanded' && !this.isInteractive) {
+            // Low-CPU optimization: When outside the window and already reported outside with stationary cursor, avoid redundant IPC spam and back off poll frequency
+            if (!insideWindow && !this.wasInsideWindow && Math.abs(cursor.x - this.lastSentScreenX) < 3 && Math.abs(cursor.y - this.lastSentScreenY) < 3 && this.currentMode !== 'expanded' && !this.isInteractive) {
                 this.cursorTimer = setTimeout(tick, 75);
                 return;
             }
@@ -178,14 +180,16 @@ class IslandWindow {
                     relY >= (curTopY - 1) && relY <= (curTopY + curH + 1);
                 this.setInteractive(inHoverZone);
             }
-            // Avoid redundant IPC when pointer is stationary inside window
-            if (insideWindow === this.wasInsideWindow && Math.abs(relX - this.lastSentRelX) < 0.5 && Math.abs(relY - this.lastSentRelY) < 0.5) {
+            // Avoid redundant IPC when pointer is stationary
+            if (insideWindow === this.wasInsideWindow && Math.abs(relX - this.lastSentRelX) < 1.0 && Math.abs(relY - this.lastSentRelY) < 1.0) {
                 this.cursorTimer = setTimeout(tick, insideWindow ? 32 : 75);
                 return;
             }
             this.wasInsideWindow = insideWindow;
             this.lastSentRelX = relX;
             this.lastSentRelY = relY;
+            this.lastSentScreenX = cursor.x;
+            this.lastSentScreenY = cursor.y;
             this.window.webContents.send('companion:pointer', {
                 x: relX,
                 y: relY,

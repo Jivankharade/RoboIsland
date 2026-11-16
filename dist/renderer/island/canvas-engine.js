@@ -2282,8 +2282,7 @@ class CanvasEngine {
             this.mascot.resetInactivity();
         });
         window.addEventListener('mouseleave', () => {
-            this.pointerX = -1000;
-            this.pointerY = -1000;
+            this.isHovered = false;
             this.checkHitTest();
         });
         // Clicks
@@ -2470,6 +2469,7 @@ class CanvasEngine {
                     this.pointerX = pt.x;
                     this.pointerY = pt.y;
                     this.checkHitTest();
+                    this.requestRender();
                 });
             }
             window.roboIsland.onToggleExpand(() => this.toggleExpand());
@@ -4350,9 +4350,12 @@ class CanvasEngine {
             (this.appActivityUntil > 0 && performance.now() < this.appActivityUntil) ||
             this.isNotificationActive() ||
             this.isStartupHelloBusy);
+        const isMascotGazeActive = (Math.abs(this.mascot.targetLookX - this.mascot.lookX) >= 0.015 ||
+            Math.abs(this.mascot.targetLookY - this.mascot.lookY) >= 0.015);
         const isMascotActive = (this.mascot.isJumping ||
             this.mascot.isBlinking ||
             this.mascot.blinkProgress > 0 ||
+            isMascotGazeActive ||
             Math.abs(this.mascot.wobbleVelocity) >= 0.08 ||
             (this.mascot.particles && this.mascot.particles.particles.length > 0) ||
             this.mascot.dizzyDuration > 0);
@@ -4376,7 +4379,7 @@ class CanvasEngine {
                 if (!isBusy && this._hasRenderedSettledFrame) {
                     this._isRenderingActive = false;
                     if (!this._idleWakeupTimer) {
-                        const nextBlink = Math.max(3000, (this.mascot.nextBlinkTimer && this.mascot.nextBlinkTimer > 0.5 ? this.mascot.nextBlinkTimer : 3.0 + Math.random() * 2.5) * 1000);
+                        const nextBlink = Math.max(3500, (this.mascot.nextBlinkTimer && this.mascot.nextBlinkTimer > 0.5 ? this.mascot.nextBlinkTimer : 3.5 + Math.random() * 2.5) * 1000);
                         this._idleWakeupTimer = setTimeout(() => {
                             this._idleWakeupTimer = null;
                             if (this.mascot && typeof this.mascot.triggerBlink === 'function') {
@@ -4610,7 +4613,7 @@ class CanvasEngine {
             this._hasRenderedSettledFrame = true;
             this._isRenderingActive = false;
             if (!this._idleWakeupTimer) {
-                const nextBlink = Math.max(3000, (this.mascot.nextBlinkTimer && this.mascot.nextBlinkTimer > 0.5 ? this.mascot.nextBlinkTimer : 3.0 + Math.random() * 2.5) * 1000);
+                const nextBlink = Math.max(3500, (this.mascot.nextBlinkTimer && this.mascot.nextBlinkTimer > 0.5 ? this.mascot.nextBlinkTimer : 3.5 + Math.random() * 2.5) * 1000);
                 this._idleWakeupTimer = setTimeout(() => {
                     this._idleWakeupTimer = null;
                     if (this.mascot && typeof this.mascot.triggerBlink === 'function') {
