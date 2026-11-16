@@ -709,6 +709,22 @@ async function runTests() {
     !islandCss.includes('.nav-dock-spacer-left {') &&
     !indexHtml.includes('class="nav-dock-spacer-left"'));
 
+  // --- 28. Testing Runtime Low-CPU, Low-Memory & RAM Guardrails ---
+  console.log('\n--- 28. Testing Runtime Low-CPU, Low-Memory & RAM Guardrails ---');
+  const islandWindowTs = fs.readFileSync(path.join(__dirname, '../src/main/island-window.ts'), 'utf-8');
+  assert('index.ts enforces proactive low-RAM V8 garbage collection (128MB ceiling)',
+    indexTs.includes('--max-old-space-size=128') &&
+    indexTs.includes('renderer-process-limit'));
+  assert('island-window.ts optimizes cursor tracking to avoid redundant IPC when cursor is outside',
+    islandWindowTs.includes('wasInsideWindow') &&
+    islandWindowTs.includes('if (!insideWindow && !this.wasInsideWindow'));
+  assert('canvasEngine implements smart idle frame throttle for resting state',
+    canvasEngineSrc.includes('isIdleRest') &&
+    canvasEngineSrc.includes('time - this._lastIdleRestFrame < 33'));
+  assert('productivityEngine properly stores and disposes clipboardWatcherTimer',
+    productivityEngineSrc.includes('clipboardWatcherTimer') &&
+    productivityEngineSrc.includes('clearInterval(this.clipboardWatcherTimer);'));
+
   // Summary
   console.log('\n====================================================');
   console.log(`TEST SUMMARY: ${passed} PASSED, ${failed} FAILED`);

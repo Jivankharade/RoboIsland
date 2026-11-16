@@ -57,8 +57,10 @@ if (!gotTheLock) {
     electron_1.app.quit();
     process.exit(0);
 }
-// Memory optimization: Encourage timely V8 garbage collection while maintaining full 60+ FPS animation smoothness
-electron_1.app.commandLine.appendSwitch('js-flags', '--max-old-space-size=160');
+// Memory & CPU runtime optimization: Enforce proactive V8 garbage collection & low RAM usage
+electron_1.app.commandLine.appendSwitch('js-flags', '--max-old-space-size=128');
+electron_1.app.commandLine.appendSwitch('renderer-process-limit', '4');
+electron_1.app.commandLine.appendSwitch('disable-renderer-backgrounding');
 process.on('uncaughtException', (err) => {
     console.error('[RoboIsland] Uncaught exception:', err);
 });

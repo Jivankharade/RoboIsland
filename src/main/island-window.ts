@@ -92,6 +92,7 @@ export class IslandWindow {
   private cursorTimer: NodeJS.Timeout | null = null;
   private lastCursorKey = '';
   private lastCursorAt = 0;
+  private wasInsideWindow = false;
 
   private startCursorTracking(): void {
     if (this.cursorTimer) clearInterval(this.cursorTimer);
@@ -99,6 +100,14 @@ export class IslandWindow {
       if (!this.window || this.window.isDestroyed() || !this.window.isVisible()) return;
       const cursor = screen.getCursorScreenPoint();
       const bounds = this.window.getBounds();
+      const insideWindow = cursor.x >= bounds.x && cursor.x < bounds.x + bounds.width &&
+                           cursor.y >= bounds.y && cursor.y < bounds.y + bounds.height;
+
+      // Low-CPU optimization: When outside the window and already reported outside, avoid redundant IPC spam
+      if (!insideWindow && !this.wasInsideWindow && this.currentMode !== 'expanded' && !this.isInteractive) {
+        return;
+      }
+
       const key = `${cursor.x},${cursor.y},${bounds.x},${bounds.y}`;
       const now = Date.now();
       if (key === this.lastCursorKey && now - this.lastCursorAt < 1000) return;
@@ -132,13 +141,13 @@ export class IslandWindow {
         this.setInteractive(inHoverZone);
       }
 
+      this.wasInsideWindow = insideWindow;
       this.window.webContents.send('companion:pointer', {
         x: relX,
         y: relY,
-        insideWindow: cursor.x >= bounds.x && cursor.x < bounds.x + bounds.width &&
-                      cursor.y >= bounds.y && cursor.y < bounds.y + bounds.height
+        insideWindow
       });
-    }, 25);
+    }, 28);
   }
 
   public setInteractive(interactive: boolean): void {

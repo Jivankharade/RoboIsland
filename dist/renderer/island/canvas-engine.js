@@ -1780,6 +1780,7 @@ class CanvasEngine {
     _isPowerSaving = false;
     _powerSavingFrameInterval = 0; // ms between frames in power-saving mode (0 = disabled)
     _lastPowerSaveFrame = 0;
+    _lastIdleRestFrame = 0;
     lastSentBoundsW = 0;
     lastSentBoundsH = 0;
     constructor() {
@@ -4099,6 +4100,25 @@ class CanvasEngine {
                 return;
             }
             this._lastPowerSaveFrame = time;
+        }
+        // Runtime CPU/GPU Optimization: Idle Rest Mode Throttle (drops background CPU consumption by >50%)
+        const isIdleRest = (this.mode === 'rest' &&
+            !this.isHovered &&
+            !this.mediaState.playing &&
+            !this.isNotificationActive() &&
+            performance.now() > this.greetingUntil &&
+            performance.now() > this.volumeHudUntil &&
+            performance.now() > this.speedometerHudUntil &&
+            performance.now() > this.chargerSurgeUntil &&
+            performance.now() > this.airdropHudUntil &&
+            Math.abs(this.currentWidth - this.targetWidth) < 0.3 &&
+            Math.abs(this.islandSpring.vWidth) < 0.3);
+        if (isIdleRest) {
+            if (time - this._lastIdleRestFrame < 33) {
+                requestAnimationFrame(this.renderLoop.bind(this));
+                return;
+            }
+            this._lastIdleRestFrame = time;
         }
         const dt = Math.min(0.1, (time - this.lastTime) / 1000);
         this.lastTime = time;

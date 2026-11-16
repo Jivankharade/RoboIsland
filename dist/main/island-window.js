@@ -116,6 +116,7 @@ class IslandWindow {
     cursorTimer = null;
     lastCursorKey = '';
     lastCursorAt = 0;
+    wasInsideWindow = false;
     startCursorTracking() {
         if (this.cursorTimer)
             clearInterval(this.cursorTimer);
@@ -124,6 +125,12 @@ class IslandWindow {
                 return;
             const cursor = electron_1.screen.getCursorScreenPoint();
             const bounds = this.window.getBounds();
+            const insideWindow = cursor.x >= bounds.x && cursor.x < bounds.x + bounds.width &&
+                cursor.y >= bounds.y && cursor.y < bounds.y + bounds.height;
+            // Low-CPU optimization: When outside the window and already reported outside, avoid redundant IPC spam
+            if (!insideWindow && !this.wasInsideWindow && this.currentMode !== 'expanded' && !this.isInteractive) {
+                return;
+            }
             const key = `${cursor.x},${cursor.y},${bounds.x},${bounds.y}`;
             const now = Date.now();
             if (key === this.lastCursorKey && now - this.lastCursorAt < 1000)
@@ -157,13 +164,13 @@ class IslandWindow {
                     relY >= (curTopY - 1) && relY <= (curTopY + curH + 1);
                 this.setInteractive(inHoverZone);
             }
+            this.wasInsideWindow = insideWindow;
             this.window.webContents.send('companion:pointer', {
                 x: relX,
                 y: relY,
-                insideWindow: cursor.x >= bounds.x && cursor.x < bounds.x + bounds.width &&
-                    cursor.y >= bounds.y && cursor.y < bounds.y + bounds.height
+                insideWindow
             });
-        }, 25);
+        }, 28);
     }
     setInteractive(interactive) {
         if (!this.window || this.window.isDestroyed())
