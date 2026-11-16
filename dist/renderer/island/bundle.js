@@ -1841,6 +1841,7 @@
     greetingType = "morning";
     userName = "Gaurav";
     lastGreetingHour = -1;
+    greetingTimer = null;
     // Apple macOS / iPhone Live Activity Smart Status State
     appActivityUntil = 0;
     appActivityStartTime = 0;
@@ -2418,13 +2419,39 @@
       } else {
         this.greetingType = "night";
       }
+      if (this.greetingTimer) {
+        clearTimeout(this.greetingTimer);
+        this.greetingTimer = null;
+      }
       this.greetingStartTime = performance.now();
       this.greetingUntil = performance.now() + 5500;
       if (this.mascot && typeof this.mascot.setMood === "function") {
-        this.mascot.setMood("happy");
+        this.mascot.setMood("happy", 5500);
       }
       this.kickJelly(0.12, 3.2, 4.8);
       this.updateTargetDimensions();
+      this.greetingTimer = setTimeout(() => {
+        this.dismissGreeting();
+      }, 5600);
+    }
+    dismissGreeting() {
+      if (this.greetingTimer) {
+        clearTimeout(this.greetingTimer);
+        this.greetingTimer = null;
+      }
+      const hadGreeting = this.greetingUntil > 0;
+      this.greetingUntil = 0;
+      if (this.mascot && typeof this.mascot.setMood === "function") {
+        if (this.mascot.getMood() === "happy") {
+          this.mascot.setMood("neutral");
+        }
+      }
+      if (hadGreeting) {
+        this.updateTargetDimensions();
+        if (this.config?.restModeEnabled && !this.mediaState.active && !this.focusState.active) {
+          this.enterRest();
+        }
+      }
     }
     safeRadialGradient(x0, y0, r0, x1, y1, r1) {
       if (this.ctx && typeof this.ctx.createRadialGradient === "function") {
@@ -3780,6 +3807,7 @@
         window.__roboIslandTriggerNotification = (n) => this.triggerNotification(n);
         window.__roboIslandClearNotification = () => this.clearNotification();
         window.__roboIslandTriggerGreeting = (type) => this.triggerGreeting(type);
+        window.__roboIslandDismissGreeting = () => this.dismissGreeting();
         window.__roboIslandTriggerAppActivity = (act) => this.handleAppActivity(act);
       }
       setTimeout(() => {
@@ -4827,8 +4855,7 @@
           return;
         }
         if (performance.now() < this.greetingUntil) {
-          this.greetingUntil = 0;
-          this.updateTargetDimensions();
+          this.dismissGreeting();
           return;
         }
         if (inBounds) {
@@ -4842,8 +4869,7 @@
       }
       if (this.mode === "compact") {
         if (performance.now() < this.greetingUntil) {
-          this.greetingUntil = 0;
-          this.updateTargetDimensions();
+          this.dismissGreeting();
           return;
         }
         if (performance.now() < this.airdropHudUntil) {
@@ -5256,11 +5282,7 @@
         }
       }
       if (this.greetingUntil > 0 && performance.now() >= this.greetingUntil) {
-        this.greetingUntil = 0;
-        this.updateTargetDimensions();
-        if (this.config?.restModeEnabled && !this.mediaState.active && !this.focusState.active) {
-          this.enterRest();
-        }
+        this.dismissGreeting();
       }
       if (this.appActivityUntil > 0 && performance.now() >= this.appActivityUntil) {
         this.appActivityUntil = 0;
@@ -5290,8 +5312,12 @@
         }
       }
       this.mascot.isCompactIdle = this.mode === "compact" && !this.mediaState.active && !this.focusState.active && this.aiState.status !== "running";
-      if (this.mascot.isCompactIdle && this.mascot.getMood() === "focused") {
-        this.mascot.setMood("neutral");
+      if (this.mascot.isCompactIdle) {
+        if (this.mascot.getMood() === "focused") {
+          this.mascot.setMood("neutral");
+        } else if (this.greetingUntil <= 0 && this.mascot.getMood() === "happy" && !this.isNotificationActive()) {
+          this.mascot.setMood("neutral");
+        }
       }
       this.mascot.update(dt, this.pointerX, this.pointerY, cx, topY + 13);
       const isMusicPlaying = Boolean(this.mediaState.playing && this.mediaState.active);

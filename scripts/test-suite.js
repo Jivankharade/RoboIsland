@@ -411,6 +411,16 @@ async function runTests() {
   mockEngine.updateTargetDimensions();
   assert('After greeting expires, capsule relaxes back to rest width (<= 98px)', mockEngine.targetWidth <= 98);
 
+  // Test dismissGreeting returns mascot mood to neutral and capsule to rest
+  mockEngine.triggerGreeting('morning');
+  assert('triggerGreeting temporarily sets mascot mood to happy', mockEngine.mascot.getMood() === 'happy');
+  assert('triggerGreeting arms greetingTimer', mockEngine.greetingTimer !== null);
+  mockEngine.dismissGreeting();
+  assert('dismissGreeting resets greetingUntil to 0', mockEngine.greetingUntil === 0);
+  assert('dismissGreeting cleanly restores mascot mood to neutral', mockEngine.mascot.getMood() === 'neutral');
+  assert('dismissGreeting clears greetingTimer', mockEngine.greetingTimer === null);
+  assert('dismissGreeting resets capsule width back to rest width (<= 98px)', mockEngine.targetWidth <= 98);
+
   // 17. Testing Apple macOS / iPhone Live Activity Smart Status
   console.log('\n--- 17. Testing Live Activity Smart Status Pill ---');
 
