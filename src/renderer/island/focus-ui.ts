@@ -762,6 +762,18 @@ export class FocusUI {
     this.updateTimerDisplay();
     this.syncHomeCard();
     this.syncStateWithBackend();
+    try {
+      const canvas = (window as any).__canvasEngine;
+      if (canvas) {
+        if (canvas.focusState) {
+          canvas.focusState.active = true;
+          canvas.focusState.remainingSeconds = this.pomodoro.timeRemaining;
+          canvas.focusState.totalSeconds = this.pomodoro.totalDuration;
+        }
+        if (typeof canvas.updateTargetDimensions === 'function') canvas.updateTargetDimensions();
+        if (typeof canvas.requestRender === 'function') canvas.requestRender();
+      }
+    } catch {}
   }
 
   public pauseTimer(): void {
@@ -774,6 +786,14 @@ export class FocusUI {
     this.updateTimerDisplay();
     this.syncHomeCard();
     this.syncStateWithBackend();
+    try {
+      const canvas = (window as any).__canvasEngine;
+      if (canvas) {
+        if (canvas.focusState) canvas.focusState.active = false;
+        if (typeof canvas.updateTargetDimensions === 'function') canvas.updateTargetDimensions();
+        if (typeof canvas.requestRender === 'function') canvas.requestRender();
+      }
+    } catch {}
   }
 
   public resetTimer(): void {
@@ -795,6 +815,18 @@ export class FocusUI {
     this.updateTimerDisplay();
     this.syncHomeCard();
     this.syncStateWithBackend();
+    try {
+      const canvas = (window as any).__canvasEngine;
+      if (canvas) {
+        if (canvas.focusState) {
+          canvas.focusState.active = false;
+          canvas.focusState.remainingSeconds = this.pomodoro.timeRemaining;
+          canvas.focusState.totalSeconds = this.pomodoro.totalDuration;
+        }
+        if (typeof canvas.updateTargetDimensions === 'function') canvas.updateTargetDimensions();
+        if (typeof canvas.requestRender === 'function') canvas.requestRender();
+      }
+    } catch {}
   }
 
   public skipSession(): void {

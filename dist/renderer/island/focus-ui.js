@@ -688,6 +688,21 @@ class FocusUI {
         this.updateTimerDisplay();
         this.syncHomeCard();
         this.syncStateWithBackend();
+        try {
+            const canvas = window.__canvasEngine;
+            if (canvas) {
+                if (canvas.focusState) {
+                    canvas.focusState.active = true;
+                    canvas.focusState.remainingSeconds = this.pomodoro.timeRemaining;
+                    canvas.focusState.totalSeconds = this.pomodoro.totalDuration;
+                }
+                if (typeof canvas.updateTargetDimensions === 'function')
+                    canvas.updateTargetDimensions();
+                if (typeof canvas.requestRender === 'function')
+                    canvas.requestRender();
+            }
+        }
+        catch { }
     }
     pauseTimer() {
         this.pomodoro.status = 'paused';
@@ -699,6 +714,18 @@ class FocusUI {
         this.updateTimerDisplay();
         this.syncHomeCard();
         this.syncStateWithBackend();
+        try {
+            const canvas = window.__canvasEngine;
+            if (canvas) {
+                if (canvas.focusState)
+                    canvas.focusState.active = false;
+                if (typeof canvas.updateTargetDimensions === 'function')
+                    canvas.updateTargetDimensions();
+                if (typeof canvas.requestRender === 'function')
+                    canvas.requestRender();
+            }
+        }
+        catch { }
     }
     resetTimer() {
         this.pomodoro.status = 'idle';
@@ -718,6 +745,21 @@ class FocusUI {
         this.updateTimerDisplay();
         this.syncHomeCard();
         this.syncStateWithBackend();
+        try {
+            const canvas = window.__canvasEngine;
+            if (canvas) {
+                if (canvas.focusState) {
+                    canvas.focusState.active = false;
+                    canvas.focusState.remainingSeconds = this.pomodoro.timeRemaining;
+                    canvas.focusState.totalSeconds = this.pomodoro.totalDuration;
+                }
+                if (typeof canvas.updateTargetDimensions === 'function')
+                    canvas.updateTargetDimensions();
+                if (typeof canvas.requestRender === 'function')
+                    canvas.requestRender();
+            }
+        }
+        catch { }
     }
     skipSession() {
         this.advanceCycle(true);
