@@ -156,6 +156,8 @@ class RoboMascot {
     // Eye gaze tracking
     targetLookX = 0;
     targetLookY = 0;
+    targetGazeX = 0;
+    targetGazeY = 0;
     lookX = 0;
     lookY = 0;
     // Saccadic micro-movements
@@ -164,11 +166,11 @@ class RoboMascot {
     targetSaccadeX = 0;
     targetSaccadeY = 0;
     saccadeTimer = 1.8;
-    // Blinking & TwoCode idleLife random blinking/winking
+    // Blinking & Natural blinking cadence
     blinkProgress = 0;
     isBlinking = false;
-    nextBlinkTimer = 3.5;
-    nextIdleLifeBlink = performance.now() + 2500;
+    nextBlinkTimer = 4.5;
+    nextIdleLifeBlink = performance.now() + 4500;
     currentIdleMood = null;
     // Jump, Bounce & Jelly Wobble Physics
     heightFactor = 1.0;
@@ -357,15 +359,16 @@ class RoboMascot {
         };
     }
     update(dt, pointerX, pointerY, headCenterX, headCenterY) {
-        // 1. Pointer gaze tracking (interpolate toward cursor)
+        // 1. Pointer gaze tracking (interpolate toward cursor across entire desktop screen)
         const dx = pointerX - headCenterX;
         const dy = pointerY - headCenterY;
         const dist = Math.sqrt(dx * dx + dy * dy);
         const maxLook = 1.0;
         const isPointerOffscreen = pointerX < -3000 || pointerY < -3000 || pointerX > 5000 || pointerY > 5000;
         if (!isPointerOffscreen && dist > 5) {
-            this.targetLookX = Math.max(-maxLook, Math.min(maxLook, dx / 220));
-            this.targetLookY = Math.max(-maxLook, Math.min(maxLook, dy / 180));
+            // Screen-wide normalization: eyes look around smoothly across the full desktop without premature clipping
+            this.targetLookX = Math.max(-maxLook, Math.min(maxLook, dx / 580));
+            this.targetLookY = Math.max(-0.6, Math.min(maxLook, dy / 420));
         }
         else {
             this.targetLookX = 0;
@@ -382,30 +385,36 @@ class RoboMascot {
             moodLookBiasX = 0.45;
             moodLookBiasY = -0.35;
         }
-        // Saccadic micro-movements (horizontal micro-saccades only, 0 vertical jitter during idle)
-        this.saccadeTimer -= dt;
-        if (this.saccadeTimer <= 0) {
-            this.targetSaccadeX = (Math.random() - 0.5) * 0.28;
-            this.targetSaccadeY = 0; // Vertical saccade eliminated
-            this.saccadeTimer = 1.4 + Math.random() * 2.6;
+        // Saccadic micro-movements (settles to 0 during compact idle so render loop can sleep at 0% CPU)
+        if (this.isCompactIdle && Math.abs(this.targetLookX) < 0.05 && Math.abs(this.targetLookY) < 0.05) {
+            this.saccadeX += (0 - this.saccadeX) * 0.15;
+            this.saccadeY = 0;
         }
-        this.saccadeX += (this.targetSaccadeX - this.saccadeX) * 0.2;
-        this.saccadeY = 0; // Strict 0 vertical saccade jitter during normal idle
+        else {
+            this.saccadeTimer -= dt;
+            if (this.saccadeTimer <= 0) {
+                this.targetSaccadeX = (Math.random() - 0.5) * 0.22;
+                this.targetSaccadeY = 0;
+                this.saccadeTimer = 2.5 + Math.random() * 3.5;
+            }
+            this.saccadeX += (this.targetSaccadeX - this.saccadeX) * 0.2;
+            this.saccadeY = 0;
+        }
         // Responsive, silky smooth gaze tracking with exponential damping returning smoothly to center
-        const gazeDamping = 1 - Math.exp(-12 * dt);
-        const targetGazeX = this.targetLookX + moodLookBiasX + this.saccadeX;
-        const targetGazeY = this.targetLookY + moodLookBiasY + this.saccadeY;
-        if (Math.abs(targetGazeX - this.lookX) < 0.002) {
-            this.lookX = targetGazeX;
+        const gazeDamping = 1 - Math.exp(-14 * dt);
+        this.targetGazeX = this.targetLookX + moodLookBiasX + this.saccadeX;
+        this.targetGazeY = this.targetLookY + moodLookBiasY + this.saccadeY;
+        if (Math.abs(this.targetGazeX - this.lookX) < 0.002) {
+            this.lookX = this.targetGazeX;
         }
         else {
-            this.lookX += (targetGazeX - this.lookX) * gazeDamping;
+            this.lookX += (this.targetGazeX - this.lookX) * gazeDamping;
         }
-        if (Math.abs(targetGazeY - this.lookY) < 0.002) {
-            this.lookY = targetGazeY;
+        if (Math.abs(this.targetGazeY - this.lookY) < 0.002) {
+            this.lookY = this.targetGazeY;
         }
         else {
-            this.lookY += (targetGazeY - this.lookY) * gazeDamping;
+            this.lookY += (this.targetGazeY - this.lookY) * gazeDamping;
         }
         // 2. Jump and Spring Physics (gravity and landing squash)
         if (this.isJumping) {
@@ -474,11 +483,12 @@ class RoboMascot {
                 this.blinkProgress = 0;
             }
             if (this.isBlinking) {
-                this.blinkProgress += dt / 0.24; // 240ms natural smooth cartoon blink duration
+                const step = Math.min(0.033, dt);
+                this.blinkProgress += step / 0.22; // 220ms smooth natural cartoon blink duration
                 if (this.blinkProgress >= 1.0) {
                     this.isBlinking = false;
                     this.blinkProgress = 0;
-                    this.nextBlinkTimer = 3.5 + Math.random() * 2.5; // Natural 3.5 - 6.0s cadence
+                    this.nextBlinkTimer = 4.5 + Math.random() * 3.5; // Natural calm 4.5 - 8.0s cadence
                 }
             }
         }
@@ -564,13 +574,13 @@ class RoboMascot {
         }
     }
     /**
-     * Explicitly triggers an idle natural blink cycle (150ms animation)
+     * Explicitly triggers an idle natural blink cycle (220ms animation)
      */
     triggerBlink() {
         if (!this.isBlinking && this.mood !== 'sleepy' && !this.isSleeping) {
             this.isBlinking = true;
             this.blinkProgress = 0;
-            this.nextBlinkTimer = 3.5 + Math.random() * 2.5;
+            this.nextBlinkTimer = 4.5 + Math.random() * 3.5;
         }
     }
     /**
@@ -582,12 +592,12 @@ class RoboMascot {
             return mood;
         if (t > this.nextIdleLifeBlink) {
             if (t > this.nextIdleLifeBlink + 200) {
-                this.nextIdleLifeBlink = t + 4000 + Math.random() * 4000;
+                this.nextIdleLifeBlink = t + 5500 + Math.random() * 4500;
                 this.currentIdleMood = null;
             }
             else {
                 if (!this.currentIdleMood) {
-                    this.currentIdleMood = Math.random() < 0.12 ? 'wink' : null;
+                    this.currentIdleMood = Math.random() < 0.10 ? 'wink' : null;
                 }
                 return this.currentIdleMood || mood;
             }
@@ -614,9 +624,9 @@ class RoboMascot {
             eyeCoreColor = '#ff3b3b';
             eyeGlowColor = 'rgba(255, 59, 59, 0.60)';
         }
-        // Cursor tracking gaze — clearly visible in the capsule (clamped to ±3.6px X, ±2.0px Y)
-        const lookX = Math.max(-1, Math.min(1, this.lookX)) * 3.6 * size;
-        const lookY = Math.max(-1, Math.min(1, this.lookY)) * 2.0 * size;
+        // Cursor tracking gaze — clearly visible in the capsule (clamped to ±4.2px X, ±2.8px Y)
+        const lookX = Math.max(-1, Math.min(1, this.lookX)) * 4.2 * size;
+        const lookY = Math.max(-1, Math.min(1, this.lookY)) * 2.8 * size;
         // Dancing bobbing or idle floating (strictly 0 during compact idle)
         const bob = (this.isDancing ? Math.sin(this.dancePhase) * 1.5 * size : (this.isCompactIdle ? 0 : this.idleFloatY * size)) + this.jumpY;
         // Blink squish: animate vertical scale of eye, 1.0=open, 0.06=fully closed

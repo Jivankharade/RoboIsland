@@ -419,6 +419,8 @@
     // Eye gaze tracking
     targetLookX = 0;
     targetLookY = 0;
+    targetGazeX = 0;
+    targetGazeY = 0;
     lookX = 0;
     lookY = 0;
     // Saccadic micro-movements
@@ -427,11 +429,11 @@
     targetSaccadeX = 0;
     targetSaccadeY = 0;
     saccadeTimer = 1.8;
-    // Blinking & TwoCode idleLife random blinking/winking
+    // Blinking & Natural blinking cadence
     blinkProgress = 0;
     isBlinking = false;
-    nextBlinkTimer = 3.5;
-    nextIdleLifeBlink = performance.now() + 2500;
+    nextBlinkTimer = 4.5;
+    nextIdleLifeBlink = performance.now() + 4500;
     currentIdleMood = null;
     // Jump, Bounce & Jelly Wobble Physics
     heightFactor = 1;
@@ -616,8 +618,8 @@
       const maxLook = 1;
       const isPointerOffscreen = pointerX < -3e3 || pointerY < -3e3 || pointerX > 5e3 || pointerY > 5e3;
       if (!isPointerOffscreen && dist > 5) {
-        this.targetLookX = Math.max(-maxLook, Math.min(maxLook, dx / 220));
-        this.targetLookY = Math.max(-maxLook, Math.min(maxLook, dy / 180));
+        this.targetLookX = Math.max(-maxLook, Math.min(maxLook, dx / 580));
+        this.targetLookY = Math.max(-0.6, Math.min(maxLook, dy / 420));
       } else {
         this.targetLookX = 0;
         this.targetLookY = 0;
@@ -631,26 +633,31 @@
         moodLookBiasX = 0.45;
         moodLookBiasY = -0.35;
       }
-      this.saccadeTimer -= dt;
-      if (this.saccadeTimer <= 0) {
-        this.targetSaccadeX = (Math.random() - 0.5) * 0.28;
-        this.targetSaccadeY = 0;
-        this.saccadeTimer = 1.4 + Math.random() * 2.6;
-      }
-      this.saccadeX += (this.targetSaccadeX - this.saccadeX) * 0.2;
-      this.saccadeY = 0;
-      const gazeDamping = 1 - Math.exp(-12 * dt);
-      const targetGazeX = this.targetLookX + moodLookBiasX + this.saccadeX;
-      const targetGazeY = this.targetLookY + moodLookBiasY + this.saccadeY;
-      if (Math.abs(targetGazeX - this.lookX) < 2e-3) {
-        this.lookX = targetGazeX;
+      if (this.isCompactIdle && Math.abs(this.targetLookX) < 0.05 && Math.abs(this.targetLookY) < 0.05) {
+        this.saccadeX += (0 - this.saccadeX) * 0.15;
+        this.saccadeY = 0;
       } else {
-        this.lookX += (targetGazeX - this.lookX) * gazeDamping;
+        this.saccadeTimer -= dt;
+        if (this.saccadeTimer <= 0) {
+          this.targetSaccadeX = (Math.random() - 0.5) * 0.22;
+          this.targetSaccadeY = 0;
+          this.saccadeTimer = 2.5 + Math.random() * 3.5;
+        }
+        this.saccadeX += (this.targetSaccadeX - this.saccadeX) * 0.2;
+        this.saccadeY = 0;
       }
-      if (Math.abs(targetGazeY - this.lookY) < 2e-3) {
-        this.lookY = targetGazeY;
+      const gazeDamping = 1 - Math.exp(-14 * dt);
+      this.targetGazeX = this.targetLookX + moodLookBiasX + this.saccadeX;
+      this.targetGazeY = this.targetLookY + moodLookBiasY + this.saccadeY;
+      if (Math.abs(this.targetGazeX - this.lookX) < 2e-3) {
+        this.lookX = this.targetGazeX;
       } else {
-        this.lookY += (targetGazeY - this.lookY) * gazeDamping;
+        this.lookX += (this.targetGazeX - this.lookX) * gazeDamping;
+      }
+      if (Math.abs(this.targetGazeY - this.lookY) < 2e-3) {
+        this.lookY = this.targetGazeY;
+      } else {
+        this.lookY += (this.targetGazeY - this.lookY) * gazeDamping;
       }
       if (this.isJumping) {
         this.jumpY += this.jumpVelocity * dt;
@@ -707,11 +714,12 @@
           this.blinkProgress = 0;
         }
         if (this.isBlinking) {
-          this.blinkProgress += dt / 0.24;
+          const step = Math.min(0.033, dt);
+          this.blinkProgress += step / 0.22;
           if (this.blinkProgress >= 1) {
             this.isBlinking = false;
             this.blinkProgress = 0;
-            this.nextBlinkTimer = 3.5 + Math.random() * 2.5;
+            this.nextBlinkTimer = 4.5 + Math.random() * 3.5;
           }
         }
       }
@@ -784,13 +792,13 @@
       }
     }
     /**
-     * Explicitly triggers an idle natural blink cycle (150ms animation)
+     * Explicitly triggers an idle natural blink cycle (220ms animation)
      */
     triggerBlink() {
       if (!this.isBlinking && this.mood !== "sleepy" && !this.isSleeping) {
         this.isBlinking = true;
         this.blinkProgress = 0;
-        this.nextBlinkTimer = 3.5 + Math.random() * 2.5;
+        this.nextBlinkTimer = 4.5 + Math.random() * 3.5;
       }
     }
     /**
@@ -801,11 +809,11 @@
       if (mood !== "neutral") return mood;
       if (t > this.nextIdleLifeBlink) {
         if (t > this.nextIdleLifeBlink + 200) {
-          this.nextIdleLifeBlink = t + 4e3 + Math.random() * 4e3;
+          this.nextIdleLifeBlink = t + 5500 + Math.random() * 4500;
           this.currentIdleMood = null;
         } else {
           if (!this.currentIdleMood) {
-            this.currentIdleMood = Math.random() < 0.12 ? "wink" : null;
+            this.currentIdleMood = Math.random() < 0.1 ? "wink" : null;
           }
           return this.currentIdleMood || mood;
         }
@@ -830,8 +838,8 @@
         eyeCoreColor = "#ff3b3b";
         eyeGlowColor = "rgba(255, 59, 59, 0.60)";
       }
-      const lookX = Math.max(-1, Math.min(1, this.lookX)) * 3.6 * size;
-      const lookY = Math.max(-1, Math.min(1, this.lookY)) * 2 * size;
+      const lookX = Math.max(-1, Math.min(1, this.lookX)) * 4.2 * size;
+      const lookY = Math.max(-1, Math.min(1, this.lookY)) * 2.8 * size;
       const bob = (this.isDancing ? Math.sin(this.dancePhase) * 1.5 * size : this.isCompactIdle ? 0 : this.idleFloatY * size) + this.jumpY;
       const blinkYScale = this.isBlinking ? Math.max(0.06, 1 - Math.sin(this.blinkProgress * Math.PI) * 0.94) : 1;
       const t = Math.max(0, Math.min(1, this.sleepProgress));
@@ -3224,6 +3232,7 @@
     // ms between frames in power-saving mode (0 = disabled)
     _lastPowerSaveFrame = 0;
     _lastIdleRestFrame = 0;
+    _lastRenderTimestamp = 0;
     lastSentBoundsW = 0;
     lastSentBoundsH = 0;
     _isRenderingActive = false;
@@ -3730,6 +3739,7 @@
           window.roboIsland.onPointer((pt) => {
             this.pointerX = pt.x;
             this.pointerY = pt.y;
+            this.mascot.resetInactivity();
             this.checkHitTest();
             this.requestRender();
           });
@@ -4025,10 +4035,10 @@
         if (!url) {
           this.albumImageElement = null;
           this._cachedCoverCanvas = null;
-          this.albumAccentColor = "#1ed760";
-          this.targetTintR = 30;
-          this.targetTintG = 215;
-          this.targetTintB = 96;
+          this.albumAccentColor = "#ffffff";
+          this.targetTintR = 110;
+          this.targetTintG = 115;
+          this.targetTintB = 130;
         }
         return;
       }
@@ -4083,19 +4093,19 @@
             this._cachedCoverCanvas = null;
           }
         } catch {
-          this.albumAccentColor = "#1ed760";
-          this.targetTintR = 30;
-          this.targetTintG = 215;
-          this.targetTintB = 96;
+          this.albumAccentColor = "#ffffff";
+          this.targetTintR = 110;
+          this.targetTintG = 115;
+          this.targetTintB = 130;
         }
       };
       img.onerror = () => {
         this.albumImageElement = null;
         this._cachedCoverCanvas = null;
-        this.albumAccentColor = "#1ed760";
-        this.targetTintR = 30;
-        this.targetTintG = 215;
-        this.targetTintB = 96;
+        this.albumAccentColor = "#ffffff";
+        this.targetTintR = 110;
+        this.targetTintG = 115;
+        this.targetTintB = 130;
       };
       img.src = url;
     }
@@ -5409,6 +5419,13 @@
         this._isRenderingActive = false;
         return;
       }
+      if (this._lastRenderTimestamp && time - this._lastRenderTimestamp < 15.5) {
+        if (typeof requestAnimationFrame !== "undefined") {
+          requestAnimationFrame(this.renderLoop);
+        }
+        return;
+      }
+      this._lastRenderTimestamp = time;
       const isTransitioning = Math.abs(this.currentWidth - this.targetWidth) >= 0.25 || Math.abs(this.currentHeight - this.targetHeight) >= 0.25 || Math.abs(this.currentRadius - this.targetRadius) >= 0.25 || Math.abs(this.islandSpring.vWidth) >= 0.4 || Math.abs(this.islandSpring.vHeight) >= 0.4;
       if (this.kicks && this.kicks.length > 0) {
         const nowMs = performance.now();
@@ -5417,7 +5434,7 @@
       const isJellyActive = Boolean(this.kicks && this.kicks.length > 0);
       const isMediaActive = Boolean(this.mediaState.playing && this.mediaState.active);
       const isHudActive = this.volumeHudUntil > 0 && performance.now() < this.volumeHudUntil || this.speedometerHudUntil > 0 && performance.now() < this.speedometerHudUntil || this.chargerSurgeUntil > 0 && performance.now() < this.chargerSurgeUntil || this.airdropHudUntil > 0 && performance.now() < this.airdropHudUntil || this.greetingUntil > 0 && performance.now() < this.greetingUntil || this.appActivityUntil > 0 && performance.now() < this.appActivityUntil || this.isNotificationActive() || this.isStartupHelloBusy;
-      const isMascotGazeActive = Math.abs(this.mascot.targetLookX - this.mascot.lookX) >= 0.015 || Math.abs(this.mascot.targetLookY - this.mascot.lookY) >= 0.015;
+      const isMascotGazeActive = Math.abs(this.mascot.targetGazeX - this.mascot.lookX) >= 6e-3 || Math.abs(this.mascot.targetGazeY - this.mascot.lookY) >= 6e-3;
       const isMascotActive = this.mascot.isJumping || this.mascot.isBlinking || this.mascot.blinkProgress > 0 || isMascotGazeActive || Math.abs(this.mascot.wobbleVelocity) >= 0.08 || this.mascot.particles && this.mascot.particles.particles.length > 0 || this.mascot.dizzyDuration > 0;
       const isInteracting = this.isHovered || this.isDraggingOver || this.isWhatsAppReplying || this.transferProgress !== null;
       const isTuckAnimating = this.isTucked && performance.now() - this.tuckChangedAt < 250;
@@ -5428,7 +5445,7 @@
           if (!isBusy && this._hasRenderedSettledFrame) {
             this._isRenderingActive = false;
             if (!this._idleWakeupTimer) {
-              const nextBlink = Math.max(3500, (this.mascot.nextBlinkTimer && this.mascot.nextBlinkTimer > 0.5 ? this.mascot.nextBlinkTimer : 3.5 + Math.random() * 2.5) * 1e3);
+              const nextBlink = Math.max(4e3, (this.mascot.nextBlinkTimer && this.mascot.nextBlinkTimer > 0.5 ? this.mascot.nextBlinkTimer : 4.5 + Math.random() * 3.5) * 1e3);
               this._idleWakeupTimer = setTimeout(() => {
                 this._idleWakeupTimer = null;
                 if (this.mascot && typeof this.mascot.triggerBlink === "function") {
@@ -5488,7 +5505,7 @@
       const tr = Math.round(this.currentTintR);
       const tg = Math.round(this.currentTintG);
       const tb = Math.round(this.currentTintB);
-      if (tr !== this.lastPushedTintR || tg !== this.lastPushedTintG || tb !== this.lastPushedTintB) {
+      if (this.mode === "expanded" && (tr !== this.lastPushedTintR || tg !== this.lastPushedTintG || tb !== this.lastPushedTintB)) {
         this.lastPushedTintR = tr;
         this.lastPushedTintG = tg;
         this.lastPushedTintB = tb;
@@ -5600,12 +5617,10 @@
             this.updateAmbientGlow(this.currentDomTab);
           }
           const eyeSlot = this._mascotEyeSlotEl || (this._mascotEyeSlotEl = document.getElementById("mascot-eye-slot"));
-          if (eyeSlot) {
-            if (!this._cachedEyeSlotRect || this.currentWidth !== this.targetWidth) {
-              this._cachedEyeSlotRect = eyeSlot.getBoundingClientRect();
-            }
-            const eyeX = this._cachedEyeSlotRect.left + this._cachedEyeSlotRect.width / 2;
-            const eyeY = this._cachedEyeSlotRect.top + this._cachedEyeSlotRect.height / 2;
+          if (eyeSlot && eyeSlot.offsetParent !== null) {
+            const rect = eyeSlot.getBoundingClientRect();
+            const eyeX = rect.left + rect.width / 2;
+            const eyeY = rect.top + rect.height / 2;
             this.mascot.drawFloatingEyes(this.ctx, eyeX, eyeY, 0.72);
           } else {
             this.mascot.drawFloatingEyes(this.ctx, cx - 140, topY + 18, 0.72);
@@ -5622,7 +5637,7 @@
         this._hasRenderedSettledFrame = true;
         this._isRenderingActive = false;
         if (!this._idleWakeupTimer) {
-          const nextBlink = Math.max(3500, (this.mascot.nextBlinkTimer && this.mascot.nextBlinkTimer > 0.5 ? this.mascot.nextBlinkTimer : 3.5 + Math.random() * 2.5) * 1e3);
+          const nextBlink = Math.max(4e3, (this.mascot.nextBlinkTimer && this.mascot.nextBlinkTimer > 0.5 ? this.mascot.nextBlinkTimer : 4.5 + Math.random() * 3.5) * 1e3);
           this._idleWakeupTimer = setTimeout(() => {
             this._idleWakeupTimer = null;
             if (this.mascot && typeof this.mascot.triggerBlink === "function") {
@@ -5748,7 +5763,7 @@
       const w = visualW;
       const h = visualH;
       const r = Math.min(this.currentRadius, h / 2);
-      const isMusicActive = this.mode === "compact" && !this.isTucked && !isSurgeActive && Boolean(this.mediaState.active && this.mediaState.title);
+      const isMusicActive = this.mode === "compact" && !this.isTucked && !isSurgeActive && !this.isNotificationActive() && Boolean(this.mediaState.active && this.mediaState.title);
       this.ctx.save();
       this.ctx.shadowColor = "rgba(0, 0, 0, 0.28)";
       this.ctx.shadowBlur = this.mode === "expanded" ? 24 : 14;
@@ -5791,7 +5806,20 @@
       this.islandPath(this.ctx, left, topY, w, h, r);
       this.ctx.fillStyle = black;
       this.ctx.fill();
-      if (isMusicActive) {
+      if (this.isNotificationActive()) {
+        const { r: nr, g: ng, b: nb } = this.getNotificationRgb(this.activeNotification?.kind, this.activeNotification?.status);
+        this.ctx.save();
+        this.islandPath(this.ctx, left, topY, w, h, r);
+        this.ctx.clip();
+        const fold = h < 60;
+        const tintGrad = this.ctx.createLinearGradient(0, fold ? topY : topY + h * 0.18, 0, topY + h);
+        tintGrad.addColorStop(0, `rgba(${nr}, ${ng}, ${nb}, ${fold ? 0.08 : 0})`);
+        tintGrad.addColorStop(0.5, `rgba(${nr}, ${ng}, ${nb}, ${fold ? 0.18 : 0.12})`);
+        tintGrad.addColorStop(1, `rgba(${nr}, ${ng}, ${nb}, 0.36)`);
+        this.ctx.fillStyle = tintGrad;
+        this.ctx.fillRect(left - 20, topY, w + 40, h);
+        this.ctx.restore();
+      } else if (isMusicActive) {
         const tr = Math.round(this.currentTintR);
         const tg = Math.round(this.currentTintG);
         const tb = Math.round(this.currentTintB);
@@ -5809,19 +5837,6 @@
         this.islandPath(this.ctx, left, topY, w, h, r);
         this.ctx.clip();
         this.ctx.fillStyle = this._cachedMusicTintGrad;
-        this.ctx.fillRect(left - 20, topY, w + 40, h);
-        this.ctx.restore();
-      } else if (this.isNotificationActive()) {
-        const { r: nr, g: ng, b: nb } = this.getNotificationRgb(this.activeNotification?.kind, this.activeNotification?.status);
-        this.ctx.save();
-        this.islandPath(this.ctx, left, topY, w, h, r);
-        this.ctx.clip();
-        const fold = h < 60;
-        const tintGrad = this.ctx.createLinearGradient(0, fold ? topY : topY + h * 0.18, 0, topY + h);
-        tintGrad.addColorStop(0, `rgba(${nr}, ${ng}, ${nb}, ${fold ? 0.08 : 0})`);
-        tintGrad.addColorStop(0.5, `rgba(${nr}, ${ng}, ${nb}, ${fold ? 0.18 : 0.12})`);
-        tintGrad.addColorStop(1, `rgba(${nr}, ${ng}, ${nb}, 0.36)`);
-        this.ctx.fillStyle = tintGrad;
         this.ctx.fillRect(left - 20, topY, w + 40, h);
         this.ctx.restore();
       }

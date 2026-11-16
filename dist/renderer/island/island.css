@@ -40,7 +40,7 @@
   --album-tint-r: 30;
   --album-tint-g: 215;
   --album-tint-b: 96;
-  --album-tint-rgb: 30, 215, 96;
+  --album-tint-rgb: 110, 115, 130;
 }
 
 html, body {
@@ -141,7 +141,7 @@ html, body {
   background: radial-gradient(ellipse 92% 76% at 50% 100%, rgba(255, 214, 10, 0.50) 0%, rgba(245, 158, 11, 0.22) 50%, rgba(0, 0, 0, 0) 85%) !important;
 }
 #expanded-island-overlay[data-active-tab="music"]::after {
-  background: radial-gradient(ellipse 92% 76% at 50% 100%, rgba(var(--album-tint-rgb, 30, 215, 96), 0.50) 0%, rgba(var(--album-tint-rgb, 30, 215, 96), 0.22) 50%, rgba(0, 0, 0, 0) 85%) !important;
+  background: radial-gradient(ellipse 92% 76% at 50% 100%, rgba(var(--album-tint-rgb, 110, 115, 130), 0.50) 0%, rgba(var(--album-tint-rgb, 110, 115, 130), 0.22) 50%, rgba(0, 0, 0, 0) 85%) !important;
 }
 #expanded-island-overlay[data-active-tab="chat"]::after {
   background: radial-gradient(ellipse 92% 76% at 50% 100%, rgba(99, 102, 241, 0.52) 0%, rgba(129, 140, 248, 0.25) 50%, rgba(0, 0, 0, 0) 85%) !important;
@@ -212,6 +212,7 @@ html, body {
   cursor: pointer;
   pointer-events: auto;
   transition: transform 0.15s ease-out;
+  margin-right: 6px;
 }
 
 #mascot-eye-slot:hover {
@@ -354,6 +355,9 @@ html, body {
 
 .island-panel.active {
   display: flex !important;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
 }
 
 /* 1. Home Cards Grid (Screenshot 01) */
@@ -362,7 +366,9 @@ html, body {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
+  width: 100%;
   height: 100%;
+  flex: 1;
 }
 
 .dash-card {
@@ -1676,9 +1682,9 @@ html, body {
   border-radius: 28px;
   background: linear-gradient(
     160deg,
-    rgba(var(--album-tint-rgb, 30, 215, 96), 0.08) 0%,
-    rgba(var(--album-tint-rgb, 30, 215, 96), 0.22) 55%,
-    rgba(var(--album-tint-rgb, 30, 215, 96), 0.36) 100%
+    rgba(var(--album-tint-rgb, 110, 115, 130), 0.08) 0%,
+    rgba(var(--album-tint-rgb, 110, 115, 130), 0.22) 55%,
+    rgba(var(--album-tint-rgb, 110, 115, 130), 0.36) 100%
   );
   pointer-events: none;
   transition: background 1.2s ease;

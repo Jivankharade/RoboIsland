@@ -2041,6 +2041,7 @@ export class CanvasEngine {
   private _powerSavingFrameInterval = 0; // ms between frames in power-saving mode (0 = disabled)
   private _lastPowerSaveFrame = 0;
   private _lastIdleRestFrame = 0;
+  private _lastRenderTimestamp = 0;
   private lastSentBoundsW = 0;
   private lastSentBoundsH = 0;
   private _isRenderingActive = false;
@@ -2616,6 +2617,7 @@ export class CanvasEngine {
         window.roboIsland.onPointer((pt: any) => {
           this.pointerX = pt.x;
           this.pointerY = pt.y;
+          this.mascot.resetInactivity();
           this.checkHitTest();
           this.requestRender();
         });
@@ -2919,10 +2921,10 @@ export class CanvasEngine {
       if (!url) {
         this.albumImageElement = null;
         this._cachedCoverCanvas = null;
-        this.albumAccentColor = '#1ed760';
-        this.targetTintR = 30;
-        this.targetTintG = 215;
-        this.targetTintB = 96;
+        this.albumAccentColor = '#ffffff';
+        this.targetTintR = 110;
+        this.targetTintG = 115;
+        this.targetTintB = 130;
       }
       return;
     }
@@ -2980,19 +2982,19 @@ export class CanvasEngine {
           this._cachedCoverCanvas = null;
         }
       } catch {
-        this.albumAccentColor = '#1ed760';
-        this.targetTintR = 30;
-        this.targetTintG = 215;
-        this.targetTintB = 96;
+        this.albumAccentColor = '#ffffff';
+        this.targetTintR = 110;
+        this.targetTintG = 115;
+        this.targetTintB = 130;
       }
     };
     img.onerror = () => {
       this.albumImageElement = null;
       this._cachedCoverCanvas = null;
-      this.albumAccentColor = '#1ed760';
-      this.targetTintR = 30;
-      this.targetTintG = 215;
-      this.targetTintB = 96;
+      this.albumAccentColor = '#ffffff';
+      this.targetTintR = 110;
+      this.targetTintG = 115;
+      this.targetTintB = 130;
     };
     img.src = url;
   }
@@ -4492,7 +4494,14 @@ export class CanvasEngine {
       return;
     }
 
-    // Silky smooth rendering: No FPS drops on low battery mode (always native refresh rate)
+    // Lock max render rate to 60 FPS to prevent 120Hz/144Hz/240Hz monitors from wasting GPU/CPU
+    if (this._lastRenderTimestamp && time - this._lastRenderTimestamp < 15.5) {
+      if (typeof requestAnimationFrame !== 'undefined') {
+        requestAnimationFrame(this.renderLoop);
+      }
+      return;
+    }
+    this._lastRenderTimestamp = time;
 
     // Activity evaluation for smart resting idle & dirty check
     const isTransitioning = (
@@ -4520,8 +4529,8 @@ export class CanvasEngine {
       this.isStartupHelloBusy
     );
     const isMascotGazeActive = (
-      Math.abs(this.mascot.targetLookX - this.mascot.lookX) >= 0.015 ||
-      Math.abs(this.mascot.targetLookY - this.mascot.lookY) >= 0.015
+      Math.abs(this.mascot.targetGazeX - this.mascot.lookX) >= 0.006 ||
+      Math.abs(this.mascot.targetGazeY - this.mascot.lookY) >= 0.006
     );
     const isMascotActive = (
       this.mascot.isJumping ||
@@ -4537,7 +4546,7 @@ export class CanvasEngine {
 
     const isBusy = isTransitioning || isJellyActive || isMediaActive || isHudActive || isMascotActive || isInteracting || isTuckAnimating || (this.mode === 'expanded' && this.config.expandedUiMode === 'canvas');
 
-    // Runtime CPU/GPU Optimization: Idle Rest & Compact Mode Throttle (drops background CPU consumption by >80%)
+    // Runtime CPU/GPU Optimization: Idle Rest (drops background CPU consumption to 0.0%)
     const isIdleRest = (
       (this.mode === 'rest' || this.mode === 'compact') &&
       !this.isHovered &&
@@ -4557,7 +4566,7 @@ export class CanvasEngine {
         if (!isBusy && this._hasRenderedSettledFrame) {
           this._isRenderingActive = false;
           if (!this._idleWakeupTimer) {
-            const nextBlink = Math.max(3500, (this.mascot.nextBlinkTimer && this.mascot.nextBlinkTimer > 0.5 ? this.mascot.nextBlinkTimer : 3.5 + Math.random() * 2.5) * 1000);
+            const nextBlink = Math.max(4000, (this.mascot.nextBlinkTimer && this.mascot.nextBlinkTimer > 0.5 ? this.mascot.nextBlinkTimer : 4.5 + Math.random() * 3.5) * 1000);
             this._idleWakeupTimer = setTimeout(() => {
               this._idleWakeupTimer = null;
               if (this.mascot && typeof this.mascot.triggerBlink === 'function') {
@@ -4627,11 +4636,11 @@ export class CanvasEngine {
     this.currentTintG += (this.targetTintG - this.currentTintG) * 0.12;
     this.currentTintB += (this.targetTintB - this.currentTintB) * 0.12;
 
-    // Push album tint into CSS custom properties only when RGB values change (prevents per-frame DOM style recalc)
+    // Push album tint into CSS custom properties only when RGB values change and expanded overlay is visible (prevents per-frame DOM style recalc)
     const tr = Math.round(this.currentTintR);
     const tg = Math.round(this.currentTintG);
     const tb = Math.round(this.currentTintB);
-    if (tr !== this.lastPushedTintR || tg !== this.lastPushedTintG || tb !== this.lastPushedTintB) {
+    if (this.mode === 'expanded' && (tr !== this.lastPushedTintR || tg !== this.lastPushedTintG || tb !== this.lastPushedTintB)) {
       this.lastPushedTintR = tr;
       this.lastPushedTintG = tg;
       this.lastPushedTintB = tb;
@@ -4775,14 +4784,12 @@ export class CanvasEngine {
           this.updateDomOverlay(cx, topY);
           this.updateAmbientGlow(this.currentDomTab);
         }
-        // In DOM mode, draw capsule eyes inside the dedicated #mascot-eye-slot element
+        // In DOM mode, draw capsule eyes strictly inside the dedicated #mascot-eye-slot element
         const eyeSlot = this._mascotEyeSlotEl || (this._mascotEyeSlotEl = document.getElementById('mascot-eye-slot'));
-        if (eyeSlot) {
-          if (!this._cachedEyeSlotRect || this.currentWidth !== this.targetWidth) {
-            this._cachedEyeSlotRect = eyeSlot.getBoundingClientRect();
-          }
-          const eyeX = this._cachedEyeSlotRect.left + this._cachedEyeSlotRect.width / 2;
-          const eyeY = this._cachedEyeSlotRect.top + this._cachedEyeSlotRect.height / 2;
+        if (eyeSlot && eyeSlot.offsetParent !== null) {
+          const rect = eyeSlot.getBoundingClientRect();
+          const eyeX = rect.left + rect.width / 2;
+          const eyeY = rect.top + rect.height / 2;
           this.mascot.drawFloatingEyes(this.ctx, eyeX, eyeY, 0.72);
         } else {
           this.mascot.drawFloatingEyes(this.ctx, cx - 140, topY + 18, 0.72);
@@ -4800,7 +4807,7 @@ export class CanvasEngine {
       this._hasRenderedSettledFrame = true;
       this._isRenderingActive = false;
       if (!this._idleWakeupTimer) {
-        const nextBlink = Math.max(3500, (this.mascot.nextBlinkTimer && this.mascot.nextBlinkTimer > 0.5 ? this.mascot.nextBlinkTimer : 3.5 + Math.random() * 2.5) * 1000);
+        const nextBlink = Math.max(4000, (this.mascot.nextBlinkTimer && this.mascot.nextBlinkTimer > 0.5 ? this.mascot.nextBlinkTimer : 4.5 + Math.random() * 3.5) * 1000);
         this._idleWakeupTimer = setTimeout(() => {
           this._idleWakeupTimer = null;
           if (this.mascot && typeof this.mascot.triggerBlink === 'function') {
@@ -4955,7 +4962,7 @@ export class CanvasEngine {
     const w = visualW;
     const h = visualH;
     const r = Math.min(this.currentRadius, h / 2);
-    const isMusicActive = this.mode === 'compact' && !this.isTucked && !isSurgeActive && Boolean(this.mediaState.active && this.mediaState.title);
+    const isMusicActive = this.mode === 'compact' && !this.isTucked && !isSurgeActive && !this.isNotificationActive() && Boolean(this.mediaState.active && this.mediaState.title);
 
     this.ctx.save();
 
@@ -5012,7 +5019,21 @@ export class CanvasEngine {
     this.ctx.fill();
 
     // Bottom-rising dynamic album gradient glow inside the pill (Directly from TwoCode spotify-ui.js lines 58-60)
-    if (isMusicActive) {
+    if (this.isNotificationActive()) {
+      // Dynamic Notification App Ambient Tint Gradient (Direct parity with Spotify album styling)
+      const { r: nr, g: ng, b: nb } = this.getNotificationRgb(this.activeNotification?.kind, this.activeNotification?.status);
+      this.ctx.save();
+      this.islandPath(this.ctx, left, topY, w, h, r);
+      this.ctx.clip();
+      const fold = h < 60;
+      const tintGrad = this.ctx.createLinearGradient(0, fold ? topY : topY + h * 0.18, 0, topY + h);
+      tintGrad.addColorStop(0, `rgba(${nr}, ${ng}, ${nb}, ${fold ? 0.08 : 0})`);
+      tintGrad.addColorStop(0.5, `rgba(${nr}, ${ng}, ${nb}, ${fold ? 0.18 : 0.12})`);
+      tintGrad.addColorStop(1, `rgba(${nr}, ${ng}, ${nb}, 0.36)`);
+      this.ctx.fillStyle = tintGrad;
+      this.ctx.fillRect(left - 20, topY, w + 40, h);
+      this.ctx.restore();
+    } else if (isMusicActive) {
       const tr = Math.round(this.currentTintR);
       const tg = Math.round(this.currentTintG);
       const tb = Math.round(this.currentTintB);
@@ -5030,20 +5051,6 @@ export class CanvasEngine {
       this.islandPath(this.ctx, left, topY, w, h, r);
       this.ctx.clip();
       this.ctx.fillStyle = this._cachedMusicTintGrad;
-      this.ctx.fillRect(left - 20, topY, w + 40, h);
-      this.ctx.restore();
-    } else if (this.isNotificationActive()) {
-      // Dynamic Notification App Ambient Tint Gradient (Direct parity with Spotify album styling)
-      const { r: nr, g: ng, b: nb } = this.getNotificationRgb(this.activeNotification?.kind, this.activeNotification?.status);
-      this.ctx.save();
-      this.islandPath(this.ctx, left, topY, w, h, r);
-      this.ctx.clip();
-      const fold = h < 60;
-      const tintGrad = this.ctx.createLinearGradient(0, fold ? topY : topY + h * 0.18, 0, topY + h);
-      tintGrad.addColorStop(0, `rgba(${nr}, ${ng}, ${nb}, ${fold ? 0.08 : 0})`);
-      tintGrad.addColorStop(0.5, `rgba(${nr}, ${ng}, ${nb}, ${fold ? 0.18 : 0.12})`);
-      tintGrad.addColorStop(1, `rgba(${nr}, ${ng}, ${nb}, 0.36)`);
-      this.ctx.fillStyle = tintGrad;
       this.ctx.fillRect(left - 20, topY, w + 40, h);
       this.ctx.restore();
     }

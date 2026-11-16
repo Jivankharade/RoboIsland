@@ -377,14 +377,25 @@ while ($true) {
         $key = "$($p.Title)|$($p.Artist)|$($p.AlbumTitle)"
         $out = @{ active = [bool]$p.Title; app = [string]$s.SourceAppUserModelId; playing = $playing; title = [string]$p.Title; artist = [string]$p.Artist
           album = [string]$p.AlbumTitle; duration = [long][Math]::Max(0, $dur); position = [long][Math]::Max(0, [Math]::Min($pos, [Math]::Max($dur, $pos))); key = $key }
-        if ($key -ne $lastArt -and $p.Thumbnail) { # the cover, once per song
-          try {
-            $ras = Await ($p.Thumbnail.OpenReadAsync()) ([Windows.Storage.Streams.IRandomAccessStreamWithContentType])
-            $net = $asStream.Invoke($null, @($ras))
-            $ms = New-Object System.IO.MemoryStream; $net.CopyTo($ms)
-            if ($ms.Length -gt 0 -and $ms.Length -lt 3MB) { $out.art = [Convert]::ToBase64String($ms.ToArray()) } # media-main.cjs sees if it is a PNG or JPEG
+        if ($key -ne $lastArt) { # the cover, with multi-sample retry for asynchronous WinRT thumbnails
+          $artRetries = if ($key -eq $lastArtKey) { $lastArtRetries + 1 } else { 1 }
+          $lastArtKey = $key
+          $lastArtRetries = $artRetries
+          if ($p.Thumbnail -and $artRetries -le 5) {
+            try {
+              $ras = Await ($p.Thumbnail.OpenReadAsync()) ([Windows.Storage.Streams.IRandomAccessStreamWithContentType])
+              $net = $asStream.Invoke($null, @($ras))
+              $ms = New-Object System.IO.MemoryStream; $net.CopyTo($ms)
+              if ($ms.Length -gt 0 -and $ms.Length -lt 3MB) {
+                $out.art = [Convert]::ToBase64String($ms.ToArray())
+                $lastArt = $key
+              }
+            } catch {
+              if ($artRetries -ge 5) { $lastArt = $key }
+            }
+          } elseif (-not $p.Thumbnail -and $artRetries -ge 5) {
             $lastArt = $key
-          } catch { $lastArt = $key }
+          }
         }
       }
       # one line when something changed; the position moves by itself while playing, so it only counts when it jumps

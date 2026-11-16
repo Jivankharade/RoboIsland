@@ -67,6 +67,42 @@ class MediaEngine {
     currentVolume = { level: -1, muted: false };
     currentNet = { wired: true };
     lyricsCache = new Map();
+    coverArtCache = new Map();
+    coverArtFetching = new Set();
+    async fetchCoverArt(title, artist) {
+        const cleanT = String(title || '').replace(/\s*[([][^)\]]*\b(feat|ft|with|remaster(ed)?|live|version|edit|mix)\b[^)\]]*[)\]]/gi, '').trim();
+        const cleanA = String(artist || '').replace(/\s*[([][^)\]]*\b(feat|ft|with)\b[^)\]]*[)\]]/gi, '').trim();
+        const key = `${title}|${artist}`.toLowerCase();
+        if (this.coverArtCache.has(key))
+            return this.coverArtCache.get(key);
+        if (this.coverArtFetching.has(key))
+            return null;
+        this.coverArtFetching.add(key);
+        try {
+            const q = encodeURIComponent(`${cleanT} ${cleanA}`.trim());
+            const res = await electron_1.net.fetch(`https://itunes.apple.com/search?term=${q}&entity=song&limit=1`, {
+                signal: AbortSignal.timeout(6000)
+            });
+            if (!res.ok)
+                return null;
+            const json = await res.json();
+            if (json && json.results && json.results.length > 0 && json.results[0].artworkUrl100) {
+                const highRes = json.results[0].artworkUrl100.replace('100x100bb', '512x512bb');
+                this.coverArtCache.set(key, highRes);
+                if (this.smtcState.title === title) {
+                    this.smtcState.coverUrl = highRes;
+                    this.broadcastMediaState();
+                }
+                return highRes;
+            }
+        }
+        catch {
+        }
+        finally {
+            this.coverArtFetching.delete(key);
+        }
+        return null;
+    }
     constructor() {
         const config = config_store_1.configStore.get();
         this.spotifyClient = new spotify_pkce_1.SpotifyPKCEClient({
@@ -366,6 +402,10 @@ class MediaEngine {
                 else if (data.title !== this.smtcState.title) {
                     coverUrl = undefined;
                 }
+                const songArtKey = `${data.title || ''}|${data.artist || ''}`.toLowerCase();
+                if (!coverUrl && data.title && this.coverArtCache.has(songArtKey)) {
+                    coverUrl = this.coverArtCache.get(songArtKey);
+                }
                 this.smtcLastSampleTime = Date.now();
                 this.smtcBasePositionMs = Number(data.position != null ? data.position : data.positionMs) || 0;
                 this.smtcDurationMs = Number(data.duration != null ? data.duration : data.durationMs) || 0;
@@ -381,6 +421,9 @@ class MediaEngine {
                     durationMs: this.smtcDurationMs,
                     coverUrl
                 };
+                if (!this.smtcState.coverUrl && data.active && data.title) {
+                    this.fetchCoverArt(data.title, data.artist || '');
+                }
                 // If Spotify is not actively playing, switch activeSource to SMTC or none
                 if (this.activeSource !== 'spotify' || !this.spotifyState?.isPlaying) {
                     this.activeSource = this.smtcState.active ? 'smtc' : (this.spotifyState ? 'spotify' : 'none');
