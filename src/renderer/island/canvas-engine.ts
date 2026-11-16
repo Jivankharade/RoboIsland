@@ -1761,6 +1761,11 @@ export class CanvasEngine {
         this.setMode('compact', false);
       }
       this.kickJelly(0.07, 3);
+
+      // Trigger time-of-day greeting cleanly after Robo's startup entrance & blink animation finish
+      setTimeout(() => {
+        this.triggerGreeting();
+      }, 400);
     }, 2700);
   }
 
@@ -1903,7 +1908,7 @@ export class CanvasEngine {
     wrapEl.style.display = 'flex';
     const lyr = this.getLyricAround();
     const newPrev = (lyr && lyr.before) || '';
-    const newNow = (lyr && lyr.now) || '♪';
+    const newNow = (lyr && lyr.now) || '';
     const newNext = (lyr && lyr.next) || '';
 
     if (activeEl.textContent !== newNow) {
@@ -2695,9 +2700,12 @@ export class CanvasEngine {
       (window as any).__roboIslandTriggerAppActivity = (act: any) => this.handleAppActivity(act);
     }
 
+    // Fallback: If startup hello entrance was not running, trigger greeting cleanly at 3400ms
     setTimeout(() => {
-      this.triggerGreeting();
-    }, 1400);
+      if (!this.isStartupHelloBusy && this.greetingStartTime === 0) {
+        this.triggerGreeting();
+      }
+    }, 3400);
 
     // Focus timer interval (synced with canonical FocusEngine)
     let wasFocusActive = false;
@@ -6109,7 +6117,7 @@ export class CanvasEngine {
         this.ctx.fillStyle = '#22e05a';
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'middle';
-        this.ctx.fillText('Sent ✓', boxX + boxW / 2, boxY + boxH / 2);
+        this.ctx.fillText('Sent', boxX + boxW / 2, boxY + boxH / 2);
       } else {
         const textPadX = boxX + 12;
         const textCy = boxY + boxH / 2;
@@ -7632,7 +7640,7 @@ export class CanvasEngine {
       this.ctx.fillStyle = lyr.now ? '#ffffff' : 'rgba(255, 255, 255, 0.5)';
       this.ctx.shadowColor = 'rgba(255, 255, 255, 0.45)';
       this.ctx.shadowBlur = 10;
-      this.ctx.fillText(lyr.now || '♪', x0, ly + 12 + step + push);
+      this.ctx.fillText(lyr.now || '...', x0, ly + 12 + step + push);
 
       // Next line (Spotify upcoming line: dark and faint)
       this.ctx.shadowBlur = 0;
@@ -9094,7 +9102,7 @@ export class CanvasEngine {
       const span = btnCopy.querySelector('span');
       if (span) {
         const orig = span.textContent;
-        span.textContent = '✓ Copied';
+        span.textContent = 'Copied';
         setTimeout(() => { span.textContent = orig; }, 1500);
       }
     });

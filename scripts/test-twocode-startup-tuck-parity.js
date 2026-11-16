@@ -66,6 +66,8 @@ test('Exact TwoCode startHello sequence & timing (HELLO = { land: 380, hi: 700, 
   assert(canvasEngineSrc.includes('blobTone(900, 1300, 0.05, 0.025)'), 'startHello wink blip tone');
   assert(canvasEngineSrc.includes('this.setMode(\'rest\')'), 'startHello settle back to rest');
   assert(canvasEngineSrc.includes('this.kickJelly(0.07, 3)'), 'startHello settle wobble');
+  assert(canvasEngineSrc.includes('this.triggerGreeting()'), 'startHello must trigger greeting cleanly after settling');
+  assert(canvasEngineSrc.includes('!this.isStartupHelloBusy && this.greetingStartTime === 0'), 'Greeting fallback must guard against interrupting active hello entrance');
 });
 
 // 5. Mascot Ease-Out-Back Pop & Squash & Stretch During Entrance (twocode-fun.js lines 569-598)
