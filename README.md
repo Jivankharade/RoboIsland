@@ -87,12 +87,12 @@ RoboIsland brings the fluid, responsive Dynamic Island experience to desktop ope
 ## Installation & Running
 
 ### Option A: Install via Setup Installer (Recommended)
-1. Download `RoboIsland-Setup-1.0.0.exe` from the latest release.
+1. Download [RoboIsland-Setup-1.1.0.exe](https://github.com/Jivankharade/RoboIsland/releases/download/v1.1.0/RoboIsland-Setup-1.1.0.exe) from the [v1.1.0 Release](https://github.com/Jivankharade/RoboIsland/releases/tag/v1.1.0).
 2. Run the installer. Choose your preferred destination or accept defaults.
 3. Launch **RoboIsland** from your Start Menu or Desktop shortcut.
 
 ### Option B: Portable Mode
-1. Download `RoboIsland-Portable-1.0.0.exe`.
+1. Download [RoboIsland-Portable-1.1.0.exe](https://github.com/Jivankharade/RoboIsland/releases/download/v1.1.0/RoboIsland-Portable-1.1.0.exe).
 2. Double-click to run anywhere without installation.
 
 ### Option C: Run from Source (PowerShell)
@@ -100,8 +100,8 @@ Requirements: Node.js 18+ and npm.
 
 ```powershell
 # Clone the repository
-git clone https://github.com/your-username/roboisland.git
-cd roboisland
+git clone https://github.com/Jivankharade/RoboIsland.git
+cd RoboIsland
 
 # Install dependencies
 npm install

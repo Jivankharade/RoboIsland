@@ -5199,13 +5199,6 @@
         requestAnimationFrame(this.renderLoop.bind(this));
         return;
       }
-      if (this._isPowerSaving && this._powerSavingFrameInterval > 0) {
-        if (time - this._lastPowerSaveFrame < this._powerSavingFrameInterval) {
-          requestAnimationFrame(this.renderLoop.bind(this));
-          return;
-        }
-        this._lastPowerSaveFrame = time;
-      }
       const isIdleRest = this.mode === "rest" && !this.isHovered && !this.mediaState.playing && !this.isNotificationActive() && performance.now() > this.greetingUntil && performance.now() > this.volumeHudUntil && performance.now() > this.speedometerHudUntil && performance.now() > this.chargerSurgeUntil && performance.now() > this.airdropHudUntil && Math.abs(this.currentWidth - this.targetWidth) < 0.3 && Math.abs(this.islandSpring.vWidth) < 0.3;
       if (isIdleRest) {
         if (time - this._lastIdleRestFrame < 33) {
@@ -5376,12 +5369,10 @@
       }
       requestAnimationFrame(this.renderLoop.bind(this));
     }
-    // UX-4: Power-saving mode helper — throttle non-essential animations when battery is low & discharging
-    _updatePowerSavingMode(battery) {
-      const level = Math.round(battery.level * 100);
-      const charging = battery.charging;
-      this._isPowerSaving = !charging && level <= 20;
-      this._powerSavingFrameInterval = this._isPowerSaving ? 66 : 0;
+    // Battery power state: Always maintain 60fps / native refresh rate with zero frame drops
+    _updatePowerSavingMode(_battery) {
+      this._isPowerSaving = false;
+      this._powerSavingFrameInterval = 0;
     }
     drawIslandPill() {
       const cx = window.innerWidth / 2;

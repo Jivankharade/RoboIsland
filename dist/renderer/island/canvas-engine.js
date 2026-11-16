@@ -4131,14 +4131,7 @@ class CanvasEngine {
             requestAnimationFrame(this.renderLoop.bind(this));
             return;
         }
-        // UX-4: Power-saving throttle — cap frame rate when battery is low & discharging
-        if (this._isPowerSaving && this._powerSavingFrameInterval > 0) {
-            if (time - this._lastPowerSaveFrame < this._powerSavingFrameInterval) {
-                requestAnimationFrame(this.renderLoop.bind(this));
-                return;
-            }
-            this._lastPowerSaveFrame = time;
-        }
+        // Silky smooth rendering: No FPS drops on low battery mode (always native refresh rate)
         // Runtime CPU/GPU Optimization: Idle Rest Mode Throttle (drops background CPU consumption by >50%)
         const isIdleRest = (this.mode === 'rest' &&
             !this.isHovered &&
@@ -4358,14 +4351,10 @@ class CanvasEngine {
         }
         requestAnimationFrame(this.renderLoop.bind(this));
     }
-    // UX-4: Power-saving mode helper — throttle non-essential animations when battery is low & discharging
-    _updatePowerSavingMode(battery) {
-        const level = Math.round(battery.level * 100);
-        const charging = battery.charging;
-        // Enter power-saving mode: battery <= 20% and not charging
-        this._isPowerSaving = !charging && level <= 20;
-        // Cap at ~15 fps (66ms) in power-saving mode to reduce CPU/GPU load
-        this._powerSavingFrameInterval = this._isPowerSaving ? 66 : 0;
+    // Battery power state: Always maintain 60fps / native refresh rate with zero frame drops
+    _updatePowerSavingMode(_battery) {
+        this._isPowerSaving = false;
+        this._powerSavingFrameInterval = 0;
     }
     drawIslandPill() {
         const cx = window.innerWidth / 2;
