@@ -146,7 +146,7 @@ export class SoundSynthesizer {
 }
 
 export class ParticleSystem {
-  private particles: Array<{
+  public particles: Array<{
     x: number;
     y: number;
     vx: number;
@@ -234,7 +234,7 @@ export class RoboMascot {
   // Blinking & TwoCode idleLife random blinking/winking
   public blinkProgress = 0;
   public isBlinking = false;
-  private nextBlinkTimer = 2.5;
+  public nextBlinkTimer = 2.5;
   private nextIdleLifeBlink = performance.now() + 2500;
   private currentIdleMood: MascotMood | null = null;
 
@@ -277,7 +277,7 @@ export class RoboMascot {
   // Poking / Dizziness tracking
   private pokeCount = 0;
   private pokeTimer = 0;
-  private dizzyDuration = 0;
+  public dizzyDuration = 0;
   private spiralAngle = 0;
 
   // Dancing to music

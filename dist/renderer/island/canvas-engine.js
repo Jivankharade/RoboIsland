@@ -1696,6 +1696,7 @@ class CanvasEngine {
         this.kicks.push({ at: performance.now(), amp, hz, damp });
         if (this.kicks.length > 6)
             this.kicks.shift();
+        this.requestRender();
     }
     // Hybrid DOM Expanded UI Overlay (Rollback safety via config.expandedUiMode)
     domOverlayEl = null;
@@ -1819,7 +1820,36 @@ class CanvasEngine {
     _lastIdleRestFrame = 0;
     lastSentBoundsW = 0;
     lastSentBoundsH = 0;
+    _isRenderingActive = false;
+    _hasRenderedSettledFrame = false;
+    _idleWakeupTimer = null;
+    _cachedEyeSlotRect = null;
+    _statusDateTimeEl = null;
+    _weatherTempEl = null;
+    _weatherCondEl = null;
+    _mascotEyeSlotEl = null;
+    _lastOverlayW = -1;
+    _lastOverlayH = -1;
+    _lastOverlayTopY = -1;
+    _lastClockSec = -1;
+    _lastClockIs24h = null;
+    _lastWeatherTemp = '';
+    _lastWeatherCond = '';
+    requestRender() {
+        this._hasRenderedSettledFrame = false;
+        if (this._idleWakeupTimer) {
+            clearTimeout(this._idleWakeupTimer);
+            this._idleWakeupTimer = null;
+        }
+        if (!this._isRenderingActive) {
+            this._isRenderingActive = true;
+            if (typeof requestAnimationFrame !== 'undefined') {
+                requestAnimationFrame(this.renderLoop);
+            }
+        }
+    }
     constructor() {
+        this.renderLoop = this.renderLoop.bind(this);
         this.canvas = document.getElementById('island-canvas');
         this.ctx = this.canvas.getContext('2d', { alpha: true });
         this.mascot = new robo_mascot_1.RoboMascot();
@@ -1828,7 +1858,10 @@ class CanvasEngine {
         this.setupEvents();
         this.loadInitialData();
         this.reportCapsuleBounds();
-        requestAnimationFrame(this.renderLoop.bind(this));
+        this._isRenderingActive = true;
+        if (typeof requestAnimationFrame !== 'undefined') {
+            requestAnimationFrame(this.renderLoop);
+        }
     }
     reportCapsuleBounds() {
         if (typeof window === 'undefined' || !window.roboIsland?.updateCapsuleBounds)
@@ -2782,6 +2815,7 @@ class CanvasEngine {
             this.targetWidth = this.isHovered ? 72 : 56;
             this.targetHeight = 4;
             this.targetRadius = 2;
+            this.requestRender();
             return;
         }
         if (this.mode === 'expanded') {
@@ -2993,6 +3027,7 @@ class CanvasEngine {
             this.targetRadius = 13;
         }
         this.reportCapsuleBounds();
+        this.requestRender();
     }
     canAutoCollapse() {
         const active = document.activeElement;
@@ -3362,6 +3397,7 @@ class CanvasEngine {
         return this.mode;
     }
     setMode(mode, playSound = true) {
+        this.requestRender();
         if (mode === 'expanded') {
             this.expand();
         }
@@ -3374,20 +3410,25 @@ class CanvasEngine {
     }
     setMascotMood(mood) {
         this.mascot.setMood(mood);
+        this.requestRender();
     }
     getMascotMood() {
         return this.mascot.getMood();
     }
     mascotJump(strength) {
         this.mascot.jump(strength);
+        this.requestRender();
     }
     mascotBounce(strength) {
         this.mascot.bounce(strength);
+        this.requestRender();
     }
     mascotSpeak(text, duration) {
         this.mascot.speak(text, duration);
+        this.requestRender();
     }
     pokeMascot(x, y) {
+        this.requestRender();
         if (this.compactClickTimer) {
             clearTimeout(this.compactClickTimer);
             this.compactClickTimer = null;
@@ -3469,6 +3510,7 @@ class CanvasEngine {
         }
         this.updateTargetDimensions();
         this.reportCapsuleBounds();
+        this.requestRender();
     }
     getTucked() {
         return this.isTucked;
@@ -4128,10 +4170,35 @@ class CanvasEngine {
     }
     renderLoop(time) {
         if (this.isGameModeThrottled) {
-            requestAnimationFrame(this.renderLoop.bind(this));
+            this._isRenderingActive = false;
             return;
         }
         // Silky smooth rendering: No FPS drops on low battery mode (always native refresh rate)
+        // Activity evaluation for smart resting idle & dirty check
+        const isTransitioning = (Math.abs(this.currentWidth - this.targetWidth) >= 0.25 ||
+            Math.abs(this.currentHeight - this.targetHeight) >= 0.25 ||
+            Math.abs(this.currentRadius - this.targetRadius) >= 0.25 ||
+            Math.abs(this.islandSpring.vWidth) >= 0.4 ||
+            Math.abs(this.islandSpring.vHeight) >= 0.4);
+        const isJellyActive = Boolean(this.kicks && this.kicks.length > 0);
+        const isMediaActive = Boolean(this.mediaState.playing && this.mediaState.active);
+        const isHudActive = ((this.volumeHudUntil > 0 && performance.now() < this.volumeHudUntil) ||
+            (this.speedometerHudUntil > 0 && performance.now() < this.speedometerHudUntil) ||
+            (this.chargerSurgeUntil > 0 && performance.now() < this.chargerSurgeUntil) ||
+            (this.airdropHudUntil > 0 && performance.now() < this.airdropHudUntil) ||
+            (this.greetingUntil > 0 && performance.now() < this.greetingUntil) ||
+            (this.appActivityUntil > 0 && performance.now() < this.appActivityUntil) ||
+            this.isNotificationActive() ||
+            this.isStartupHelloBusy);
+        const isMascotActive = (this.mascot.isJumping ||
+            this.mascot.isBlinking ||
+            this.mascot.blinkProgress > 0 ||
+            Math.abs(this.mascot.wobbleVelocity) >= 0.08 ||
+            (this.mascot.particles && this.mascot.particles.particles.length > 0) ||
+            this.mascot.dizzyDuration > 0);
+        const isInteracting = this.isHovered || this.isDraggingOver || this.isWhatsAppReplying || (this.transferProgress !== null);
+        const isTuckAnimating = this.isTucked && (performance.now() - this.tuckChangedAt < 250);
+        const isBusy = isTransitioning || isJellyActive || isMediaActive || isHudActive || isMascotActive || isInteracting || isTuckAnimating || (this.mode === 'expanded' && this.config.expandedUiMode === 'canvas');
         // Runtime CPU/GPU Optimization: Idle Rest Mode Throttle (drops background CPU consumption by >50%)
         const isIdleRest = (this.mode === 'rest' &&
             !this.isHovered &&
@@ -4146,8 +4213,16 @@ class CanvasEngine {
             Math.abs(this.islandSpring.vWidth) < 0.3);
         if (isIdleRest) {
             if (time - this._lastIdleRestFrame < 33) {
-                requestAnimationFrame(this.renderLoop.bind(this));
-                return;
+                if (!isBusy && this._hasRenderedSettledFrame) {
+                    this._isRenderingActive = false;
+                    if (!this._idleWakeupTimer) {
+                        const nextBlink = Math.max(800, (this.mascot.nextBlinkTimer || 3.5) * 1000);
+                        this._idleWakeupTimer = setTimeout(() => {
+                            this.requestRender();
+                        }, nextBlink);
+                    }
+                    return;
+                }
             }
             this._lastIdleRestFrame = time;
         }
@@ -4276,7 +4351,7 @@ class CanvasEngine {
             }
         }
         // Compact idle state detection for motion stabilization (stops idle bobbing & vertical jitter)
-        this.mascot.isCompactIdle = (this.mode === 'compact' && !this.mediaState.active && !this.focusState.active && this.aiState.status !== 'running');
+        this.mascot.isCompactIdle = ((this.mode === 'compact' || this.mode === 'rest') && !this.mediaState.active && !this.focusState.active && this.aiState.status !== 'running');
         if (this.mascot.isCompactIdle) {
             if (this.mascot.getMood() === 'focused') {
                 this.mascot.setMood('neutral');
@@ -4294,7 +4369,16 @@ class CanvasEngine {
         if (this.isTucked) {
             if (this.domOverlayEl)
                 this.domOverlayEl.classList.add('hidden');
-            requestAnimationFrame(this.renderLoop.bind(this));
+            if (isBusy) {
+                this._isRenderingActive = true;
+                if (typeof requestAnimationFrame !== 'undefined') {
+                    requestAnimationFrame(this.renderLoop);
+                }
+            }
+            else {
+                this._hasRenderedSettledFrame = true;
+                this._isRenderingActive = false;
+            }
             return;
         }
         else if (this.mode === 'rest') {
@@ -4337,11 +4421,13 @@ class CanvasEngine {
                     this.updateAmbientGlow(this.currentDomTab);
                 }
                 // In DOM mode, draw capsule eyes inside the dedicated #mascot-eye-slot element
-                const eyeSlot = document.getElementById('mascot-eye-slot');
+                const eyeSlot = this._mascotEyeSlotEl || (this._mascotEyeSlotEl = document.getElementById('mascot-eye-slot'));
                 if (eyeSlot) {
-                    const rect = eyeSlot.getBoundingClientRect();
-                    const eyeX = rect.left + rect.width / 2;
-                    const eyeY = rect.top + rect.height / 2;
+                    if (!this._cachedEyeSlotRect || this.currentWidth !== this.targetWidth) {
+                        this._cachedEyeSlotRect = eyeSlot.getBoundingClientRect();
+                    }
+                    const eyeX = this._cachedEyeSlotRect.left + this._cachedEyeSlotRect.width / 2;
+                    const eyeY = this._cachedEyeSlotRect.top + this._cachedEyeSlotRect.height / 2;
                     this.mascot.drawFloatingEyes(this.ctx, eyeX, eyeY, 0.72);
                 }
                 else {
@@ -4349,7 +4435,23 @@ class CanvasEngine {
                 }
             }
         }
-        requestAnimationFrame(this.renderLoop.bind(this));
+        if (isBusy) {
+            this._hasRenderedSettledFrame = false;
+            this._isRenderingActive = true;
+            if (typeof requestAnimationFrame !== 'undefined') {
+                requestAnimationFrame(this.renderLoop);
+            }
+        }
+        else {
+            this._hasRenderedSettledFrame = true;
+            this._isRenderingActive = false;
+            if (!this._idleWakeupTimer) {
+                const nextBlink = Math.max(800, (this.mascot.nextBlinkTimer || 3.5) * 1000);
+                this._idleWakeupTimer = setTimeout(() => {
+                    this.requestRender();
+                }, nextBlink);
+            }
+        }
     }
     // Battery power state: Always maintain 60fps / native refresh rate with zero frame drops
     _updatePowerSavingMode(_battery) {
@@ -9433,40 +9535,62 @@ class CanvasEngine {
     updateDomOverlay(cx, topY) {
         if (!this.domOverlayEl)
             return;
-        // Position overlay matching the animated canvas pill
-        const left = cx - this.currentWidth / 2;
-        this.domOverlayEl.style.left = `${cx}px`;
-        this.domOverlayEl.style.top = `${topY}px`;
-        this.domOverlayEl.style.width = `${this.currentWidth}px`;
-        this.domOverlayEl.style.height = `${this.currentHeight}px`;
-        // Datetime with 12h/24h toggle support
-        const dtEl = document.getElementById('status-datetime');
+        // Position overlay matching the animated canvas pill (guarded to avoid per-frame layout thrash)
+        if (this._lastOverlayTopY !== topY || this._lastOverlayW !== this.currentWidth || this._lastOverlayH !== this.currentHeight) {
+            this._lastOverlayTopY = topY;
+            this._lastOverlayW = this.currentWidth;
+            this._lastOverlayH = this.currentHeight;
+            this.domOverlayEl.style.left = `${cx}px`;
+            this.domOverlayEl.style.top = `${topY}px`;
+            this.domOverlayEl.style.width = `${this.currentWidth}px`;
+            this.domOverlayEl.style.height = `${this.currentHeight}px`;
+        }
+        // Datetime with 12h/24h toggle support (throttled to 1 Hz)
+        const dtEl = this._statusDateTimeEl || (this._statusDateTimeEl = document.getElementById('status-datetime'));
         if (dtEl) {
             const now = new Date();
-            const dateStr = now.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' });
+            const nowSec = Math.floor(now.getTime() / 1000);
             const is24h = this.config?.clockFormat === '24h';
-            const timeStr = is24h
-                ? `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
-                : now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-            dtEl.textContent = `${dateStr} ${timeStr}`;
+            if (nowSec !== this._lastClockSec || is24h !== this._lastClockIs24h) {
+                this._lastClockSec = nowSec;
+                this._lastClockIs24h = is24h;
+                const dateStr = now.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' });
+                const timeStr = is24h
+                    ? `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+                    : now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+                dtEl.textContent = `${dateStr} ${timeStr}`;
+            }
         }
-        // Weather Widget in status bar
-        const weatherTemp = document.getElementById('weather-temp');
-        const weatherCond = document.getElementById('weather-cond');
+        // Weather Widget in status bar (guarded against duplicate DOM sets)
+        const weatherTemp = this._weatherTempEl || (this._weatherTempEl = document.getElementById('weather-temp'));
+        const weatherCond = this._weatherCondEl || (this._weatherCondEl = document.getElementById('weather-cond'));
         if (weatherTemp && this.weatherState) {
-            weatherTemp.textContent = this.weatherState.temp || '--°C';
+            const t = this.weatherState.temp || '--°C';
+            if (this._lastWeatherTemp !== t) {
+                this._lastWeatherTemp = t;
+                weatherTemp.textContent = t;
+            }
         }
         if (weatherCond && this.weatherState) {
-            weatherCond.textContent = this.weatherState.condition || 'Clear';
+            const c = this.weatherState.condition || 'Clear';
+            if (this._lastWeatherCond !== c) {
+                this._lastWeatherCond = c;
+                weatherCond.textContent = c;
+            }
         }
         // Wi-Fi & Bluetooth Popover Status
         this.updateNetworkDom();
         // Spotify Synced Lyrics DOM Stream
         this.updateLyricsDom();
-        // Sync album tint variables on document root
+        // Sync album tint variables on document root (guarded against duplicate style mutations)
         if (this.albumAccentColor) {
-            document.documentElement.style.setProperty('--album-tint-hex', this.albumAccentColor);
-            document.documentElement.style.setProperty('--album-tint-rgb', `${this.currentTintR}, ${this.currentTintG}, ${this.currentTintB}`);
+            if (this.currentTintR !== this.lastPushedTintR || this.currentTintG !== this.lastPushedTintG || this.currentTintB !== this.lastPushedTintB) {
+                this.lastPushedTintR = this.currentTintR;
+                this.lastPushedTintG = this.currentTintG;
+                this.lastPushedTintB = this.currentTintB;
+                document.documentElement.style.setProperty('--album-tint-hex', this.albumAccentColor);
+                document.documentElement.style.setProperty('--album-tint-rgb', `${this.currentTintR}, ${this.currentTintG}, ${this.currentTintB}`);
+            }
         }
         // Header Music Visualizer Button (TwoCode: mx - 42 mini equalizer that opens Music player)
         const btnHeaderMusic = document.getElementById('btn-header-music');

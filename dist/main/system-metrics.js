@@ -155,6 +155,8 @@ class SystemMetricsEngine {
     timer = null;
     intervalMs = 2000;
     latestMetrics;
+    cachedStorage = { totalGb: 256, freeGb: 128, usedGb: 128, percent: 50 };
+    lastStorageSampleAt = 0;
     constructor(initialIntervalMs = 2000) {
         this.intervalMs = clampInterval(initialIntervalMs);
         this.prevTicks = sampleCpuTicks();
@@ -173,17 +175,22 @@ class SystemMetricsEngine {
         const freeMemMb = Math.round(freeMem / (1024 * 1024));
         const usedMemMb = Math.max(0, totalMemMb - freeMemMb);
         const cores = os.cpus().length || 1;
-        let storage = { totalGb: 256, freeGb: 128, usedGb: 128, percent: 50 };
-        try {
-            const rootPath = process.platform === 'win32' ? (process.env.SystemDrive ? `${process.env.SystemDrive}\\` : 'C:\\') : '/';
-            const stat = fs.statfsSync(rootPath);
-            const totalGb = Math.round((stat.bsize * stat.blocks) / (1024 * 1024 * 1024));
-            const freeGb = Math.round((stat.bsize * stat.bavail) / (1024 * 1024 * 1024));
-            const usedGb = Math.max(0, totalGb - freeGb);
-            const percent = totalGb > 0 ? Math.max(0, Math.min(100, Math.round((usedGb / totalGb) * 100))) : 0;
-            storage = { totalGb, freeGb, usedGb, percent };
+        let storage = this.cachedStorage;
+        const now = Date.now();
+        if (now - this.lastStorageSampleAt > 30000) {
+            try {
+                const rootPath = process.platform === 'win32' ? (process.env.SystemDrive ? `${process.env.SystemDrive}\\` : 'C:\\') : '/';
+                const stat = fs.statfsSync(rootPath);
+                const totalGb = Math.round((stat.bsize * stat.blocks) / (1024 * 1024 * 1024));
+                const freeGb = Math.round((stat.bsize * stat.bavail) / (1024 * 1024 * 1024));
+                const usedGb = Math.max(0, totalGb - freeGb);
+                const percent = totalGb > 0 ? Math.max(0, Math.min(100, Math.round((usedGb / totalGb) * 100))) : 0;
+                storage = { totalGb, freeGb, usedGb, percent };
+                this.cachedStorage = storage;
+                this.lastStorageSampleAt = now;
+            }
+            catch { }
         }
-        catch { }
         this.latestMetrics = {
             cpu,
             ram,

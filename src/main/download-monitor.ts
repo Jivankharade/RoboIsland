@@ -60,10 +60,10 @@ export class DownloadMonitor {
     // Run an immediate directory sweep on startup
     this.scanDownloadsDir();
 
-    // Background scan every 1200ms to catch any missed or throttled filesystem events
+    // Background scan fallback (every 15s) to catch any missed or throttled filesystem events
     this.scanTimer = setInterval(() => {
       this.scanDownloadsDir();
-    }, 1200);
+    }, 15000);
     if (this.scanTimer.unref) this.scanTimer.unref();
   }
 

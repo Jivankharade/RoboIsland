@@ -27,6 +27,13 @@ export class IslandWindow {
     const config = configStore.get();
     const pos = DisplayManager.calculatePosition(config.islandScale, config.islandStyle);
 
+    this.cachedBounds = {
+      x: pos.x,
+      y: pos.y,
+      width: pos.width,
+      height: pos.height
+    };
+
     this.window = new BrowserWindow({
       x: pos.x,
       y: pos.y,
@@ -93,13 +100,16 @@ export class IslandWindow {
   private lastCursorKey = '';
   private lastCursorAt = 0;
   private wasInsideWindow = false;
+  private cachedBounds: Electron.Rectangle | null = null;
+  private lastSentRelX = -9999;
+  private lastSentRelY = -9999;
 
   private startCursorTracking(): void {
     if (this.cursorTimer) clearInterval(this.cursorTimer);
     this.cursorTimer = setInterval(() => {
       if (!this.window || this.window.isDestroyed() || !this.window.isVisible()) return;
       const cursor = screen.getCursorScreenPoint();
-      const bounds = this.window.getBounds();
+      const bounds = this.cachedBounds || (this.cachedBounds = this.window.getBounds());
       const insideWindow = cursor.x >= bounds.x && cursor.x < bounds.x + bounds.width &&
                            cursor.y >= bounds.y && cursor.y < bounds.y + bounds.height;
 
@@ -141,13 +151,20 @@ export class IslandWindow {
         this.setInteractive(inHoverZone);
       }
 
+      // Avoid redundant IPC when pointer is stationary inside window
+      if (insideWindow === this.wasInsideWindow && Math.abs(relX - this.lastSentRelX) < 0.5 && Math.abs(relY - this.lastSentRelY) < 0.5) {
+        return;
+      }
+
       this.wasInsideWindow = insideWindow;
+      this.lastSentRelX = relX;
+      this.lastSentRelY = relY;
       this.window.webContents.send('companion:pointer', {
         x: relX,
         y: relY,
         insideWindow
       });
-    }, 28);
+    }, 32);
   }
 
   public setInteractive(interactive: boolean): void {
@@ -178,12 +195,13 @@ export class IslandWindow {
     
     // When tucked, window docks flush against the screen top bezel (y = display.bounds.y)
     const finalY = this.isTucked ? display.bounds.y : pos.y;
-    this.window.setBounds({
+    this.cachedBounds = {
       x: pos.x,
       y: finalY,
       width: pos.width,
       height: pos.height
-    });
+    };
+    this.window.setBounds(this.cachedBounds);
   }
 
   public setTucked(tucked: boolean): void {

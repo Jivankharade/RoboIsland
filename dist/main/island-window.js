@@ -59,6 +59,12 @@ class IslandWindow {
     createWindow() {
         const config = config_store_1.configStore.get();
         const pos = display_manager_1.DisplayManager.calculatePosition(config.islandScale, config.islandStyle);
+        this.cachedBounds = {
+            x: pos.x,
+            y: pos.y,
+            width: pos.width,
+            height: pos.height
+        };
         this.window = new electron_1.BrowserWindow({
             x: pos.x,
             y: pos.y,
@@ -117,6 +123,9 @@ class IslandWindow {
     lastCursorKey = '';
     lastCursorAt = 0;
     wasInsideWindow = false;
+    cachedBounds = null;
+    lastSentRelX = -9999;
+    lastSentRelY = -9999;
     startCursorTracking() {
         if (this.cursorTimer)
             clearInterval(this.cursorTimer);
@@ -124,7 +133,7 @@ class IslandWindow {
             if (!this.window || this.window.isDestroyed() || !this.window.isVisible())
                 return;
             const cursor = electron_1.screen.getCursorScreenPoint();
-            const bounds = this.window.getBounds();
+            const bounds = this.cachedBounds || (this.cachedBounds = this.window.getBounds());
             const insideWindow = cursor.x >= bounds.x && cursor.x < bounds.x + bounds.width &&
                 cursor.y >= bounds.y && cursor.y < bounds.y + bounds.height;
             // Low-CPU optimization: When outside the window and already reported outside, avoid redundant IPC spam
@@ -164,13 +173,19 @@ class IslandWindow {
                     relY >= (curTopY - 1) && relY <= (curTopY + curH + 1);
                 this.setInteractive(inHoverZone);
             }
+            // Avoid redundant IPC when pointer is stationary inside window
+            if (insideWindow === this.wasInsideWindow && Math.abs(relX - this.lastSentRelX) < 0.5 && Math.abs(relY - this.lastSentRelY) < 0.5) {
+                return;
+            }
             this.wasInsideWindow = insideWindow;
+            this.lastSentRelX = relX;
+            this.lastSentRelY = relY;
             this.window.webContents.send('companion:pointer', {
                 x: relX,
                 y: relY,
                 insideWindow
             });
-        }, 28);
+        }, 32);
     }
     setInteractive(interactive) {
         if (!this.window || this.window.isDestroyed())
@@ -205,12 +220,13 @@ class IslandWindow {
         const display = display_manager_1.DisplayManager.getTargetDisplay();
         // When tucked, window docks flush against the screen top bezel (y = display.bounds.y)
         const finalY = this.isTucked ? display.bounds.y : pos.y;
-        this.window.setBounds({
+        this.cachedBounds = {
             x: pos.x,
             y: finalY,
             width: pos.width,
             height: pos.height
-        });
+        };
+        this.window.setBounds(this.cachedBounds);
     }
     setTucked(tucked) {
         if (this.isTucked === tucked)

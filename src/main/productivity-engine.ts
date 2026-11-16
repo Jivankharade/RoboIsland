@@ -216,7 +216,7 @@ export class ProductivityEngine {
           });
         }
       } catch {}
-    }, 800);
+    }, 1500);
   }
 
   private getFileId(filePath: string): string {

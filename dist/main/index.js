@@ -60,7 +60,7 @@ if (!gotTheLock) {
 // Memory & CPU runtime optimization: Enforce proactive V8 garbage collection & low RAM usage
 electron_1.app.commandLine.appendSwitch('js-flags', '--max-old-space-size=128');
 electron_1.app.commandLine.appendSwitch('renderer-process-limit', '4');
-electron_1.app.commandLine.appendSwitch('disable-renderer-backgrounding');
+electron_1.app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 // Linux Fedora / KDE Plasma / Wayland compatibility:
 // Auto-detect Wayland vs X11/XWayland with smooth compositor integration & window decorations
 if (process.platform === 'linux') {
