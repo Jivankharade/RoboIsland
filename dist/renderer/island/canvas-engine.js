@@ -47,6 +47,8 @@ class SystemAudioVisualizer {
     peaks = new Array(18).fill(0.08);
     loudPeak = 0.1;
     isHearing = false;
+    _lastLevelsFrameTime = 0;
+    _cachedLevels = new Map();
     static getInstance() {
         if (!SystemAudioVisualizer.instance) {
             SystemAudioVisualizer.instance = new SystemAudioVisualizer();
@@ -77,7 +79,7 @@ class SystemAudioVisualizer {
                     ctx.resume().catch(() => { });
                 }
                 const analyser = ctx.createAnalyser();
-                analyser.fftSize = 2048;
+                analyser.fftSize = 128;
                 analyser.smoothingTimeConstant = 0.6;
                 analyser.minDecibels = -80;
                 const source = ctx.createMediaStreamSource(stream);
@@ -139,37 +141,48 @@ class SystemAudioVisualizer {
     getLevels(barCount = 5) {
         if (!this.analyser || !this.data || !this.ctx)
             return null;
-        this.analyser.getByteFrequencyData(this.data);
-        const n = this.data.length;
-        const hzPerBin = (this.ctx.sampleRate / 2) / n;
-        const raw = [];
-        for (let i = 0; i < this.BARS; i++) {
-            const f0 = 60 * Math.pow(200, i / this.BARS);
-            const f1 = 60 * Math.pow(200, (i + 1) / this.BARS);
-            const from = Math.max(1, Math.floor(f0 / hzPerBin));
-            const to = Math.max(from + 1, Math.ceil(f1 / hzPerBin));
-            let sum = 0;
-            for (let j = from; j < to && j < n; j++) {
-                sum += this.data[j];
-            }
-            raw.push(sum / (to - from) / 255);
+        const now = performance.now();
+        if (now - this._lastLevelsFrameTime < 14 && this._cachedLevels.has(barCount)) {
+            return this._cachedLevels.get(barCount);
         }
-        const loud = raw.reduce((a, b) => a + b, 0) / this.BARS;
-        this.isHearing = loud > 0.05;
-        if (!this.isHearing) {
+        if (now - this._lastLevelsFrameTime >= 14) {
+            this._lastLevelsFrameTime = now;
+            this._cachedLevels.clear();
+            this.analyser.getByteFrequencyData(this.data);
+            const n = this.data.length;
+            const hzPerBin = (this.ctx.sampleRate / 2) / n;
+            const raw = [];
             for (let i = 0; i < this.BARS; i++) {
-                this.levels[i] *= 0.8;
+                const f0 = 60 * Math.pow(200, i / this.BARS);
+                const f1 = 60 * Math.pow(200, (i + 1) / this.BARS);
+                const from = Math.max(1, Math.floor(f0 / hzPerBin));
+                const to = Math.max(from + 1, Math.ceil(f1 / hzPerBin));
+                let sum = 0;
+                for (let j = from; j < to && j < n; j++) {
+                    sum += this.data[j];
+                }
+                raw.push(sum / (to - from) / 255);
             }
-            return this.sampleBarCount(this.levels, barCount);
+            const loud = raw.reduce((a, b) => a + b, 0) / this.BARS;
+            this.isHearing = loud > 0.05;
+            if (!this.isHearing) {
+                for (let i = 0; i < this.BARS; i++) {
+                    this.levels[i] *= 0.8;
+                }
+            }
+            else {
+                this.loudPeak = Math.max(loud, this.loudPeak * 0.997, 0.12);
+                const overall = Math.min(1, (loud / this.loudPeak) * 1.15); // soft parts settle lower, loud parts punch higher
+                for (let i = 0; i < this.BARS; i++) {
+                    this.peaks[i] = Math.max(raw[i], this.peaks[i] * 0.996, 0.15);
+                    const v = Math.pow(raw[i] / this.peaks[i], 1.6) * overall; // stretch so beats and vocal spikes stand out
+                    this.levels[i] += (v - this.levels[i]) * (v > this.levels[i] ? 0.55 : 0.2); // snappy rise attack, smooth decay
+                }
+            }
         }
-        this.loudPeak = Math.max(loud, this.loudPeak * 0.997, 0.12);
-        const overall = Math.min(1, (loud / this.loudPeak) * 1.15); // soft parts settle lower, loud parts punch higher
-        for (let i = 0; i < this.BARS; i++) {
-            this.peaks[i] = Math.max(raw[i], this.peaks[i] * 0.996, 0.15);
-            const v = Math.pow(raw[i] / this.peaks[i], 1.6) * overall; // stretch so beats and vocal spikes stand out
-            this.levels[i] += (v - this.levels[i]) * (v > this.levels[i] ? 0.55 : 0.2); // snappy rise attack, smooth decay
-        }
-        return this.sampleBarCount(this.levels, barCount);
+        const res = this.sampleBarCount(this.levels, barCount);
+        this._cachedLevels.set(barCount, res);
+        return res;
     }
     sampleBarCount(sourceLevels, targetCount) {
         const out = [];
@@ -270,6 +283,16 @@ class CanvasEngine {
     LYRICS_FONT = '600 13px Inter, "Segoe UI", sans-serif';
     isDevicesOpen = false;
     spotifyDevices = [];
+    // Performance caches for 60 FPS media rendering
+    _lyricsCacheFont = new Map();
+    _lyricsCacheText = new Map();
+    _cachedTrackNameKey = '';
+    _cachedTrackDisplayName = '';
+    _cachedCoverCanvas = null;
+    _cachedMusicTintKey = '';
+    _cachedMusicTintGrad = null;
+    _cachedMusicRimKey = '';
+    _cachedMusicRimGrad = null;
     // Live AI State (Claude Code & Codex)
     aiState = {
         connected: false,
@@ -2797,6 +2820,7 @@ class CanvasEngine {
         if (!url || url === this.lastCoverUrl) {
             if (!url) {
                 this.albumImageElement = null;
+                this._cachedCoverCanvas = null;
                 this.albumAccentColor = '#1ed760';
                 this.targetTintR = 30;
                 this.targetTintG = 215;
@@ -2840,6 +2864,23 @@ class CanvasEngine {
                     this.targetTintB = bBoost;
                 }
                 this.albumImageElement = img;
+                // Pre-render 22x22 rounded cover art to eliminate per-frame clipping & bicubic downsampling
+                try {
+                    const off = document.createElement('canvas');
+                    off.width = 22;
+                    off.height = 22;
+                    const ox = off.getContext('2d');
+                    if (ox) {
+                        ox.beginPath();
+                        ox.roundRect(0, 0, 22, 22, 7);
+                        ox.clip();
+                        ox.drawImage(img, 0, 0, 22, 22);
+                        this._cachedCoverCanvas = off;
+                    }
+                }
+                catch {
+                    this._cachedCoverCanvas = null;
+                }
             }
             catch {
                 this.albumAccentColor = '#1ed760';
@@ -2850,6 +2891,7 @@ class CanvasEngine {
         };
         img.onerror = () => {
             this.albumImageElement = null;
+            this._cachedCoverCanvas = null;
             this.albumAccentColor = '#1ed760';
             this.targetTintR = 30;
             this.targetTintG = 215;
@@ -4792,15 +4834,20 @@ class CanvasEngine {
             const tr = Math.round(this.currentTintR);
             const tg = Math.round(this.currentTintG);
             const tb = Math.round(this.currentTintB);
+            const gradKey = `${topY}|${h}|${tr}|${tg}|${tb}`;
+            if (gradKey !== this._cachedMusicTintKey || !this._cachedMusicTintGrad) {
+                this._cachedMusicTintKey = gradKey;
+                const fold = h < 60;
+                const tintGrad = this.ctx.createLinearGradient(0, fold ? topY : topY + h * 0.18, 0, topY + h);
+                tintGrad.addColorStop(0, `rgba(${tr}, ${tg}, ${tb}, ${fold ? 0.08 : 0})`);
+                tintGrad.addColorStop(0.5, `rgba(${tr}, ${tg}, ${tb}, ${fold ? 0.18 : 0.12})`);
+                tintGrad.addColorStop(1, `rgba(${tr}, ${tg}, ${tb}, 0.38)`);
+                this._cachedMusicTintGrad = tintGrad;
+            }
             this.ctx.save();
             this.islandPath(this.ctx, left, topY, w, h, r);
             this.ctx.clip();
-            const fold = h < 60;
-            const tintGrad = this.ctx.createLinearGradient(0, fold ? topY : topY + h * 0.18, 0, topY + h);
-            tintGrad.addColorStop(0, `rgba(${tr}, ${tg}, ${tb}, ${fold ? 0.08 : 0})`);
-            tintGrad.addColorStop(0.5, `rgba(${tr}, ${tg}, ${tb}, ${fold ? 0.18 : 0.12})`);
-            tintGrad.addColorStop(1, `rgba(${tr}, ${tg}, ${tb}, 0.38)`);
-            this.ctx.fillStyle = tintGrad;
+            this.ctx.fillStyle = this._cachedMusicTintGrad;
             this.ctx.fillRect(left - 20, topY, w + 40, h);
             this.ctx.restore();
         }
@@ -4862,11 +4909,16 @@ class CanvasEngine {
             const tr = Math.round(this.currentTintR);
             const tg = Math.round(this.currentTintG);
             const tb = Math.round(this.currentTintB);
-            const rimGrad = this.ctx.createLinearGradient(0, topY, 0, topY + h);
-            rimGrad.addColorStop(0, 'rgba(255, 255, 255, 0.08)');
-            rimGrad.addColorStop(0.5, `rgba(${tr}, ${tg}, ${tb}, 0.25)`);
-            rimGrad.addColorStop(1, `rgba(${tr}, ${tg}, ${tb}, 0.70)`);
-            this.ctx.strokeStyle = rimGrad;
+            const rimKey = `${topY}|${h}|${tr}|${tg}|${tb}`;
+            if (rimKey !== this._cachedMusicRimKey || !this._cachedMusicRimGrad) {
+                this._cachedMusicRimKey = rimKey;
+                const rimGrad = this.ctx.createLinearGradient(0, topY, 0, topY + h);
+                rimGrad.addColorStop(0, 'rgba(255, 255, 255, 0.08)');
+                rimGrad.addColorStop(0.5, `rgba(${tr}, ${tg}, ${tb}, 0.25)`);
+                rimGrad.addColorStop(1, `rgba(${tr}, ${tg}, ${tb}, 0.70)`);
+                this._cachedMusicRimGrad = rimGrad;
+            }
+            this.ctx.strokeStyle = this._cachedMusicRimGrad;
         }
         else {
             this.ctx.strokeStyle = this.mode === 'rest' ? 'rgba(255, 255, 255, 0.10)' : 'rgba(255, 255, 255, 0.08)';
@@ -6365,7 +6417,10 @@ class CanvasEngine {
         const coverX = left + 4;
         const coverY = cy - cs / 2;
         // 1. Cover Art (Left: coverX, coverY, cs, cs, radius 7)
-        if (this.albumImageElement?.complete && this.albumImageElement.naturalWidth > 0) {
+        if (this._cachedCoverCanvas && cs === 22) {
+            this.ctx.drawImage(this._cachedCoverCanvas, coverX, coverY);
+        }
+        else if (this.albumImageElement?.complete && this.albumImageElement.naturalWidth > 0) {
             this.ctx.save();
             this.ctx.beginPath();
             this.ctx.roundRect(coverX, coverY, cs, cs, 7);
@@ -6408,9 +6463,9 @@ class CanvasEngine {
         const bw = (vizW - gap * (n - 1)) / n;
         const audioViz = SystemAudioVisualizer.getInstance();
         const levels = audioViz.getLevels(n);
+        // Batch draw all 5 bars into 1 single canvas path (80% fewer GPU/CPU draw operations)
         this.ctx.save();
-        this.ctx.shadowColor = this.albumAccentColor || '#ffffff';
-        this.ctx.shadowBlur = 3;
+        this.ctx.beginPath();
         for (let i = 0; i < n; i++) {
             let raw = 0.06;
             if (playing) {
@@ -6440,32 +6495,41 @@ class CanvasEngine {
             const bh = Math.max(bw, vizH * Math.min(1, this.compactVizBars[i]));
             const bx = vizX + i * (bw + gap);
             const by = cy - bh / 2;
-            this.ctx.beginPath();
             this.ctx.roundRect(bx, by, bw, bh, bw / 2);
-            this.ctx.fillStyle = this.albumAccentColor || '#ffffff';
-            this.ctx.fill();
         }
+        this.ctx.fillStyle = this.albumAccentColor || '#ffffff';
+        this.ctx.shadowColor = this.albumAccentColor || '#ffffff';
+        this.ctx.shadowBlur = 2;
+        this.ctx.fill();
         this.ctx.restore();
         // 3. Middle Content: Synchronized Lyrics or Song / Ad Title (No eyes during media playback)
         const x0 = coverX + cs + 12;
         const x1 = vizX - 12;
         const w = Math.max(20, x1 - x0);
         const band = 20;
-        // Resolve song/ad title text
+        // Resolve song/ad title text with cached formatting
         const getTrackDisplayName = () => {
             const title = (this.mediaState.title || '').trim();
             const artist = (this.mediaState.artist || '').trim();
             if (!title)
                 return this.mediaState.app || 'Music';
+            const key = `${title}|${artist}|${Math.round(w)}`;
+            if (key === this._cachedTrackNameKey && this._cachedTrackDisplayName) {
+                return this._cachedTrackDisplayName;
+            }
+            this._cachedTrackNameKey = key;
             if (artist && artist !== 'Spotify' && !title.toLowerCase().includes(artist.toLowerCase())) {
                 const combined = `${title} - ${artist}`;
                 this.ctx.save();
                 this.ctx.font = '500 12.5px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
                 const fits = this.ctx.measureText(combined).width <= w;
                 this.ctx.restore();
-                if (fits)
+                if (fits) {
+                    this._cachedTrackDisplayName = combined;
                     return combined;
+                }
             }
+            this._cachedTrackDisplayName = title;
             return title;
         };
         const trackName = getTrackDisplayName();
@@ -6477,23 +6541,39 @@ class CanvasEngine {
                 return;
             this.ctx.save();
             this.ctx.globalAlpha *= alpha;
-            this.ctx.font = twoCodeLyricsFont;
-            const full = this.ctx.measureText(s).width;
-            if (full > w) {
-                this.ctx.font = twoCodeLyricsFont.replace(/\d+(\.\d+)?px/, (m) => Math.max(10.5, parseFloat(m) * w / full).toFixed(1) + 'px');
+            // O(1) Cache lookup: eliminates 2,000+ synchronous measureText Skia layout calls per second
+            const cacheKey = `${s}|${Math.round(w)}`;
+            let fittedFont = this._lyricsCacheFont.get(cacheKey);
+            let truncatedText = this._lyricsCacheText.get(cacheKey);
+            if (!fittedFont || !truncatedText) {
+                this.ctx.font = twoCodeLyricsFont;
+                const full = this.ctx.measureText(s).width;
+                fittedFont = twoCodeLyricsFont;
+                if (full > w) {
+                    fittedFont = twoCodeLyricsFont.replace(/\d+(\.\d+)?px/, (m) => Math.max(10.5, parseFloat(m) * w / full).toFixed(1) + 'px');
+                }
+                this.ctx.font = fittedFont;
+                let t = s;
+                while (t.length > 1 && this.ctx.measureText(t).width > w) {
+                    t = t.slice(0, -2) + '…';
+                }
+                truncatedText = t;
+                if (this._lyricsCacheFont.size > 50) {
+                    this._lyricsCacheFont.clear();
+                    this._lyricsCacheText.clear();
+                }
+                this._lyricsCacheFont.set(cacheKey, fittedFont);
+                this._lyricsCacheText.set(cacheKey, truncatedText);
             }
-            let t = s;
-            while (t.length > 1 && this.ctx.measureText(t).width > w) {
-                t = t.slice(0, -2) + '…';
-            }
+            this.ctx.font = fittedFont;
             this.ctx.fillStyle = isBright ? '#ffffff' : 'rgba(255, 255, 255, 0.45)';
             this.ctx.textAlign = 'center';
             this.ctx.textBaseline = 'middle';
             if (isBright) {
-                this.ctx.shadowColor = 'rgba(255, 255, 255, 0.40)';
-                this.ctx.shadowBlur = 6;
+                this.ctx.shadowColor = 'rgba(255, 255, 255, 0.30)';
+                this.ctx.shadowBlur = 3;
             }
-            this.ctx.fillText(t, x0 + w / 2, cy + 0.5 + dy);
+            this.ctx.fillText(truncatedText, x0 + w / 2, cy + 0.5 + dy);
             this.ctx.restore();
         };
         if (lyric && (lyric.text || lyric.previous)) {
