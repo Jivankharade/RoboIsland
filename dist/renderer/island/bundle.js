@@ -5031,6 +5031,8 @@
               const actionId = key.replace("action_", "");
               if (actionId === "opt_ram" && window.roboIsland?.optimizeMemory) {
                 window.roboIsland.optimizeMemory();
+              } else if (window.roboIsland?.dispatchDiagnosticsAction) {
+                window.roboIsland.dispatchDiagnosticsAction(actionId);
               }
               this.clearNotification();
               return;

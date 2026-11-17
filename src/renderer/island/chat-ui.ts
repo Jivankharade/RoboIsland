@@ -872,9 +872,9 @@ export class ChatUI {
       });
     }
 
-    // Hotkey: Ctrl+Shift+S or Alt+S triggers screen capture glance
+    // Hotkey: Ctrl+Shift+S triggers optional screen capture inside chat
     window.addEventListener('keydown', (e) => {
-      if ((e.ctrlKey && e.shiftKey && (e.key === 'S' || e.key === 's')) || (e.altKey && (e.key === 'S' || e.key === 's'))) {
+      if (e.ctrlKey && e.shiftKey && (e.key === 'S' || e.key === 's')) {
         e.preventDefault();
         this.triggerScreenCapture();
       }

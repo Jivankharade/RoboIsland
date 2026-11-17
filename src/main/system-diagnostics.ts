@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain, globalShortcut } from 'electron';
+import { BrowserWindow, ipcMain, globalShortcut, clipboard } from 'electron';
 import * as os from 'os';
 import { exec } from 'child_process';
 import { AIProviderManager } from './ai-provider-manager';
@@ -11,6 +11,18 @@ export interface SystemVitals {
   batteryPercent: number;
   isCharging: boolean;
   cpuPercent: number;
+  topProcess?: string;
+  topProcessMemMb?: number;
+}
+
+export interface JarvisVisionDiagnosis {
+  app: string;
+  state: 'error' | 'warning' | 'working' | 'idle';
+  headline: string;
+  insight: string;
+  actionLabel?: string;
+  actionPayload?: string;
+  spokenText?: string;
 }
 
 export class SystemDiagnosticsManager {
@@ -20,11 +32,12 @@ export class SystemDiagnosticsManager {
   private lastBatteryWarnLevel: number | null = null;
   private highRamStreak = 0;
   private aiManager: AIProviderManager | null = null;
+  private isAnalyzingScreen = false;
 
   constructor(aiManager?: AIProviderManager) {
     this.aiManager = aiManager || null;
     this.setupIPC();
-    this.registerVisionShortcut();
+    this.registerShortcuts();
     this.startMonitoring();
   }
 
@@ -37,63 +50,220 @@ export class SystemDiagnosticsManager {
       return this.optimizeMemory();
     });
 
+    ipcMain.handle('diagnostics:clean-junk', async () => {
+      return this.cleanJunkFiles();
+    });
+
     ipcMain.handle('diagnostics:analyze-screen', async (event, customPrompt?: string) => {
-      return this.analyzeCurrentScreen(customPrompt, event.sender);
+      return this.triggerJarvisScreenVision(customPrompt);
+    });
+
+    ipcMain.on('diagnostics:action', async (_event, payload: { actionId: string }) => {
+      await this.handleAction(payload?.actionId || '');
     });
   }
 
-  private registerVisionShortcut(): void {
+  private registerShortcuts(): void {
     try {
-      // Global shortcut Alt+S triggers instant autonomous screen vision analysis
+      // Global shortcut Alt+S triggers instant autonomous JARVIS screen vision
       globalShortcut.register('Alt+S', () => {
-        this.triggerAutonomousScreenAnalysis();
+        this.triggerJarvisScreenVision();
+      });
+
+      // Global shortcut Alt+J triggers JARVIS voice / assistant pulse
+      globalShortcut.register('Alt+J', () => {
+        this.triggerJarvisVoiceAssist();
       });
     } catch (err) {
-      console.warn('[Diagnostics] Could not register Alt+S shortcut:', err);
+      console.warn('[Diagnostics] Could not register global shortcuts:', err);
     }
   }
 
-  public async triggerAutonomousScreenAnalysis(customPrompt?: string): Promise<void> {
-    const windows = BrowserWindow.getAllWindows();
-    const islandWin = windows.find(w => !w.isDestroyed());
-    if (!islandWin) return;
+  public async handleAction(actionId: string): Promise<void> {
+    if (!actionId) return;
 
-    // 1. Expand Island and focus Chat
-    islandWin.webContents.send('island:toggle-expand', true);
-    islandWin.webContents.send('island:switch-tab', 'chat');
-
-    // 2. Perform screen analysis
-    await this.analyzeCurrentScreen(customPrompt, islandWin.webContents);
+    if (actionId === 'opt_ram') {
+      await this.optimizeMemory();
+    } else if (actionId.startsWith('copy:')) {
+      const payload = actionId.slice(5);
+      clipboard.writeText(payload);
+      this.broadcastNotification({
+        id: 'jarvis-copied-' + Date.now(),
+        title: 'Copied to Clipboard',
+        body: payload.slice(0, 70) + (payload.length > 70 ? '...' : ''),
+        kind: 'done',
+        durationMs: 3500
+      });
+    } else if (actionId.startsWith('speak:')) {
+      const speech = actionId.slice(6);
+      if (this.aiManager) {
+        await this.aiManager.speakTTS(speech);
+      }
+    } else if (actionId === 'clean_junk') {
+      await this.cleanJunkFiles();
+    } else if (actionId.startsWith('kill:')) {
+      const targetProc = actionId.slice(5);
+      await this.terminateProcess(targetProc);
+    } else if (actionId === 'open_chat') {
+      const windows = BrowserWindow.getAllWindows();
+      const islandWin = windows.find(w => !w.isDestroyed());
+      if (islandWin) {
+        islandWin.webContents.send('island:toggle-expand', true);
+        islandWin.webContents.send('island:switch-tab', 'chat');
+      }
+    }
   }
 
-  public async analyzeCurrentScreen(customPrompt?: string, senderWebContents?: Electron.WebContents): Promise<{ success: boolean; error?: string }> {
+  /**
+   * Autonomous JARVIS Screen Vision:
+   * 1. Captures full screen silently.
+   * 2. Shows sleek scanning pill on the Island.
+   * 3. Analyzes workflow and errors using Gemini 3 Flash.
+   * 4. Speaks insight aloud and displays interactive 1-click action buttons on the Island.
+   */
+  public async triggerJarvisScreenVision(customPrompt?: string): Promise<{ success: boolean; error?: string }> {
+    if (this.isAnalyzingScreen) {
+      return { success: false, error: 'Vision analysis already in progress' };
+    }
     if (!this.aiManager) {
       return { success: false, error: 'AI Manager not available' };
     }
 
+    this.isAnalyzingScreen = true;
+
+    // 1. Show scanning pill on Dynamic Island
+    this.broadcastNotification({
+      id: 'jarvis-scan',
+      title: 'JARVIS Vision Scanning',
+      body: 'Observing active desktop workflow and code...',
+      kind: 'terminal',
+      durationMs: 10000
+    });
+
     try {
-      const captureResult = await this.aiManager.captureScreen(senderWebContents);
+      // 2. Capture desktop screenshot
+      const captureResult = await this.aiManager.captureScreen();
       if (!captureResult.success || !captureResult.dataUrl) {
-        return { success: false, error: captureResult.error || 'Failed to capture screen' };
+        throw new Error(captureResult.error || 'Failed to capture screen');
       }
 
-      const promptText = customPrompt || 'Analyze my screen: detect the active application, identify any errors, bugs, or code issues, and provide concise, helpful recommendations.';
+      // 3. Query Gemini Vision with autonomous JARVIS instructions
+      const systemInstruction = customPrompt || `You are JARVIS, an autonomous intelligent desktop system running on Gaurav's laptop.
+Observe this full desktop screenshot. Identify what application is active (e.g. VS Code, Chrome, Terminal, PowerShell, Settings) and what Gaurav is working on.
+Check for any:
+- Code errors, syntax issues, exceptions, or failing tests
+- Terminal or build command errors
+- Stalled progress or confusing documentation
+- Opportunities to optimize or automate what Gaurav is doing
 
-      // Dispatch screen vision prompt directly to Island Chat UI
-      const windows = BrowserWindow.getAllWindows();
-      for (const win of windows) {
-        if (!win.isDestroyed()) {
-          win.webContents.send('chat:inject-vision-query', {
-            prompt: promptText,
-            dataUrl: captureResult.dataUrl
+Respond with ONLY a raw JSON object (no markdown backticks, no text outside JSON):
+{
+  "app": "Application Name (e.g. VS Code, Chrome, Terminal)",
+  "state": "error" | "warning" | "working" | "idle",
+  "headline": "Short title under 28 chars (e.g. 'TypeScript Error Line 42')",
+  "insight": "1 clear, concise sentence explaining the root cause or workflow insight",
+  "actionLabel": "Short button label (e.g. 'Copy Fix', 'Run Build', 'Free RAM')",
+  "actionPayload": "Exact code fix or terminal command to copy/execute if applicable, else empty string",
+  "spokenText": "1 natural sentence for JARVIS to speak aloud via laptop speakers"
+}`;
+
+      let geminiOutput = '';
+      await this.aiManager.streamPrompt(
+        'gemini',
+        systemInstruction,
+        'gemini-3-flash-preview',
+        (chunk) => {
+          geminiOutput += chunk;
+        },
+        undefined,
+        'jarvis-vision-' + Date.now(),
+        captureResult.dataUrl
+      );
+
+      // 4. Parse the structured diagnosis
+      let diagnosis: JarvisVisionDiagnosis | null = null;
+      try {
+        const jsonMatch = geminiOutput.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          diagnosis = JSON.parse(jsonMatch[0]);
+        }
+      } catch (parseErr) {
+        console.warn('[Diagnostics] Could not parse vision JSON, using raw text fallback');
+      }
+
+      if (diagnosis) {
+        // Build actions array for the Island notification
+        const actions: Array<{ id: string; label: string; primary?: boolean }> = [];
+        if (diagnosis.actionPayload && diagnosis.actionPayload.trim().length > 0) {
+          actions.push({
+            id: 'copy:' + diagnosis.actionPayload.trim(),
+            label: diagnosis.actionLabel || 'Copy Fix',
+            primary: true
           });
+        }
+        if (diagnosis.spokenText) {
+          actions.push({
+            id: 'speak:' + diagnosis.spokenText,
+            label: 'Speak',
+            primary: false
+          });
+        }
+
+        // Display interactive JARVIS notification on Dynamic Island
+        this.broadcastNotification({
+          id: 'jarvis-insight-' + Date.now(),
+          title: diagnosis.headline || `${diagnosis.app} Insight`,
+          body: diagnosis.insight || 'Screen analyzed successfully.',
+          kind: diagnosis.state === 'error' ? 'error' : (diagnosis.state === 'warning' ? 'warn' : 'done'),
+          durationMs: 14000,
+          actions
+        });
+
+        // Speak aloud via TTS so the user hears JARVIS without looking at the chat
+        if (diagnosis.spokenText && this.aiManager) {
+          this.aiManager.speakTTS(diagnosis.spokenText).catch(() => {});
+        }
+      } else {
+        // Fallback for unstructured reply
+        const firstLine = geminiOutput.split('\n').filter(l => l.trim().length > 0)[0] || 'Screen analyzed.';
+        this.broadcastNotification({
+          id: 'jarvis-insight-' + Date.now(),
+          title: 'JARVIS Screen Insight',
+          body: firstLine.slice(0, 100),
+          kind: 'info',
+          durationMs: 8000
+        });
+        if (this.aiManager) {
+          this.aiManager.speakTTS(firstLine).catch(() => {});
         }
       }
 
       return { success: true };
     } catch (err: any) {
-      return { success: false, error: err.message || 'Vision analysis failed' };
+      console.error('[Diagnostics] Vision analysis error:', err);
+      this.broadcastNotification({
+        id: 'jarvis-err-' + Date.now(),
+        title: 'JARVIS Vision Error',
+        body: err.message ? err.message.slice(0, 80) : 'Could not analyze screen',
+        kind: 'error',
+        durationMs: 5000
+      });
+      return { success: false, error: err.message };
+    } finally {
+      this.isAnalyzingScreen = false;
     }
+  }
+
+  public async triggerJarvisVoiceAssist(): Promise<void> {
+    if (!this.aiManager) return;
+    this.broadcastNotification({
+      id: 'jarvis-voice-' + Date.now(),
+      title: 'JARVIS Assistant',
+      body: 'Listening for voice command... (Press Win+H to dictate)',
+      kind: 'terminal',
+      durationMs: 4000
+    });
+    await this.aiManager.speakTTS('JARVIS online. Press Windows plus H to speak.');
   }
 
   public async sampleVitals(): Promise<SystemVitals> {
@@ -104,12 +274,20 @@ export class SystemDiagnosticsManager {
 
     let batteryPercent = 100;
     let isCharging = true;
+    let topProcess = '';
+    let topProcessMemMb = 0;
 
     if (process.platform === 'win32') {
       try {
         const batteryInfo = await this.queryWindowsBattery();
         batteryPercent = batteryInfo.percent;
         isCharging = batteryInfo.charging;
+      } catch {}
+
+      try {
+        const topMem = await this.queryTopMemoryProcess();
+        topProcess = topMem.name;
+        topProcessMemMb = topMem.memMb;
       } catch {}
     }
 
@@ -120,8 +298,31 @@ export class SystemDiagnosticsManager {
       memPercent,
       batteryPercent,
       isCharging,
-      cpuPercent: 0
+      cpuPercent: 0,
+      topProcess,
+      topProcessMemMb
     };
+  }
+
+  private queryTopMemoryProcess(): Promise<{ name: string; memMb: number }> {
+    return new Promise((resolve) => {
+      const cmd = `powershell -NoProfile -NonInteractive -Command "Get-Process | Sort-Object WorkingSet64 -Descending | Select-Object -First 1 ProcessName, @{Name='Mem';Expression={[math]::Round($_.WorkingSet64/1MB)}} | ConvertTo-Json"`;
+      exec(cmd, (err, stdout) => {
+        if (err || !stdout) {
+          resolve({ name: '', memMb: 0 });
+          return;
+        }
+        try {
+          const data = JSON.parse(stdout);
+          resolve({
+            name: String(data.ProcessName || ''),
+            memMb: Number(data.Mem || 0)
+          });
+        } catch {
+          resolve({ name: '', memMb: 0 });
+        }
+      });
+    });
   }
 
   private queryWindowsBattery(): Promise<{ percent: number; charging: boolean }> {
@@ -134,7 +335,6 @@ export class SystemDiagnosticsManager {
         try {
           const data = JSON.parse(stdout);
           const percent = Number(data.EstimatedChargeRemaining) || 100;
-          // BatteryStatus: 2 = Unknown/AC, 3 = Fully Charged, 6 = Charging, 1 = Discharging
           const status = Number(data.BatteryStatus) || 2;
           const charging = status === 2 || status === 3 || status === 6;
           resolve({ percent, charging });
@@ -148,14 +348,12 @@ export class SystemDiagnosticsManager {
   public async optimizeMemory(): Promise<{ success: boolean; freedMb: number }> {
     const beforeFree = os.freemem();
 
-    // 1. Trigger V8 garbage collection if available
     try {
       if (global.gc) {
         global.gc();
       }
     } catch {}
 
-    // 2. Win32 EmptyWorkingSet on current processes via PowerShell
     if (process.platform === 'win32') {
       await new Promise<void>((resolve) => {
         exec('powershell -NoProfile -Command "[System.GC]::Collect(); [System.GC]::WaitForPendingFinalizers()"', () => {
@@ -167,7 +365,6 @@ export class SystemDiagnosticsManager {
     const afterFree = os.freemem();
     const freedMb = Math.max(0, Math.round((afterFree - beforeFree) / (1024 * 1024)));
 
-    // Notify user via Dynamic Island
     this.broadcastNotification({
       id: 'ram-optimized-' + Date.now(),
       title: 'RAM Optimized',
@@ -179,28 +376,63 @@ export class SystemDiagnosticsManager {
     return { success: true, freedMb };
   }
 
+  public async cleanJunkFiles(): Promise<{ success: boolean }> {
+    if (process.platform === 'win32') {
+      await new Promise<void>((resolve) => {
+        exec('powershell -NoProfile -Command "Remove-Item -Path \"$env:TEMP\\*\" -Recurse -Force -ErrorAction SilentlyContinue; Clear-DnsClientCache -ErrorAction SilentlyContinue"', () => {
+          resolve();
+        });
+      });
+    }
+
+    this.broadcastNotification({
+      id: 'junk-cleaned-' + Date.now(),
+      title: 'Junk Files Purged',
+      body: 'Cleaned Windows temporary directory and flushed DNS caches.',
+      kind: 'done',
+      durationMs: 4000
+    });
+
+    return { success: true };
+  }
+
+  private async terminateProcess(procName: string): Promise<void> {
+    if (!procName) return;
+    const cleanName = procName.replace(/[^a-zA-Z0-9_\-\.]/g, '');
+    exec(`powershell -NoProfile -Command "Stop-Process -Name '${cleanName}' -Force -ErrorAction SilentlyContinue"`, () => {
+      this.broadcastNotification({
+        id: 'proc-killed-' + Date.now(),
+        title: 'Process Terminated',
+        body: `Terminated process ${cleanName}.`,
+        kind: 'done',
+        durationMs: 3500
+      });
+    });
+  }
+
   public startMonitoring(): void {
     if (this.timer) return;
 
-    // Check every 10 seconds (ultra-low CPU impact, < 0.05%)
+    // Check every 12 seconds
     this.timer = setInterval(async () => {
       try {
         const vitals = await this.sampleVitals();
 
-        // 1. RAM Stress Diagnostic (Trigger if > 88% memory used for 2 consecutive cycles)
-        if (vitals.memPercent >= 88) {
+        // 1. Memory Pressure Sentinel
+        if (vitals.memPercent >= 86) {
           this.highRamStreak++;
           const now = Date.now();
           if (this.highRamStreak >= 2 && now - this.lastAlertTime > 120000) {
             this.lastAlertTime = now;
+            const topProcDetail = vitals.topProcess ? ` (${vitals.topProcess}: ${vitals.topProcessMemMb}MB)` : '';
             this.broadcastNotification({
               id: 'diag-ram-' + now,
               title: `High RAM Usage (${vitals.memPercent}%)`,
-              body: 'Memory pressure detected. Click Optimize to free background caches.',
+              body: `System memory pressure detected${topProcDetail}. Click Free RAM to optimize.`,
               kind: 'warn',
-              durationMs: 7000,
+              durationMs: 8000,
               actions: [
-                { id: 'opt_ram', label: 'Optimize RAM', primary: true }
+                { id: 'opt_ram', label: 'Free RAM', primary: true }
               ]
             });
           }
@@ -230,7 +462,7 @@ export class SystemDiagnosticsManager {
         }
         this.lastChargingState = vitals.isCharging;
 
-        // 3. Low Battery Warnings (20% and 10%)
+        // 3. Low Battery Warnings
         if (!vitals.isCharging) {
           if (vitals.batteryPercent <= 20 && this.lastBatteryWarnLevel !== 20 && vitals.batteryPercent > 10) {
             this.lastBatteryWarnLevel = 20;
@@ -255,7 +487,7 @@ export class SystemDiagnosticsManager {
           this.lastBatteryWarnLevel = null;
         }
       } catch {}
-    }, 10000);
+    }, 12000);
   }
 
   private broadcastNotification(payload: any): void {
@@ -274,6 +506,7 @@ export class SystemDiagnosticsManager {
     }
     try {
       globalShortcut.unregister('Alt+S');
+      globalShortcut.unregister('Alt+J');
     } catch {}
   }
 }

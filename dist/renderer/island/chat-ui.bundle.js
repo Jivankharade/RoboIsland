@@ -750,7 +750,7 @@
         });
       }
       window.addEventListener("keydown", (e) => {
-        if (e.ctrlKey && e.shiftKey && (e.key === "S" || e.key === "s") || e.altKey && (e.key === "S" || e.key === "s")) {
+        if (e.ctrlKey && e.shiftKey && (e.key === "S" || e.key === "s")) {
           e.preventDefault();
           this.triggerScreenCapture();
         }

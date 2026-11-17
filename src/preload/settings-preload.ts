@@ -51,5 +51,7 @@ contextBridge.exposeInMainWorld('settingsApi', {
   saveAICredential: (provider: string, apiKey: string, baseUrl?: string, model?: string) =>
     ipcRenderer.invoke('ai-chat:save-credential', { provider, apiKey, baseUrl, model }),
   getAICredentialStatus: () => ipcRenderer.invoke('ai-chat:get-status'),
-  optimizeMemory: () => ipcRenderer.invoke('diagnostics:optimize-memory')
+  optimizeMemory: () => ipcRenderer.invoke('diagnostics:optimize-memory'),
+  cleanJunkFiles: () => ipcRenderer.invoke('diagnostics:clean-junk'),
+  analyzeScreen: () => ipcRenderer.invoke('diagnostics:analyze-screen')
 });

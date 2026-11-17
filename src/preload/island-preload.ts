@@ -267,7 +267,11 @@ const api = {
   getLicenseStatus: () => ipcRenderer.invoke('license:get-status'),
   getSystemVitals: () => ipcRenderer.invoke('diagnostics:get-vitals'),
   optimizeMemory: () => ipcRenderer.invoke('diagnostics:optimize-memory'),
+  cleanJunkFiles: () => ipcRenderer.invoke('diagnostics:clean-junk'),
   analyzeScreen: (customPrompt?: string) => ipcRenderer.invoke('diagnostics:analyze-screen', customPrompt),
+  dispatchDiagnosticsAction: (actionId: string) => {
+    ipcRenderer.send('diagnostics:action', { actionId });
+  },
   onVisionQuery: (callback: (data: { prompt: string; dataUrl: string }) => void) => {
     const handler = (_event: any, data: any) => callback(data);
     ipcRenderer.on('chat:inject-vision-query', handler);

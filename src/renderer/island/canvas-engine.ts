@@ -4049,6 +4049,8 @@ export class CanvasEngine {
             const actionId = key.replace('action_', '');
             if (actionId === 'opt_ram' && (window.roboIsland as any)?.optimizeMemory) {
               (window.roboIsland as any).optimizeMemory();
+            } else if ((window.roboIsland as any)?.dispatchDiagnosticsAction) {
+              (window.roboIsland as any).dispatchDiagnosticsAction(actionId);
             }
             this.clearNotification();
             return;

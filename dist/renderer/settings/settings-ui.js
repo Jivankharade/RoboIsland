@@ -1224,6 +1224,22 @@
           if (btnTestSpeedometer) btnTestSpeedometer.textContent = "Test Speedometer HUD";
         }, 1500);
       });
+      const btnTestJarvisVision = document.getElementById("btn-test-jarvis-vision");
+      btnTestJarvisVision?.addEventListener("click", () => {
+        window.settingsApi?.analyzeScreen?.();
+        btnTestJarvisVision.textContent = "Scanning...";
+        setTimeout(() => {
+          if (btnTestJarvisVision) btnTestJarvisVision.textContent = "Trigger JARVIS Vision (Alt+S)";
+        }, 3e3);
+      });
+      const btnTestJarvisClean = document.getElementById("btn-test-jarvis-clean");
+      btnTestJarvisClean?.addEventListener("click", () => {
+        window.settingsApi?.cleanJunkFiles?.();
+        btnTestJarvisClean.textContent = "Purged!";
+        setTimeout(() => {
+          if (btnTestJarvisClean) btnTestJarvisClean.textContent = "Purge Junk & DNS";
+        }, 1500);
+      });
       const guardText = document.getElementById("guard-blocked-list");
       document.querySelectorAll(".guard-chip").forEach((chip) => {
         chip.addEventListener("click", () => {
