@@ -226,27 +226,35 @@ export class AutonomousActionAgent {
       return null;
     }
 
-    const cleaned = text.replace(/^(?:please\s+)?(?:open\s+(?:whats\s*app|wa)\s*(?:and\s+)?|go\s+to\s+whatsapp\s+and\s+)/i, '').trim();
+    // Clean leading phrases and trailing "on whatsapp" / "on whats app"
+    let cleaned = text
+      .replace(/^(?:please\s+)?(?:open\s+(?:whats\s*app|wa)\s*(?:and\s+)?|go\s+to\s+whatsapp\s+and\s+)/i, '')
+      .replace(/\s+(?:on|in|via|through)\s+whats?\s*app\s*$/i, '')
+      .trim();
 
-    const m1 = cleaned.match(/^send\s+(?:a\s+)?message\s+to\s+([A-Za-z0-9\s]+?)(?:\s+(?:on\s+whatsapp\s+)?(?:saying|that|with\s+text|say)\s+)(.+)$/i);
+    // Pattern 1: send (a )?message to <contact> (saying|that|with text|say) <message>
+    const m1 = cleaned.match(/^send\s+(?:a\s+)?message\s+to\s+([A-Za-z0-9\s]+?)(?:\s+(?:saying|that|with\s+text|say)\s+)(.+)$/i);
     if (m1) {
       return { contact: m1[1].trim(), message: m1[2].trim() };
     }
 
-    const m2 = cleaned.match(/^send\s+(?:a\s+)?(?:message\s+)?["']?(.+?)["']?\s+to\s+([A-Za-z0-9\s]+?)(?:\s+on\s+whatsapp)?$/i);
+    // Pattern 2: send <message> (message)? to <contact>
+    const m2 = cleaned.match(/^send\s+(?:a\s+)?(?:message\s+)?["']?(.+?)["']?\s+to\s+([A-Za-z0-9\s]+?)$/i);
     if (m2) {
       let msg = m2[1].replace(/^(?:saying|message)\s+/i, '').replace(/\s+message$/i, '').trim();
-      let contact = m2[2].replace(/\s+on\s+whatsapp$/i, '').trim();
+      let contact = m2[2].trim();
       if (contact && msg) {
         return { contact, message: msg };
       }
     }
 
-    const m3 = cleaned.match(/^tell\s+([A-Za-z0-9\s]+?)\s+(?:on\s+whatsapp\s+)?(?:that\s+)?(.+)$/i);
-    if (m3 && lower.includes('whatsapp')) {
+    // Pattern 3: tell <contact> (that )?<message>
+    const m3 = cleaned.match(/^tell\s+([A-Za-z0-9\s]+?)\s+(?:that\s+)?(.+)$/i);
+    if (m3 && (lower.includes('whatsapp') || lower.includes('whats app'))) {
       return { contact: m3[1].trim(), message: m3[2].trim() };
     }
 
+    // Pattern 4: whatsapp <contact> <message>
     const m4 = cleaned.match(/^(?:whatsapp|wa|msg)\s+([A-Za-z0-9\s]+?)\s+["']?([A-Za-z0-9].+?)["']?$/i);
     if (m4) {
       return { contact: m4[1].trim(), message: m4[2].trim() };

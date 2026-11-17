@@ -74,9 +74,11 @@ if ($Autonomous -or ($Contact -and -not $Phone)) {
   if ($Contact) {
     Set-Clipboard -Value $Contact.Trim()
     [System.Windows.Forms.SendKeys]::SendWait("^v")
-    Start-Sleep -Milliseconds 700
+    Start-Sleep -Milliseconds 800
 
-    # 5. Press Enter to select the contact and open their chat
+    # 5. Highlight first matching contact and press Enter to open chat
+    [System.Windows.Forms.SendKeys]::SendWait("{DOWN}")
+    Start-Sleep -Milliseconds 150
     [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
     Start-Sleep -Milliseconds 500
   }
@@ -85,7 +87,7 @@ if ($Autonomous -or ($Contact -and -not $Phone)) {
   $msg = if ($Text) { $Text.Trim() } else { "Hi" }
   Set-Clipboard -Value $msg
   [System.Windows.Forms.SendKeys]::SendWait("^v")
-  Start-Sleep -Milliseconds 200
+  Start-Sleep -Milliseconds 250
 
   # 7. Press Enter to send!
   [WhatsAppSenderNative]::SendEnter()
