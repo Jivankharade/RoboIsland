@@ -497,6 +497,8 @@ export class ChatUI {
     this.restoreMessages();
     if (this.currentProvider === 'ollama') {
       this.refreshOllamaModels();
+    } else if (this.currentProvider === 'gemini') {
+      this.setupGeminiModels();
     }
   }
 
@@ -634,6 +636,22 @@ export class ChatUI {
     }
   }
 
+  private setupGeminiModels(): void {
+    const modelSelect = document.getElementById('chat-model-select') as HTMLSelectElement;
+    if (modelSelect) {
+      modelSelect.classList.remove('hidden');
+      if (!this.currentModel || ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro'].includes(this.currentModel)) {
+        this.currentModel = 'gemini-3.8-flash';
+      }
+      modelSelect.innerHTML = `
+        <option value="gemini-3.8-flash" ${this.currentModel === 'gemini-3.8-flash' ? 'selected' : ''}>Gemini 3.8 Flash (Fast Free)</option>
+        <option value="gemini-flash-latest" ${this.currentModel === 'gemini-flash-latest' ? 'selected' : ''}>Gemini Flash Latest</option>
+        <option value="gemini-3-flash-preview" ${this.currentModel === 'gemini-3-flash-preview' ? 'selected' : ''}>Gemini 3 Flash Preview</option>
+      `;
+      this.saveState();
+    }
+  }
+
   private async refreshOllamaModels(): Promise<void> {
     const modelSelect = document.getElementById('chat-model-select') as HTMLSelectElement;
     if (!modelSelect) return;
@@ -703,15 +721,7 @@ export class ChatUI {
         e.stopPropagation();
         this.currentProvider = providerSelect.value as any;
         if (this.currentProvider === 'gemini') {
-          if (modelSelect) {
-            modelSelect.classList.remove('hidden');
-            modelSelect.innerHTML = `
-              <option value="gemini-1.5-flash">Gemini 1.5 Flash (Fast Free)</option>
-              <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
-              <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
-            `;
-            this.currentModel = 'gemini-1.5-flash';
-          }
+          this.setupGeminiModels();
         } else if (this.currentProvider === 'ollama') {
           if (modelSelect) modelSelect.classList.remove('hidden');
           this.refreshOllamaModels();

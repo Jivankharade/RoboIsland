@@ -372,7 +372,10 @@ export class AIProviderManager {
     }
 
     const endpoint = `${baseUrl}/chat/completions`;
-    const model = requestedModel || cred?.model || (provider === 'openai' ? 'gpt-4o' : (provider === 'gemini' ? 'gemini-1.5-flash' : (provider === 'ollama' ? 'llama3:latest' : 'llama3')));
+    let model = requestedModel || cred?.model || (provider === 'openai' ? 'gpt-4o' : (provider === 'gemini' ? 'gemini-3.8-flash' : (provider === 'ollama' ? 'llama3:latest' : 'llama3')));
+    if (provider === 'gemini' && (!model || model === 'gemini-1.5-flash' || model === 'gemini-2.0-flash')) {
+      model = 'gemini-3.8-flash';
+    }
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json'
