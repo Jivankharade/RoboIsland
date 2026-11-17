@@ -47,6 +47,7 @@ const productivity_engine_1 = require("./productivity-engine");
 const config_store_1 = require("./config-store");
 const ai_provider_manager_1 = require("./ai-provider-manager");
 const system_diagnostics_1 = require("./system-diagnostics");
+const action_agent_1 = require("./action-agent");
 const weather_service_1 = require("./weather-service");
 const system_metrics_1 = require("./system-metrics");
 const game_mode_1 = require("./game-mode");
@@ -84,6 +85,7 @@ let productivityEngine = null;
 let aiProviderManager = null;
 let downloadMonitor = null;
 let diagnosticsManager = null;
+let actionAgent = null;
 electron_1.app.whenReady().then(() => {
     // Initialize config & startup
     startup_manager_1.StartupManager.init();
@@ -122,8 +124,9 @@ electron_1.app.whenReady().then(() => {
     buddyManager = new buddy_manager_1.BuddyManager();
     productivityEngine = new productivity_engine_1.ProductivityEngine();
     aiProviderManager = new ai_provider_manager_1.AIProviderManager();
-    (0, ai_provider_manager_1.registerAIProviderIPC)(aiProviderManager);
     diagnosticsManager = new system_diagnostics_1.SystemDiagnosticsManager(aiProviderManager);
+    actionAgent = new action_agent_1.AutonomousActionAgent(aiProviderManager, diagnosticsManager);
+    (0, ai_provider_manager_1.registerAIProviderIPC)(aiProviderManager, actionAgent);
     // Create System Tray
     trayManager = new tray_manager_1.TrayManager(islandWindow, () => {
         openSettingsWindow();

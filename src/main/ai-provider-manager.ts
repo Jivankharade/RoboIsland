@@ -751,7 +751,7 @@ try {
 /**
  * Register Main Process IPC Handlers for AI Chat.
  */
-export function registerAIProviderIPC(manager: AIProviderManager): void {
+export function registerAIProviderIPC(manager: AIProviderManager, actionAgent?: any): void {
   ipcMain.handle('ai-chat:capture-screen', async (event) => {
     return manager.captureScreen(event.sender);
   });
@@ -759,6 +759,23 @@ export function registerAIProviderIPC(manager: AIProviderManager): void {
   ipcMain.handle('ai-chat:send-prompt', async (event, args: { provider: AIProvider; prompt: string; model?: string; imageData?: string }) => {
     const { provider, prompt, model, imageData } = args || {};
     const win = BrowserWindow.fromWebContents(event.sender);
+
+    // Autonomous Agent Action Interceptor (Zero-click execution on Windows)
+    if (actionAgent && !imageData && typeof actionAgent.processCommand === 'function') {
+      try {
+        const actionResult = await actionAgent.processCommand(prompt);
+        if (actionResult && actionResult.isAction) {
+          const reply = actionResult.replyText || 'Task executed successfully.';
+          if (win && !win.isDestroyed()) {
+            win.webContents.send('ai-chat:chunk', reply);
+            win.webContents.send('ai-chat:done');
+          }
+          return reply;
+        }
+      } catch (err: any) {
+        console.warn('[AIProviderManager] Action agent interceptor error:', err);
+      }
+    }
 
     let result = '';
     await manager.streamPrompt(
