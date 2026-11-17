@@ -4046,6 +4046,10 @@ export class CanvasEngine {
             return;
           }
           if (key.startsWith('action_')) {
+            const actionId = key.replace('action_', '');
+            if (actionId === 'opt_ram' && (window.roboIsland as any)?.optimizeMemory) {
+              (window.roboIsland as any).optimizeMemory();
+            }
             this.clearNotification();
             return;
           }

@@ -482,7 +482,7 @@ function injectChatStyles(): void {
 export class ChatUI {
   private static instance: ChatUI | null = null;
   private messages: ChatMessage[] = [];
-  private currentProvider: 'openai' | 'anthropic' | 'custom' | 'ollama' = 'openai';
+  private currentProvider: 'openai' | 'anthropic' | 'custom' | 'ollama' | 'gemini' = 'gemini';
   private currentModel = '';
   private ttsEnabled = false;
   private isStreaming = false;
@@ -514,7 +514,7 @@ export class ChatUI {
   private loadState(): void {
     try {
       const savedProvider = localStorage.getItem('roboisland_chat_provider') as any;
-      if (savedProvider && ['openai', 'anthropic', 'custom', 'ollama'].includes(savedProvider)) {
+      if (savedProvider && ['openai', 'anthropic', 'custom', 'ollama', 'gemini'].includes(savedProvider)) {
         this.currentProvider = savedProvider;
       }
       this.currentModel = localStorage.getItem('roboisland_chat_model') || '';
@@ -552,9 +552,10 @@ export class ChatUI {
       actionsWrapper.className = 'chat-header-actions';
       actionsWrapper.innerHTML = `
         <select id="chat-provider-select" class="chat-provider-select" title="AI Provider">
+          <option value="gemini" ${this.currentProvider === 'gemini' ? 'selected' : ''}>Google Gemini (Free Flash)</option>
+          <option value="ollama" ${this.currentProvider === 'ollama' ? 'selected' : ''}>Ollama (Local Offline)</option>
           <option value="openai" ${this.currentProvider === 'openai' ? 'selected' : ''}>OpenAI (GPT-4o)</option>
           <option value="anthropic" ${this.currentProvider === 'anthropic' ? 'selected' : ''}>Claude (3.5 Sonnet)</option>
-          <option value="ollama" ${this.currentProvider === 'ollama' ? 'selected' : ''}>Ollama (Local Offline)</option>
           <option value="custom" ${this.currentProvider === 'custom' ? 'selected' : ''}>Custom API</option>
         </select>
         <select id="chat-model-select" class="chat-model-select ${this.currentProvider === 'ollama' ? '' : 'hidden'}" title="Model Select">
@@ -701,7 +702,17 @@ export class ChatUI {
       providerSelect.addEventListener('change', (e) => {
         e.stopPropagation();
         this.currentProvider = providerSelect.value as any;
-        if (this.currentProvider === 'ollama') {
+        if (this.currentProvider === 'gemini') {
+          if (modelSelect) {
+            modelSelect.classList.remove('hidden');
+            modelSelect.innerHTML = `
+              <option value="gemini-1.5-flash">Gemini 1.5 Flash (Fast Free)</option>
+              <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+              <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+            `;
+            this.currentModel = 'gemini-1.5-flash';
+          }
+        } else if (this.currentProvider === 'ollama') {
           if (modelSelect) modelSelect.classList.remove('hidden');
           this.refreshOllamaModels();
         } else {
@@ -850,13 +861,28 @@ export class ChatUI {
       });
     }
 
-    // Hotkey: Ctrl+Shift+S triggers screen capture glance
+    // Hotkey: Ctrl+Shift+S or Alt+S triggers screen capture glance
     window.addEventListener('keydown', (e) => {
-      if (e.ctrlKey && e.shiftKey && (e.key === 'S' || e.key === 's')) {
+      if ((e.ctrlKey && e.shiftKey && (e.key === 'S' || e.key === 's')) || (e.altKey && (e.key === 'S' || e.key === 's'))) {
         e.preventDefault();
         this.triggerScreenCapture();
       }
     });
+
+    if ((window.roboIsland as any)?.onVisionQuery) {
+      (window.roboIsland as any).onVisionQuery((data: { prompt: string; dataUrl: string }) => {
+        if (data.dataUrl) {
+          this.pendingImageData = data.dataUrl;
+          const attachBar = document.getElementById('chat-attachment-bar');
+          const thumb = document.getElementById('chat-attachment-thumb') as HTMLImageElement | null;
+          if (attachBar && thumb) {
+            thumb.src = data.dataUrl;
+            attachBar.classList.remove('hidden');
+          }
+        }
+        this.handleSendMessage(data.prompt, data.dataUrl);
+      });
+    }
 
     // 7. Event delegation for Code Block "Copy Code" buttons & message click isolation
     const messagesContainer = document.getElementById('chat-messages');

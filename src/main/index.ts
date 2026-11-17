@@ -11,6 +11,7 @@ import { BuddyManager } from './buddy-manager';
 import { ProductivityEngine } from './productivity-engine';
 import { configStore } from './config-store';
 import { AIProviderManager, registerAIProviderIPC } from './ai-provider-manager';
+import { SystemDiagnosticsManager } from './system-diagnostics';
 import { weatherService } from './weather-service';
 import { systemMetricsEngine } from './system-metrics';
 import { gameModeManager } from './game-mode';
@@ -53,6 +54,7 @@ let buddyManager: BuddyManager | null = null;
 let productivityEngine: ProductivityEngine | null = null;
 let aiProviderManager: AIProviderManager | null = null;
 let downloadMonitor: DownloadMonitor | null = null;
+let diagnosticsManager: SystemDiagnosticsManager | null = null;
 
 app.whenReady().then(() => {
   // Initialize config & startup
@@ -95,6 +97,7 @@ app.whenReady().then(() => {
   productivityEngine = new ProductivityEngine();
   aiProviderManager = new AIProviderManager();
   registerAIProviderIPC(aiProviderManager);
+  diagnosticsManager = new SystemDiagnosticsManager(aiProviderManager);
 
   // Create System Tray
   trayManager = new TrayManager(islandWindow, () => {
@@ -356,6 +359,7 @@ app.on('will-quit', () => {
   productivityEngine?.dispose();
   downloadMonitor?.dispose();
   aiProviderManager?.abortStream();
+  diagnosticsManager?.dispose();
   weatherService.dispose();
   systemMetricsEngine.dispose();
   gameModeManager.dispose();

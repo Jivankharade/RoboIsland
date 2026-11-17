@@ -267,7 +267,8 @@ class AIProviderManager {
             openai: Boolean(creds.openai && creds.openai.apiKey && creds.openai.apiKey.length > 0),
             anthropic: Boolean(creds.anthropic && creds.anthropic.apiKey && creds.anthropic.apiKey.length > 0),
             custom: Boolean(creds.custom && (creds.custom.baseUrl || creds.custom.apiKey)),
-            ollama: true
+            ollama: true,
+            gemini: Boolean(creds.gemini && creds.gemini.apiKey && creds.gemini.apiKey.length > 0)
         };
     }
     async getOllamaModels() {
@@ -315,7 +316,7 @@ class AIProviderManager {
             if (provider === 'anthropic') {
                 await this.streamAnthropic(cred, prompt, model, chunkEmitter, controller.signal, imageData);
             }
-            else if (provider === 'openai' || provider === 'custom' || provider === 'ollama') {
+            else if (provider === 'openai' || provider === 'custom' || provider === 'ollama' || provider === 'gemini') {
                 await this.streamOpenAICompatible(provider, cred, prompt, model, chunkEmitter, controller.signal, imageData);
             }
             else {
@@ -350,6 +351,9 @@ class AIProviderManager {
             if (provider === 'openai') {
                 baseUrl = 'https://api.openai.com/v1';
             }
+            else if (provider === 'gemini') {
+                baseUrl = 'https://generativelanguage.googleapis.com/v1beta/openai';
+            }
             else if (provider === 'ollama') {
                 baseUrl = 'http://127.0.0.1:11434/v1';
             }
@@ -362,8 +366,12 @@ class AIProviderManager {
             onChunk('No API key configured for OpenAI. Please configure your API key in Settings.');
             return;
         }
+        if (provider === 'gemini' && !apiKey) {
+            onChunk('No API key configured for Google Gemini. Please paste your free Gemini API key in Settings (get one at aistudio.google.com).');
+            return;
+        }
         const endpoint = `${baseUrl}/chat/completions`;
-        const model = requestedModel || cred?.model || (provider === 'openai' ? 'gpt-4o' : (provider === 'ollama' ? 'llama3:latest' : 'llama3'));
+        const model = requestedModel || cred?.model || (provider === 'openai' ? 'gpt-4o' : (provider === 'gemini' ? 'gemini-1.5-flash' : (provider === 'ollama' ? 'llama3:latest' : 'llama3')));
         const headers = {
             'Content-Type': 'application/json'
         };

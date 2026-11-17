@@ -264,7 +264,15 @@ const api = {
   },
   snoozeDistraction: (minutes?: number) => ipcRenderer.invoke('focus:emergency-override', minutes),
   minimizeDistraction: (pid?: number) => ipcRenderer.invoke('focus:minimize', pid),
-  getLicenseStatus: () => ipcRenderer.invoke('license:get-status')
+  getLicenseStatus: () => ipcRenderer.invoke('license:get-status'),
+  getSystemVitals: () => ipcRenderer.invoke('diagnostics:get-vitals'),
+  optimizeMemory: () => ipcRenderer.invoke('diagnostics:optimize-memory'),
+  analyzeScreen: (customPrompt?: string) => ipcRenderer.invoke('diagnostics:analyze-screen', customPrompt),
+  onVisionQuery: (callback: (data: { prompt: string; dataUrl: string }) => void) => {
+    const handler = (_event: any, data: any) => callback(data);
+    ipcRenderer.on('chat:inject-vision-query', handler);
+    return () => ipcRenderer.removeListener('chat:inject-vision-query', handler);
+  }
 };
 
 if (process.contextIsolated) {

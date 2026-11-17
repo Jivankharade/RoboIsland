@@ -46,6 +46,7 @@ const buddy_manager_1 = require("./buddy-manager");
 const productivity_engine_1 = require("./productivity-engine");
 const config_store_1 = require("./config-store");
 const ai_provider_manager_1 = require("./ai-provider-manager");
+const system_diagnostics_1 = require("./system-diagnostics");
 const weather_service_1 = require("./weather-service");
 const system_metrics_1 = require("./system-metrics");
 const game_mode_1 = require("./game-mode");
@@ -82,6 +83,7 @@ let buddyManager = null;
 let productivityEngine = null;
 let aiProviderManager = null;
 let downloadMonitor = null;
+let diagnosticsManager = null;
 electron_1.app.whenReady().then(() => {
     // Initialize config & startup
     startup_manager_1.StartupManager.init();
@@ -121,6 +123,7 @@ electron_1.app.whenReady().then(() => {
     productivityEngine = new productivity_engine_1.ProductivityEngine();
     aiProviderManager = new ai_provider_manager_1.AIProviderManager();
     (0, ai_provider_manager_1.registerAIProviderIPC)(aiProviderManager);
+    diagnosticsManager = new system_diagnostics_1.SystemDiagnosticsManager(aiProviderManager);
     // Create System Tray
     trayManager = new tray_manager_1.TrayManager(islandWindow, () => {
         openSettingsWindow();
@@ -357,6 +360,7 @@ electron_1.app.on('will-quit', () => {
     productivityEngine?.dispose();
     downloadMonitor?.dispose();
     aiProviderManager?.abortStream();
+    diagnosticsManager?.dispose();
     weather_service_1.weatherService.dispose();
     system_metrics_1.systemMetricsEngine.dispose();
     game_mode_1.gameModeManager.dispose();

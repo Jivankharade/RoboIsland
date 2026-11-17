@@ -42,5 +42,9 @@ electron_1.contextBridge.exposeInMainWorld('settingsApi', {
     // Pro Licensing & Owner Creator Hub
     getLicenseStatus: () => electron_1.ipcRenderer.invoke('license:get-status'),
     activateLicense: (key) => electron_1.ipcRenderer.invoke('license:activate', key),
-    generateCustomerKey: (customer) => electron_1.ipcRenderer.invoke('license:generate-key', customer)
+    generateCustomerKey: (customer) => electron_1.ipcRenderer.invoke('license:generate-key', customer),
+    // AI & Autonomous Diagnostics
+    saveAICredential: (provider, apiKey, baseUrl, model) => electron_1.ipcRenderer.invoke('ai-chat:save-credential', { provider, apiKey, baseUrl, model }),
+    getAICredentialStatus: () => electron_1.ipcRenderer.invoke('ai-chat:get-status'),
+    optimizeMemory: () => electron_1.ipcRenderer.invoke('diagnostics:optimize-memory')
 });

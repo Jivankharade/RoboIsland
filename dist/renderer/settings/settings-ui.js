@@ -590,9 +590,54 @@
       }
       const aiProviderSelect = document.getElementById("ai-provider-select");
       if (aiProviderSelect) {
-        aiProviderSelect.value = this.config.aiProvider || "claude";
+        aiProviderSelect.value = this.config.aiProvider || "gemini";
         aiProviderSelect.addEventListener("change", () => {
           this.saveConfig({ aiProvider: aiProviderSelect.value });
+        });
+      }
+      const geminiKeyInput = document.getElementById("gemini-api-key");
+      if (geminiKeyInput) {
+        geminiKeyInput.value = this.config.geminiApiKey || "";
+        const saveGeminiKey = () => {
+          const key = geminiKeyInput.value.trim();
+          this.saveConfig({ geminiApiKey: key });
+          if (window.settingsApi?.saveAICredential && key) {
+            window.settingsApi.saveAICredential("gemini", key, "https://generativelanguage.googleapis.com/v1beta/openai", "gemini-1.5-flash");
+          }
+        };
+        geminiKeyInput.addEventListener("change", saveGeminiKey);
+        geminiKeyInput.addEventListener("blur", saveGeminiKey);
+        const toggleGeminiBtn = document.getElementById("btn-toggle-gemini-visibility");
+        toggleGeminiBtn?.addEventListener("click", () => {
+          const isPass = geminiKeyInput.type === "password";
+          geminiKeyInput.type = isPass ? "text" : "password";
+          toggleGeminiBtn.textContent = isPass ? "Hide" : "Show";
+        });
+        const verifyGeminiBtn = document.getElementById("btn-test-gemini");
+        verifyGeminiBtn?.addEventListener("click", async () => {
+          const key = geminiKeyInput.value.trim();
+          if (!key) {
+            verifyGeminiBtn.textContent = "Enter Key";
+            setTimeout(() => {
+              if (verifyGeminiBtn) verifyGeminiBtn.textContent = "Verify";
+            }, 1500);
+            return;
+          }
+          verifyGeminiBtn.textContent = "Checking...";
+          try {
+            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
+            if (res.ok) {
+              verifyGeminiBtn.textContent = "Verified!";
+              saveGeminiKey();
+            } else {
+              verifyGeminiBtn.textContent = "Invalid Key";
+            }
+          } catch {
+            verifyGeminiBtn.textContent = "Net Error";
+          }
+          setTimeout(() => {
+            if (verifyGeminiBtn) verifyGeminiBtn.textContent = "Verify";
+          }, 2e3);
         });
       }
       const aiApiKeyInput = document.getElementById("ai-api-key");

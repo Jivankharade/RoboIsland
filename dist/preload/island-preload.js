@@ -248,7 +248,15 @@ const api = {
     },
     snoozeDistraction: (minutes) => electron_1.ipcRenderer.invoke('focus:emergency-override', minutes),
     minimizeDistraction: (pid) => electron_1.ipcRenderer.invoke('focus:minimize', pid),
-    getLicenseStatus: () => electron_1.ipcRenderer.invoke('license:get-status')
+    getLicenseStatus: () => electron_1.ipcRenderer.invoke('license:get-status'),
+    getSystemVitals: () => electron_1.ipcRenderer.invoke('diagnostics:get-vitals'),
+    optimizeMemory: () => electron_1.ipcRenderer.invoke('diagnostics:optimize-memory'),
+    analyzeScreen: (customPrompt) => electron_1.ipcRenderer.invoke('diagnostics:analyze-screen', customPrompt),
+    onVisionQuery: (callback) => {
+        const handler = (_event, data) => callback(data);
+        electron_1.ipcRenderer.on('chat:inject-vision-query', handler);
+        return () => electron_1.ipcRenderer.removeListener('chat:inject-vision-query', handler);
+    }
 };
 if (process.contextIsolated) {
     electron_1.contextBridge.exposeInMainWorld('roboIsland', api);

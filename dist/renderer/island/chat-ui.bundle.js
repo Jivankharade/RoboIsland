@@ -409,7 +409,7 @@
   var ChatUI = class _ChatUI {
     static instance = null;
     messages = [];
-    currentProvider = "openai";
+    currentProvider = "gemini";
     currentModel = "";
     ttsEnabled = false;
     isStreaming = false;
@@ -437,7 +437,7 @@
     loadState() {
       try {
         const savedProvider = localStorage.getItem("roboisland_chat_provider");
-        if (savedProvider && ["openai", "anthropic", "custom", "ollama"].includes(savedProvider)) {
+        if (savedProvider && ["openai", "anthropic", "custom", "ollama", "gemini"].includes(savedProvider)) {
           this.currentProvider = savedProvider;
         }
         this.currentModel = localStorage.getItem("roboisland_chat_model") || "";
@@ -470,9 +470,10 @@
         actionsWrapper.className = "chat-header-actions";
         actionsWrapper.innerHTML = `
         <select id="chat-provider-select" class="chat-provider-select" title="AI Provider">
+          <option value="gemini" ${this.currentProvider === "gemini" ? "selected" : ""}>Google Gemini (Free Flash)</option>
+          <option value="ollama" ${this.currentProvider === "ollama" ? "selected" : ""}>Ollama (Local Offline)</option>
           <option value="openai" ${this.currentProvider === "openai" ? "selected" : ""}>OpenAI (GPT-4o)</option>
           <option value="anthropic" ${this.currentProvider === "anthropic" ? "selected" : ""}>Claude (3.5 Sonnet)</option>
-          <option value="ollama" ${this.currentProvider === "ollama" ? "selected" : ""}>Ollama (Local Offline)</option>
           <option value="custom" ${this.currentProvider === "custom" ? "selected" : ""}>Custom API</option>
         </select>
         <select id="chat-model-select" class="chat-model-select ${this.currentProvider === "ollama" ? "" : "hidden"}" title="Model Select">
@@ -599,7 +600,17 @@
         providerSelect.addEventListener("change", (e) => {
           e.stopPropagation();
           this.currentProvider = providerSelect.value;
-          if (this.currentProvider === "ollama") {
+          if (this.currentProvider === "gemini") {
+            if (modelSelect) {
+              modelSelect.classList.remove("hidden");
+              modelSelect.innerHTML = `
+              <option value="gemini-1.5-flash">Gemini 1.5 Flash (Fast Free)</option>
+              <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+              <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+            `;
+              this.currentModel = "gemini-1.5-flash";
+            }
+          } else if (this.currentProvider === "ollama") {
             if (modelSelect) modelSelect.classList.remove("hidden");
             this.refreshOllamaModels();
           } else {
@@ -729,11 +740,25 @@
         });
       }
       window.addEventListener("keydown", (e) => {
-        if (e.ctrlKey && e.shiftKey && (e.key === "S" || e.key === "s")) {
+        if (e.ctrlKey && e.shiftKey && (e.key === "S" || e.key === "s") || e.altKey && (e.key === "S" || e.key === "s")) {
           e.preventDefault();
           this.triggerScreenCapture();
         }
       });
+      if (window.roboIsland?.onVisionQuery) {
+        window.roboIsland.onVisionQuery((data) => {
+          if (data.dataUrl) {
+            this.pendingImageData = data.dataUrl;
+            const attachBar = document.getElementById("chat-attachment-bar");
+            const thumb = document.getElementById("chat-attachment-thumb");
+            if (attachBar && thumb) {
+              thumb.src = data.dataUrl;
+              attachBar.classList.remove("hidden");
+            }
+          }
+          this.handleSendMessage(data.prompt, data.dataUrl);
+        });
+      }
       const messagesContainer = document.getElementById("chat-messages");
       if (messagesContainer) {
         messagesContainer.addEventListener("click", (e) => {

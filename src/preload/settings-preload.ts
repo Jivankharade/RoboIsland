@@ -45,5 +45,11 @@ contextBridge.exposeInMainWorld('settingsApi', {
   // Pro Licensing & Owner Creator Hub
   getLicenseStatus: () => ipcRenderer.invoke('license:get-status'),
   activateLicense: (key: string) => ipcRenderer.invoke('license:activate', key),
-  generateCustomerKey: (customer: string) => ipcRenderer.invoke('license:generate-key', customer)
+  generateCustomerKey: (customer: string) => ipcRenderer.invoke('license:generate-key', customer),
+
+  // AI & Autonomous Diagnostics
+  saveAICredential: (provider: string, apiKey: string, baseUrl?: string, model?: string) =>
+    ipcRenderer.invoke('ai-chat:save-credential', { provider, apiKey, baseUrl, model }),
+  getAICredentialStatus: () => ipcRenderer.invoke('ai-chat:get-status'),
+  optimizeMemory: () => ipcRenderer.invoke('diagnostics:optimize-memory')
 });
