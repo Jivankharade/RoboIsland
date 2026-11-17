@@ -183,12 +183,7 @@ Respond with ONLY valid JSON:
 
     // 1. First trigger WhatsApp desktop app via protocol
     try {
-      if (targetContact) {
-        // Try searching contact or sending via protocol
-        shell.openExternal(`whatsapp://send?text=${encodeURIComponent(msg)}`);
-      } else {
-        shell.openExternal(`whatsapp://send?text=${encodeURIComponent(msg)}`);
-      }
+      this.safeOpenExternal(`whatsapp://send?text=${encodeURIComponent(msg)}`);
     } catch {}
 
     // 2. Also invoke native Win32 background helper if WhatsApp is running
@@ -209,7 +204,7 @@ Respond with ONLY valid JSON:
   }
 
   private async executeCallWhatsApp(contact?: string): Promise<void> {
-    shell.openExternal('whatsapp://');
+    this.safeOpenExternal('whatsapp://');
     this.notifyIsland({
       id: 'wa-call-' + Date.now(),
       title: 'WhatsApp Call',
@@ -224,7 +219,7 @@ Respond with ONLY valid JSON:
     if (!target.startsWith('http://') && !target.startsWith('https://')) {
       target = 'https://' + target;
     }
-    shell.openExternal(target);
+    this.safeOpenExternal(target);
 
     this.notifyIsland({
       id: 'open-url-' + Date.now(),
@@ -254,10 +249,10 @@ Respond with ONLY valid JSON:
     } else if (name.includes('spotify')) {
       cmd = 'start spotify';
     } else if (name.includes('whatsapp')) {
-      shell.openExternal('whatsapp://');
+      this.safeOpenExternal('whatsapp://');
       return;
     } else if (name.includes('settings')) {
-      shell.openExternal('ms-settings:');
+      this.safeOpenExternal('ms-settings:');
       return;
     } else if (name.includes('task') && name.includes('manager')) {
       cmd = 'taskmgr';
@@ -315,7 +310,7 @@ Keep the entire summary under 4 short bullet points. Also provide a 1-sentence s
       );
 
       // Copy summary to clipboard for instant pasting
-      clipboard.writeText(summaryOutput);
+      this.safeWriteClipboard(summaryOutput);
 
       const firstLine = summaryOutput.split('\n').filter(l => l.trim().length > 0)[0] || 'Desktop summarized.';
       this.notifyIsland({
@@ -341,12 +336,38 @@ Keep the entire summary under 4 short bullet points. Also provide a 1-sentence s
     }
   }
 
-  private notifyIsland(payload: any): void {
-    const windows = BrowserWindow.getAllWindows();
-    for (const win of windows) {
-      if (!win.isDestroyed()) {
-        win.webContents.send('island:notify', payload);
+  private safeOpenExternal(targetUrl: string): void {
+    try {
+      if (shell && typeof shell.openExternal === 'function') {
+        shell.openExternal(targetUrl).catch(() => {
+          exec(`start "" "${targetUrl}"`);
+        });
+      } else {
+        exec(`start "" "${targetUrl}"`);
       }
+    } catch {
+      exec(`start "" "${targetUrl}"`);
     }
+  }
+
+  private safeWriteClipboard(text: string): void {
+    try {
+      if (clipboard && typeof clipboard.writeText === 'function') {
+        clipboard.writeText(text);
+      }
+    } catch {}
+  }
+
+  private notifyIsland(payload: any): void {
+    try {
+      if (BrowserWindow && typeof BrowserWindow.getAllWindows === 'function') {
+        const windows = BrowserWindow.getAllWindows();
+        for (const win of windows) {
+          if (!win.isDestroyed()) {
+            win.webContents.send('island:notify', payload);
+          }
+        }
+      }
+    } catch {}
   }
 }
