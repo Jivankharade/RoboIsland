@@ -371,9 +371,9 @@ class AIProviderManager {
             return;
         }
         const endpoint = `${baseUrl}/chat/completions`;
-        let model = requestedModel || cred?.model || (provider === 'openai' ? 'gpt-4o' : (provider === 'gemini' ? 'gemini-3.8-flash' : (provider === 'ollama' ? 'llama3:latest' : 'llama3')));
+        let model = requestedModel || cred?.model || (provider === 'openai' ? 'gpt-4o' : (provider === 'gemini' ? 'gemini-3-flash-preview' : (provider === 'ollama' ? 'llama3:latest' : 'llama3')));
         if (provider === 'gemini' && (!model || model === 'gemini-1.5-flash' || model === 'gemini-2.0-flash')) {
-            model = 'gemini-3.8-flash';
+            model = 'gemini-3-flash-preview';
         }
         const headers = {
             'Content-Type': 'application/json'
@@ -407,19 +407,57 @@ class AIProviderManager {
             ],
             stream: true
         };
-        const response = await fetch(endpoint, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(payload),
-            signal
-        });
-        if (!response.ok) {
-            let errBody = '';
+        const candidateModels = provider === 'gemini'
+            ? Array.from(new Set([
+                model,
+                'gemini-3-flash-preview',
+                'gemini-3.1-flash-lite-preview',
+                'gemini-3.8-flash',
+                'gemini-flash-latest'
+            ]))
+            : [model];
+        let response = null;
+        let lastError = null;
+        for (let i = 0; i < candidateModels.length; i++) {
+            const currentModel = candidateModels[i];
+            payload.model = currentModel;
             try {
-                errBody = await response.text();
+                const res = await fetch(endpoint, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify(payload),
+                    signal
+                });
+                if (res.ok) {
+                    response = res;
+                    break;
+                }
+                let errBody = '';
+                try {
+                    errBody = await res.text();
+                }
+                catch { }
+                lastError = new Error(`HTTP ${res.status} ${res.statusText}${errBody ? `: ${errBody.slice(0, 150)}` : ''}`);
+                // If 503 (high demand) or 429 or 500, attempt failover to next candidate model
+                if ((res.status === 503 || res.status === 429 || res.status >= 500) && i < candidateModels.length - 1) {
+                    console.warn(`[AIProviderManager] Model ${currentModel} returned ${res.status}. Failing over to ${candidateModels[i + 1]}...`);
+                    await new Promise((r) => setTimeout(r, 600));
+                    continue;
+                }
+                throw lastError;
             }
-            catch { }
-            throw new Error(`HTTP ${response.status} ${response.statusText}${errBody ? `: ${errBody.slice(0, 150)}` : ''}`);
+            catch (err) {
+                if (signal.aborted)
+                    throw err;
+                lastError = err;
+                if (i < candidateModels.length - 1) {
+                    continue;
+                }
+                throw lastError;
+            }
+        }
+        if (!response || !response.ok) {
+            throw lastError || new Error('All model attempts failed');
         }
         if (!response.body) {
             throw new Error('Response body is null');

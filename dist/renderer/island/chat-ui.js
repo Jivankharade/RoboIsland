@@ -612,13 +612,14 @@ class ChatUI {
         const modelSelect = document.getElementById('chat-model-select');
         if (modelSelect) {
             modelSelect.classList.remove('hidden');
-            if (!this.currentModel || ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro'].includes(this.currentModel)) {
-                this.currentModel = 'gemini-3.8-flash';
+            if (!this.currentModel || ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-3.8-flash'].includes(this.currentModel)) {
+                this.currentModel = 'gemini-3-flash-preview';
             }
             modelSelect.innerHTML = `
-        <option value="gemini-3.8-flash" ${this.currentModel === 'gemini-3.8-flash' ? 'selected' : ''}>Gemini 3.8 Flash (Fast Free)</option>
+        <option value="gemini-3-flash-preview" ${this.currentModel === 'gemini-3-flash-preview' ? 'selected' : ''}>Gemini 3 Flash (High Availability)</option>
+        <option value="gemini-3.1-flash-lite-preview" ${this.currentModel === 'gemini-3.1-flash-lite-preview' ? 'selected' : ''}>Gemini 3.1 Flash-Lite (Fastest)</option>
+        <option value="gemini-3.8-flash" ${this.currentModel === 'gemini-3.8-flash' ? 'selected' : ''}>Gemini 3.8 Flash</option>
         <option value="gemini-flash-latest" ${this.currentModel === 'gemini-flash-latest' ? 'selected' : ''}>Gemini Flash Latest</option>
-        <option value="gemini-3-flash-preview" ${this.currentModel === 'gemini-3-flash-preview' ? 'selected' : ''}>Gemini 3 Flash Preview</option>
       `;
             this.saveState();
         }
