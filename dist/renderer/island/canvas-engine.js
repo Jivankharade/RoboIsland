@@ -6179,6 +6179,7 @@ class CanvasEngine {
                             ? (isHovered ? '#e5e5ea' : '#ffffff')
                             : (isHovered ? '#3a3a3c' : '#2c2c2e');
                 this.ctx.fill();
+                this.ctx.clip();
                 this.ctx.font = btnFont;
                 this.ctx.fillStyle = (isAnswer || isDecline) ? '#ffffff' : (isPrimary ? '#000000' : '#ffffff');
                 this.ctx.textAlign = 'center';

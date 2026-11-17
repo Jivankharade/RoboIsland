@@ -12,6 +12,46 @@ export interface AgentActionResponse {
   displayBody?: string;
 }
 
+/** JARVIS system prompt for intent classification */
+const JARVIS_SYSTEM = `You are JARVIS, the autonomous OS action agent for Gaurav's Windows laptop.
+Translate the user's request into a SINGLE executable system action JSON object.
+
+Available actions (choose the BEST match):
+- send_whatsapp:    params: { contact: string, message: string }
+- call_whatsapp:    params: { contact?: string }
+- open_url:         params: { url: string, targetName?: string }
+- launch_app:       params: { app: string }
+- search_web:       params: { query: string }
+- play_youtube:     params: { query: string }
+- open_file:        params: { path?: string }
+- summarize_screen: params: {}
+- fix_screen_bug:   params: {}
+- take_screenshot:  params: {}
+- optimize_ram:     params: {}
+- clean_junk:       params: {}
+- set_volume:       params: { level: number }  (0-100)
+- mute_audio:       params: {}
+- open_settings:    params: { page?: string }
+- lock_screen:      params: {}
+- shutdown:         params: {}
+- restart:          params: {}
+- chat_reply:       params: { text: string }  (use ONLY if no system action fits)
+
+Rules:
+- Prefer a specific action over chat_reply whenever possible
+- Extract contact name & message for WhatsApp commands
+- For YouTube/music, use play_youtube; for general web, use open_url
+- For app names, use launch_app
+
+Respond with ONLY valid JSON (no markdown, no extra text):
+{
+  "action": "<action>",
+  "params": {},
+  "spokenConfirmation": "Short natural JARVIS response to speak aloud",
+  "displayHeadline": "Under 22 chars",
+  "displayBody": "Under 60 chars"
+}`;
+
 export class AutonomousActionAgent {
   private aiManager: AIProviderManager;
   private diagnostics: SystemDiagnosticsManager;
@@ -29,44 +69,140 @@ export class AutonomousActionAgent {
     const input = (rawInput || '').trim();
     if (!input) return { isAction: false };
 
-    // 1. Fast-path regex checks for instant local actions without API roundtrip
     const lower = input.toLowerCase();
 
-    // YouTube direct open
-    if (/^(open|play|launch)\s+youtube/i.test(lower)) {
-      const queryMatch = lower.replace(/^(open|play|launch)\s+youtube\s*(and\s*play|and\s*search)?/i, '').trim();
-      const targetUrl = queryMatch
-        ? `https://www.youtube.com/results?search_query=${encodeURIComponent(queryMatch)}`
+    // ─── FAST-PATH REGEX (zero API calls, instant execution) ─────────────────
+
+    // YouTube
+    const ytMatch = lower.match(/^(?:open|play|launch|search|find)\s+youtube(?:\s+(?:and\s+(?:play|search))?\s*(.+))?$/i)
+      || input.match(/^(?:play|search)\s+(.+?)\s+on\s+youtube$/i);
+    if (ytMatch || /youtube\.com/.test(lower)) {
+      const q = (ytMatch?.[1] || '').trim();
+      const url = q
+        ? `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`
         : 'https://www.youtube.com';
-      await this.executeOpenUrl(targetUrl, 'YouTube');
-      return { isAction: true, replyText: 'Opening YouTube for you now.' };
+      await this.executeOpenUrl(url, 'YouTube');
+      return { isAction: true, replyText: q ? `Searching YouTube for "${q}".` : 'Opening YouTube.' };
     }
 
-    // Direct Screen Summary
-    if (/^(summarise|summarize|read)\s*(my|the)?\s*screen/i.test(lower) || lower === 'summarise' || lower === 'summarize') {
+    // WhatsApp SEND — highest priority
+    const waSendMatch = input.match(/(?:send|message|msg|text|whatsapp)\s+(?:a\s+)?(?:message\s+)?(?:to\s+)?([A-Za-z]+)(?:\s+(?:saying?|that|on\s+whatsapp)?)?\s+["""']?(.+?)["""']?$/i)
+      || input.match(/(?:send|message|msg)\s+["""'](.+?)["""']\s+to\s+([A-Za-z]+)/i)
+      || input.match(/(?:whatsapp|wa)\s+([A-Za-z]+)\s+["""']?(.+)["""']?/i);
+    if (waSendMatch || /(send|message|msg|text)\s+(.*?)\s+(on\s+)?whatsapp/i.test(lower)) {
+      let contact = '';
+      let message = 'Hi';
+      if (waSendMatch) {
+        contact = waSendMatch[1] || waSendMatch[2] || '';
+        message = waSendMatch[2] || waSendMatch[1] || 'Hi';
+        // Fix if contact is likely the message
+        if (contact.split(' ').length > 2) { [contact, message] = [message, contact]; }
+      }
+      // Better extraction using NLP-style rules
+      const contactMatch = input.match(/(?:to|for)\s+([A-Za-z][a-z]+(?:\s+[A-Z][a-z]+)?)/i);
+      const msgMatch = input.match(/(?:say(?:ing)?|message(?:\s+saying)?|that|text)\s+["""']?(.+?)["""']?$/i);
+      if (contactMatch) contact = contactMatch[1];
+      if (msgMatch) message = msgMatch[1];
+      await this.executeSendWhatsApp(contact, message);
+      return { isAction: true, replyText: `Sending "${message}" to ${contact || 'your contact'} on WhatsApp.` };
+    }
+
+    // WhatsApp CALL
+    if (/(call|ring|dial)\s+(.+?)\s+(?:on\s+)?(?:whatsapp|wa)/i.test(lower) || /(whatsapp|wa)\s+call\s+(.+)/i.test(lower)) {
+      const callMatch = lower.match(/(?:call|ring|dial)\s+(.+?)\s+(?:on\s+)?(?:whatsapp|wa)/i)
+        || lower.match(/(?:whatsapp|wa)\s+call\s+(.+)/i);
+      await this.executeCallWhatsApp(callMatch?.[1]?.trim());
+      return { isAction: true, replyText: `Calling ${callMatch?.[1] || 'contact'} on WhatsApp.` };
+    }
+
+    // Open WhatsApp (plain)
+    if (/^(?:open|launch|start)\s+whatsapp$/i.test(lower)) {
+      this.safeOpenExternal('whatsapp://');
+      this.notifyIsland({ id: 'wa-open', title: 'WhatsApp', body: 'Opening WhatsApp Desktop...', kind: 'whatsapp', durationMs: 3000 });
+      return { isAction: true, replyText: 'Opening WhatsApp.' };
+    }
+
+    // Screen Summarize
+    if (/(?:summar(?:ise|ize)|read|analyze|analyse|describe)\s+(?:my\s+)?(?:the\s+)?screen/i.test(lower) || lower === 'summarise' || lower === 'summarize') {
       await this.executeSummarizeScreen();
       return { isAction: true, replyText: 'Analyzing your screen now.' };
     }
 
-    // Direct RAM Optimization
-    if (/^(free|optimize|clean|clear)\s*(the\s*)?(ram|memory)/i.test(lower)) {
+    // RAM/Memory Optimize
+    if (/(?:free|optimize|clean|clear|boost)\s+(?:the\s+)?(?:ram|memory|mem)/i.test(lower)) {
       await this.diagnostics.optimizeMemory();
-      return { isAction: true, replyText: 'Memory optimized successfully.' };
+      return { isAction: true, replyText: 'Memory optimized.' };
     }
 
-    // Direct Junk Cleanup
-    if (/^(clean|purge|delete|clear)\s*(laptop\s*|system\s*)?(junk|temp|cache)/i.test(lower)) {
+    // Junk Cleanup
+    if (/(?:clean|purge|delete|clear|wipe)\s+(?:laptop\s+|system\s+|my\s+)?(?:junk|temp|cache|trash|garbage)/i.test(lower)
+      || /(?:clean|optimize|speed\s+up)\s+(?:my\s+)?(?:laptop|pc|computer|system)$/i.test(lower)) {
       await this.diagnostics.cleanJunkFiles();
-      return { isAction: true, replyText: 'Temporary junk files cleaned.' };
+      return { isAction: true, replyText: 'Junk files purged. Your laptop is cleaner.' };
     }
 
-    // 2. Comprehensive AI Action Intent Parser using Gemini
+    // Lock screen
+    if (/^(?:lock|lock\s+(?:my\s+)?(?:screen|computer|pc|laptop))$/i.test(lower)) {
+      exec('rundll32.exe user32.dll,LockWorkStation');
+      return { isAction: true, replyText: 'Locking your screen.' };
+    }
+
+    // Screenshot
+    if (/^(?:take|capture|grab)\s+(?:a\s+)?screenshot$/i.test(lower)) {
+      exec('powershell -command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait(\'%{PRTSC}\')"');
+      this.notifyIsland({ id: 'ss', title: 'Screenshot', body: 'Screenshot copied to clipboard.', kind: 'done', durationMs: 3000 });
+      return { isAction: true, replyText: 'Screenshot captured.' };
+    }
+
+    // Volume control
+    const volMatch = lower.match(/(?:set\s+)?(?:volume|vol)\s+(?:to\s+)?(\d{1,3})(?:\s*%)?/i);
+    if (volMatch) {
+      const level = Math.min(100, Math.max(0, parseInt(volMatch[1])));
+      const nircmd = `nircmd setsysvolume ${Math.round(level / 100 * 65535)}`;
+      exec(nircmd, () => {});
+      exec(`powershell -c "[Audio]::Volume = ${level / 100}"`, () => {});
+      return { isAction: true, replyText: `Volume set to ${level}%.` };
+    }
+    if (/^(?:mute|silence|quiet)(?:\s+(?:audio|sound|volume))?$/i.test(lower)) {
+      exec('nircmd mutesysvolume 1', () => {});
+      exec('powershell -c "(New-Object -com WScript.Shell).SendKeys([char]173)"', () => {});
+      return { isAction: true, replyText: 'Audio muted.' };
+    }
+
+    // App launches (Chrome, Edge, Notepad, Calculator, Spotify, VSCode, Terminal, Explorer, Settings)
+    const appLaunchMatch = lower.match(/^(?:open|launch|start|run)\s+(.+)$/i);
+    if (appLaunchMatch) {
+      const appName = appLaunchMatch[1].trim();
+      const handled = await this.tryLaunchNamedApp(appName);
+      if (handled) return { isAction: true, replyText: `Opening ${appName}.` };
+    }
+
+    // Web search
+    const webSearchMatch = input.match(/^(?:search|google|look\s+up|find)\s+(.+?)(?:\s+on(?:\s+the\s+web|\s+google))?$/i);
+    if (webSearchMatch) {
+      const q = webSearchMatch[1].trim();
+      await this.executeOpenUrl(`https://www.google.com/search?q=${encodeURIComponent(q)}`, 'Google Search');
+      return { isAction: true, replyText: `Searching Google for "${q}".` };
+    }
+
+    // Settings
+    if (/^(?:open|show)\s+(?:windows\s+)?settings/i.test(lower)) {
+      this.safeOpenExternal('ms-settings:');
+      return { isAction: true, replyText: 'Opening Windows Settings.' };
+    }
+
+    // Task Manager
+    if (/(?:open|launch|show)\s+task\s+manager/i.test(lower)) {
+      exec('taskmgr', () => {});
+      return { isAction: true, replyText: 'Opening Task Manager.' };
+    }
+
+    // ─── GEMINI AI INTENT PARSER (fallback for complex commands) ─────────────
     try {
       const intent = await this.parseIntentWithGemini(input);
       if (!intent || intent.action === 'chat_reply') {
         return { isAction: false };
       }
-
       await this.dispatchAction(intent);
       return { isAction: true, replyText: intent.spokenConfirmation || 'Action executed.' };
     } catch (err: any) {
@@ -76,46 +212,134 @@ export class AutonomousActionAgent {
   }
 
   private async parseIntentWithGemini(userPrompt: string): Promise<AgentActionResponse | null> {
-    const systemInstruction = `You are JARVIS, the autonomous OS action agent for Gaurav's Windows laptop.
-Translate the user's request into a single executable system action.
-Available actions:
-1. 'send_whatsapp': params: { contact: string, message: string }
-2. 'call_whatsapp': params: { contact?: string }
-3. 'open_url': params: { url: string, targetName?: string }
-4. 'launch_app': params: { app: string }
-5. 'summarize_screen': params: {}
-6. 'fix_screen_bug': params: {}
-7. 'optimize_ram': params: {}
-8. 'clean_junk': params: {}
-9. 'chat_reply': params: { text: string } (use only if no system action or task is requested)
-
-Respond with ONLY valid JSON:
-{
-  "action": "send_whatsapp" | "call_whatsapp" | "open_url" | "launch_app" | "summarize_screen" | "fix_screen_bug" | "optimize_ram" | "clean_junk" | "chat_reply",
-  "params": {},
-  "spokenConfirmation": "Short natural sentence for JARVIS to speak aloud via speakers",
-  "displayHeadline": "Under 22 chars title for Dynamic Island (e.g. 'Opening YouTube')",
-  "displayBody": "Under 60 chars description (e.g. 'Playing songs on YouTube')"
-}`;
-
     let responseText = '';
-    await this.aiManager.streamPrompt(
+
+    // Use streamWithSystem so JARVIS instruction is NOT overridden by the default "You are Robo…" system message
+    await (this.aiManager as any).streamWithSystem(
+      JARVIS_SYSTEM,
       'gemini',
       userPrompt,
       'gemini-3-flash-preview',
-      (chunk) => { responseText += chunk; },
+      (chunk: string) => { responseText += chunk; },
       undefined,
-      'intent-parser-' + Date.now()
+      'jarvis-intent-' + Date.now()
     );
 
-    const match = responseText.match(/\{[\s\S]*\}/);
+    // Extract first valid JSON block
+    const match = responseText.match(/\{[\s\S]*?\}/);
     if (!match) return null;
 
     try {
       return JSON.parse(match[0]) as AgentActionResponse;
     } catch {
+      // Try to extract from ```json block
+      const jsonBlock = responseText.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+      if (jsonBlock) {
+        try { return JSON.parse(jsonBlock[1]) as AgentActionResponse; } catch {}
+      }
       return null;
     }
+  }
+
+  /**
+   * Try to launch a named app. Returns true if the app name was recognized and launched.
+   */
+  private async tryLaunchNamedApp(appName: string): Promise<boolean> {
+    const name = appName.toLowerCase().trim();
+
+    const appMap: Record<string, string> = {
+      chrome: 'start chrome',
+      'google chrome': 'start chrome',
+      edge: 'start msedge',
+      'microsoft edge': 'start msedge',
+      firefox: 'start firefox',
+      notepad: 'notepad',
+      'notepad++': 'start notepadplusplus',
+      calculator: 'calc',
+      calc: 'calc',
+      terminal: 'start wt.exe || powershell',
+      powershell: 'start powershell',
+      cmd: 'start cmd',
+      'command prompt': 'start cmd',
+      spotify: 'start spotify',
+      discord: 'start discord',
+      slack: 'start slack',
+      zoom: 'start zoom',
+      teams: 'start teams',
+      'microsoft teams': 'start teams',
+      paint: 'mspaint',
+      'ms paint': 'mspaint',
+      word: 'start winword',
+      excel: 'start excel',
+      powerpoint: 'start powerpnt',
+      outlook: 'start outlook',
+      explorer: 'explorer',
+      'file explorer': 'explorer',
+      files: 'explorer',
+      camera: 'start microsoft.windows.camera:',
+      photos: 'start ms-photos:',
+      store: 'start ms-windows-store:',
+      'windows store': 'start ms-windows-store:',
+      clock: 'start ms-clock:',
+      maps: 'start bingmaps:',
+      mail: 'start outlookmail:',
+    };
+
+    // VS Code special
+    if (name.includes('code') || name.includes('vs code') || name.includes('vscode') || name.includes('visual studio code')) {
+      exec('code', () => {});
+      this.notifyIsland({ id: 'app-vscode', title: 'VS Code', body: 'Opening Visual Studio Code...', kind: 'terminal', durationMs: 3000 });
+      return true;
+    }
+
+    // WhatsApp
+    if (name.includes('whatsapp') || name === 'wa') {
+      this.safeOpenExternal('whatsapp://');
+      this.notifyIsland({ id: 'app-wa', title: 'WhatsApp', body: 'Opening WhatsApp Desktop...', kind: 'whatsapp', durationMs: 3000 });
+      return true;
+    }
+
+    // Task Manager
+    if (name.includes('task manager') || name === 'taskmgr') {
+      exec('taskmgr', () => {});
+      return true;
+    }
+
+    // Settings
+    if (name === 'settings' || name === 'windows settings') {
+      this.safeOpenExternal('ms-settings:');
+      return true;
+    }
+
+    // Antigravity / this app
+    if (name.includes('antigravity') || name.includes('anti gravity')) {
+      exec('agy', (err) => {
+        if (err) {
+          // Try to open from common install paths
+          exec('"C:\\Program Files\\Antigravity\\antigravity.exe"', () => {});
+        }
+      });
+      this.notifyIsland({ id: 'app-agy', title: 'Antigravity', body: 'Launching Antigravity...', kind: 'done', durationMs: 3000 });
+      return true;
+    }
+
+    // Look up in map
+    for (const [key, cmd] of Object.entries(appMap)) {
+      if (name.includes(key)) {
+        exec(cmd, () => {
+          this.notifyIsland({ id: 'app-' + key, title: 'App Launched', body: `Started ${appName}.`, kind: 'done', durationMs: 3000 });
+        });
+        return true;
+      }
+    }
+
+    // Generic: try `start <appname>` as last resort
+    exec(`start "" "${appName}"`, (err) => {
+      if (!err) {
+        this.notifyIsland({ id: 'app-generic', title: 'Launched', body: `Started ${appName}.`, kind: 'done', durationMs: 3000 });
+      }
+    });
+    return true; // assume we tried
   }
 
   private async dispatchAction(intent: AgentActionResponse): Promise<void> {
@@ -132,7 +356,7 @@ Respond with ONLY valid JSON:
       this.notifyIsland({
         id: 'agent-' + Date.now(),
         title: intent.displayHeadline,
-        body: intent.displayBody || 'Autonomous action in progress',
+        body: intent.displayBody || 'Executing action...',
         kind: 'done',
         durationMs: 4000
       });
@@ -153,7 +377,18 @@ Respond with ONLY valid JSON:
         break;
 
       case 'launch_app':
-        await this.executeLaunchApp(params.app);
+        await this.tryLaunchNamedApp(params.app || '');
+        break;
+
+      case 'search_web':
+        await this.executeOpenUrl(`https://www.google.com/search?q=${encodeURIComponent(params.query || '')}`, 'Google');
+        break;
+
+      case 'play_youtube':
+        await this.executeOpenUrl(
+          `https://www.youtube.com/results?search_query=${encodeURIComponent(params.query || '')}`,
+          'YouTube'
+        );
         break;
 
       case 'summarize_screen':
@@ -164,12 +399,44 @@ Respond with ONLY valid JSON:
         await this.diagnostics.triggerJarvisScreenVision();
         break;
 
+      case 'take_screenshot':
+        exec('powershell -command "[System.Windows.Forms.SendKeys]::SendWait(\'%{PRTSC}\')"');
+        break;
+
       case 'optimize_ram':
         await this.diagnostics.optimizeMemory();
         break;
 
       case 'clean_junk':
         await this.diagnostics.cleanJunkFiles();
+        break;
+
+      case 'set_volume':
+        if (typeof params.level === 'number') {
+          exec(`nircmd setsysvolume ${Math.round(params.level / 100 * 65535)}`);
+          exec(`powershell -c "[Audio]::Volume = ${params.level / 100}"`, () => {});
+        }
+        break;
+
+      case 'mute_audio':
+        exec('nircmd mutesysvolume 1', () => {});
+        exec('powershell -c "(New-Object -com WScript.Shell).SendKeys([char]173)"', () => {});
+        break;
+
+      case 'open_settings':
+        this.safeOpenExternal(`ms-settings:${params.page || ''}`);
+        break;
+
+      case 'lock_screen':
+        exec('rundll32.exe user32.dll,LockWorkStation');
+        break;
+
+      case 'shutdown':
+        exec('shutdown /s /t 10');
+        break;
+
+      case 'restart':
+        exec('shutdown /r /t 10');
         break;
 
       default:
@@ -181,25 +448,42 @@ Respond with ONLY valid JSON:
     const targetContact = (contact || '').trim();
     const msg = (message || 'Hi').trim();
 
-    // 1. First trigger WhatsApp desktop app via protocol
-    try {
-      this.safeOpenExternal(`whatsapp://send?text=${encodeURIComponent(msg)}`);
-    } catch {}
+    // Notify user immediately
+    this.notifyIsland({
+      id: 'wa-sending-' + Date.now(),
+      title: `WhatsApp → ${targetContact || 'Contact'}`,
+      body: `Sending: "${msg.slice(0, 40)}"`,
+      kind: 'whatsapp',
+      durationMs: 6000
+    });
 
-    // 2. Also invoke native Win32 background helper if WhatsApp is running
+    // Invoke native Win32 PowerShell helper for contact search + send
     const scriptPath = path.join(__dirname, '..', 'native', 'whatsapp-sender.ps1');
     const safeText = msg.replace(/'/g, "''");
     const safeContact = targetContact.replace(/'/g, "''");
     const psCmd = `powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}" -Text '${safeText}' -Contact '${safeContact}'`;
 
-    exec(psCmd, () => {
-      this.notifyIsland({
-        id: 'wa-sent-' + Date.now(),
-        title: `WhatsApp: ${targetContact || 'Contact'}`,
-        body: `Sent: "${msg.slice(0, 50)}"`,
-        kind: 'whatsapp',
-        durationMs: 5000
-      });
+    exec(psCmd, (err) => {
+      if (err) {
+        // Fallback: open WhatsApp protocol with text prefilled (blank chat)
+        this.safeOpenExternal(`whatsapp://send?text=${encodeURIComponent(msg)}`);
+        this.notifyIsland({
+          id: 'wa-fallback-' + Date.now(),
+          title: 'WhatsApp Opened',
+          body: `Search for ${targetContact} and tap send.`,
+          kind: 'whatsapp',
+          durationMs: 8000
+        });
+      } else {
+        this.notifyIsland({
+          id: 'wa-sent-' + Date.now(),
+          title: `✓ Sent to ${targetContact || 'Contact'}`,
+          body: `"${msg.slice(0, 50)}"`,
+          kind: 'done',
+          durationMs: 5000
+        });
+        this.aiManager.speakTTS(`Message sent to ${targetContact}.`).catch(() => {});
+      }
     });
   }
 
@@ -208,15 +492,18 @@ Respond with ONLY valid JSON:
     this.notifyIsland({
       id: 'wa-call-' + Date.now(),
       title: 'WhatsApp Call',
-      body: contact ? `Initiating call to ${contact}...` : 'Opening WhatsApp calls...',
+      body: contact ? `Initiating call to ${contact}...` : 'Opening WhatsApp...',
       kind: 'whatsapp',
       durationMs: 5000
     });
+    if (contact) {
+      this.aiManager.speakTTS(`Calling ${contact} on WhatsApp.`).catch(() => {});
+    }
   }
 
   private async executeOpenUrl(url: string, targetName = 'Browser'): Promise<void> {
     let target = url;
-    if (!target.startsWith('http://') && !target.startsWith('https://')) {
+    if (!target.startsWith('http://') && !target.startsWith('https://') && !target.startsWith('ms-') && !target.startsWith('whatsapp:')) {
       target = 'https://' + target;
     }
     this.safeOpenExternal(target);
@@ -230,54 +517,11 @@ Respond with ONLY valid JSON:
     });
   }
 
-  private async executeLaunchApp(appName: string): Promise<void> {
-    const name = (appName || '').toLowerCase().trim();
-    let cmd = '';
-
-    if (name.includes('code') || name.includes('vs code') || name.includes('vscode')) {
-      cmd = 'code';
-    } else if (name.includes('chrome')) {
-      cmd = 'start chrome';
-    } else if (name.includes('edge')) {
-      cmd = 'start msedge';
-    } else if (name.includes('notepad')) {
-      cmd = 'notepad';
-    } else if (name.includes('calc') || name.includes('calculator')) {
-      cmd = 'calc';
-    } else if (name.includes('terminal') || name.includes('powershell')) {
-      cmd = 'start wt || start powershell';
-    } else if (name.includes('spotify')) {
-      cmd = 'start spotify';
-    } else if (name.includes('whatsapp')) {
-      this.safeOpenExternal('whatsapp://');
-      return;
-    } else if (name.includes('settings')) {
-      this.safeOpenExternal('ms-settings:');
-      return;
-    } else if (name.includes('task') && name.includes('manager')) {
-      cmd = 'taskmgr';
-    } else if (name.includes('explorer') || name.includes('files')) {
-      cmd = 'explorer';
-    } else {
-      cmd = `start ${appName}`;
-    }
-
-    exec(cmd, () => {
-      this.notifyIsland({
-        id: 'app-launch-' + Date.now(),
-        title: 'App Launched',
-        body: `Started ${appName}.`,
-        kind: 'done',
-        durationMs: 4000
-      });
-    });
-  }
-
   private async executeSummarizeScreen(): Promise<void> {
     this.notifyIsland({
       id: 'screen-summary-scan',
       title: 'JARVIS Screen Reader',
-      body: 'Capturing and summarizing desktop display...',
+      body: 'Capturing and summarizing desktop...',
       kind: 'terminal',
       durationMs: 8000
     });
@@ -288,15 +532,12 @@ Respond with ONLY valid JSON:
         throw new Error('Could not capture display');
       }
 
-      const prompt = `You are JARVIS, an autonomous intelligence on Gaurav's laptop.
-Observe this full desktop screenshot.
-Provide a concise executive summary of what is on Gaurav's screen right now.
-Structure:
+      const prompt = `You are JARVIS, Gaurav's autonomous AI.
+Observe this full desktop screenshot and provide a concise summary:
 - Active Window & Workflow
 - Key Information / Errors / Document Content
 - Suggested next step if applicable
-
-Keep the entire summary under 4 short bullet points. Also provide a 1-sentence spoken summary.`;
+Keep it under 4 short bullet points + 1-sentence spoken summary.`;
 
       let summaryOutput = '';
       await this.aiManager.streamPrompt(
@@ -309,7 +550,6 @@ Keep the entire summary under 4 short bullet points. Also provide a 1-sentence s
         capture.dataUrl
       );
 
-      // Copy summary to clipboard for instant pasting
       this.safeWriteClipboard(summaryOutput);
 
       const firstLine = summaryOutput.split('\n').filter(l => l.trim().length > 0)[0] || 'Desktop summarized.';
@@ -320,11 +560,11 @@ Keep the entire summary under 4 short bullet points. Also provide a 1-sentence s
         kind: 'done',
         durationMs: 12000,
         actions: [
-          { id: 'copy:' + summaryOutput, label: 'Copy Full Summary', primary: true }
+          { id: 'copy:' + summaryOutput, label: 'Copy Summary', primary: true }
         ]
       });
 
-      this.aiManager.speakTTS('I have summarized your screen and copied the breakdown to your clipboard.').catch(() => {});
+      this.aiManager.speakTTS('Screen summary copied to clipboard.').catch(() => {});
     } catch (err: any) {
       this.notifyIsland({
         id: 'screen-summary-err',

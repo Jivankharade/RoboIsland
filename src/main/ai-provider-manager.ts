@@ -314,7 +314,7 @@ export class AIProviderManager {
       if (provider === 'anthropic') {
         await this.streamAnthropic(cred, prompt, model, chunkEmitter, controller.signal, imageData);
       } else if (provider === 'openai' || provider === 'custom' || provider === 'ollama' || provider === 'gemini') {
-        await this.streamOpenAICompatible(provider, cred, prompt, model, chunkEmitter, controller.signal, imageData);
+        await this.streamOpenAICompatible(provider, cred, prompt, model, chunkEmitter, controller.signal, imageData, undefined);
       } else {
         throw new Error(`Unsupported AI provider: ${provider}`);
       }
@@ -337,6 +337,42 @@ export class AIProviderManager {
     return fullOutput;
   }
 
+  /**
+   * Stream with a custom system prompt — used by the autonomous action agent
+   * so its JARVIS system instruction is not overridden by the default "You are Robo…" message.
+   */
+  public async streamWithSystem(
+    systemPrompt: string,
+    provider: AIProvider | string,
+    userPrompt: string,
+    model?: string,
+    onChunk?: (chunk: string) => void,
+    onDone?: () => void,
+    sessionId?: string
+  ): Promise<string> {
+    const cred = this.getCredential(provider);
+    const sid = sessionId || 'sys-' + Date.now();
+    const controller = new AbortController();
+    this.abortControllers.set(sid, controller);
+
+    let fullOutput = '';
+    const chunkEmitter = (chunk: string) => {
+      fullOutput += chunk;
+      if (onChunk) onChunk(chunk);
+    };
+
+    try {
+      await this.streamOpenAICompatible(provider, cred, userPrompt, model, chunkEmitter, controller.signal, undefined, systemPrompt);
+    } catch (err: any) {
+      chunkEmitter(`[Error: ${err.message}]`);
+    } finally {
+      this.abortControllers.delete(sid);
+      if (onDone) onDone();
+    }
+
+    return fullOutput;
+  }
+
   private async streamOpenAICompatible(
     provider: string,
     cred: AICredential | null,
@@ -344,7 +380,8 @@ export class AIProviderManager {
     requestedModel: string | undefined,
     onChunk: (chunk: string) => void,
     signal: AbortSignal,
-    imageData?: string
+    imageData?: string,
+    overrideSystemPrompt?: string
   ): Promise<void> {
     const apiKey = cred?.apiKey || '';
     let baseUrl = cred?.baseUrl;
@@ -397,12 +434,16 @@ export class AIProviderManager {
       }
     ] : prompt;
 
+    const systemMessage = overrideSystemPrompt
+      ? overrideSystemPrompt
+      : 'You are Robo, a concise and friendly Windows Dynamic Island companion with advanced vision capabilities. Provide helpful answers with markdown formatting and code snippets when requested.';
+
     const payload = {
       model,
       messages: [
         {
           role: 'system',
-          content: 'You are Robo, a concise and friendly Windows Dynamic Island companion with advanced vision capabilities. Provide helpful answers with markdown formatting and code snippets when requested.'
+          content: systemMessage
         },
         {
           role: 'user',

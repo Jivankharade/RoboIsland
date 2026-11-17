@@ -317,7 +317,7 @@ class AIProviderManager {
                 await this.streamAnthropic(cred, prompt, model, chunkEmitter, controller.signal, imageData);
             }
             else if (provider === 'openai' || provider === 'custom' || provider === 'ollama' || provider === 'gemini') {
-                await this.streamOpenAICompatible(provider, cred, prompt, model, chunkEmitter, controller.signal, imageData);
+                await this.streamOpenAICompatible(provider, cred, prompt, model, chunkEmitter, controller.signal, imageData, undefined);
             }
             else {
                 throw new Error(`Unsupported AI provider: ${provider}`);
@@ -344,7 +344,35 @@ class AIProviderManager {
         }
         return fullOutput;
     }
-    async streamOpenAICompatible(provider, cred, prompt, requestedModel, onChunk, signal, imageData) {
+    /**
+     * Stream with a custom system prompt — used by the autonomous action agent
+     * so its JARVIS system instruction is not overridden by the default "You are Robo…" message.
+     */
+    async streamWithSystem(systemPrompt, provider, userPrompt, model, onChunk, onDone, sessionId) {
+        const cred = this.getCredential(provider);
+        const sid = sessionId || 'sys-' + Date.now();
+        const controller = new AbortController();
+        this.abortControllers.set(sid, controller);
+        let fullOutput = '';
+        const chunkEmitter = (chunk) => {
+            fullOutput += chunk;
+            if (onChunk)
+                onChunk(chunk);
+        };
+        try {
+            await this.streamOpenAICompatible(provider, cred, userPrompt, model, chunkEmitter, controller.signal, undefined, systemPrompt);
+        }
+        catch (err) {
+            chunkEmitter(`[Error: ${err.message}]`);
+        }
+        finally {
+            this.abortControllers.delete(sid);
+            if (onDone)
+                onDone();
+        }
+        return fullOutput;
+    }
+    async streamOpenAICompatible(provider, cred, prompt, requestedModel, onChunk, signal, imageData, overrideSystemPrompt) {
         const apiKey = cred?.apiKey || '';
         let baseUrl = cred?.baseUrl;
         if (!baseUrl) {
@@ -393,12 +421,15 @@ class AIProviderManager {
                 }
             }
         ] : prompt;
+        const systemMessage = overrideSystemPrompt
+            ? overrideSystemPrompt
+            : 'You are Robo, a concise and friendly Windows Dynamic Island companion with advanced vision capabilities. Provide helpful answers with markdown formatting and code snippets when requested.';
         const payload = {
             model,
             messages: [
                 {
                     role: 'system',
-                    content: 'You are Robo, a concise and friendly Windows Dynamic Island companion with advanced vision capabilities. Provide helpful answers with markdown formatting and code snippets when requested.'
+                    content: systemMessage
                 },
                 {
                     role: 'user',
