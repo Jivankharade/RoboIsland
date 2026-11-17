@@ -13,17 +13,19 @@ export interface AgentActionResponse {
 }
 
 /** JARVIS system prompt for autonomous Windows OS action interpretation */
-const JARVIS_SYSTEM = `You are JARVIS, an autonomous OS action agent controlling Gaurav's Windows laptop.
+const JARVIS_SYSTEM = `You are JARVIS, an autonomous OS Computer Use agent controlling Gaurav's Windows laptop.
 Translate the user's natural language request into a single executable JSON action.
 
 Available actions:
 - send_whatsapp:    params: { contact: string, message: string }
 - call_whatsapp:    params: { contact?: string }
+- visual_click:     params: { target: string } (e.g. "click gaurav profile", "click search button", "click next")
+- visual_drag:      params: { target: string } (e.g. "drag cursor to gaurav profile", "drag window")
+- search_chrome:    params: { query: string } (e.g. "search ipl on chrome", "open chrome search ipl")
 - open_and_type:    params: { app: string, text: string }
 - type_text:        params: { text: string }
 - open_url:         params: { url: string, targetName?: string }
 - launch_app:       params: { app: string }
-- search_web:       params: { query: string }
 - play_youtube:     params: { query: string }
 - summarize_screen: params: {}
 - fix_screen_bug:   params: {}
@@ -35,11 +37,10 @@ Available actions:
 - lock_screen:      params: {}
 - chat_reply:       params: { text: string } (use ONLY if request is pure factual discussion with no action on PC)
 
-CRITICAL RULES FOR WHATSAPP:
-- User saying "open whats app and send hi message to pratik pdea":
-  action: "send_whatsapp", params: { "contact": "pratik pdea", "message": "hi" }
-- User saying "tell rahul on whatsapp that i am coming":
-  action: "send_whatsapp", params: { "contact": "rahul", "message": "i am coming" }
+CRITICAL RULES:
+- If user asks to search on chrome / google: action "search_chrome" with query.
+- If user asks to click, drag cursor, or select something visible on screen: action "visual_click" or "visual_drag".
+- If user asks to send a message on WhatsApp: action "send_whatsapp" with contact and message.
 
 Respond with ONLY valid JSON:
 {
@@ -93,7 +94,20 @@ export class AutonomousActionAgent {
       return { isAction: true, replyText: 'Opening WhatsApp.' };
     }
 
-    // ─── 2. FAST-PATH: YOUTUBE & WEB SEARCH ─────────────────────────────────
+    // ─── 2. FAST-PATH: CHROME & WEB SEARCH (IPL, Movies, Google) ───────────
+    const chromeSearchMatch = input.match(/^(?:open\s+)?(?:chrome|google\s+chrome|browser)\s+(?:and\s+)?(?:search|find|look\s+up)\s+(?:for\s+)?(.+)$/i)
+      || input.match(/^(?:search|look\s+up|find)\s+(?:for\s+)?(.+?)\s+on\s+(?:chrome|google|browser)$/i)
+      || input.match(/^(?:search|google|look\s+up|find)\s+(.+)$/i);
+
+    if (chromeSearchMatch) {
+      const q = chromeSearchMatch[1].trim();
+      if (q && !/^(?:youtube|whatsapp)$/i.test(q)) {
+        await this.executeSearchChrome(q);
+        return { isAction: true, replyText: `Searching for "${q}" on Google Chrome.` };
+      }
+    }
+
+    // ─── 3. FAST-PATH: YOUTUBE DIRECT ───────────────────────────────────────
     const ytMatch = lower.match(/^(?:open|play|launch|search|find)\s+youtube(?:\s+(?:and\s+(?:play|search))?\s*(.+))?$/i)
       || input.match(/^(?:play|search)\s+(.+?)\s+on\s+youtube$/i);
     if (ytMatch || /youtube\.com/.test(lower)) {
@@ -105,14 +119,29 @@ export class AutonomousActionAgent {
       return { isAction: true, replyText: q ? `Playing "${q}" on YouTube.` : 'Opening YouTube.' };
     }
 
-    const searchMatch = input.match(/^(?:search|google|look\s+up|find)\s+(.+?)(?:\s+on(?:\s+the\s+web|\s+google))?$/i);
-    if (searchMatch) {
-      const q = searchMatch[1].trim();
-      await this.executeOpenUrl(`https://www.google.com/search?q=${encodeURIComponent(q)}`, 'Google Search');
-      return { isAction: true, replyText: `Searching Google for "${q}".` };
+    // ─── 4. FAST-PATH: VISUAL COMPUTER USE (Click / Drag on Screen) ──────────
+    const clickMatch = input.match(/^(?:click|tap|press)\s+(?:on\s+)?(?:the\s+)?(.+)$/i);
+    if (clickMatch) {
+      const targetDesc = clickMatch[1].trim();
+      await this.executeVisualClick(targetDesc);
+      return { isAction: true, replyText: `Interacting with ${targetDesc} on screen.` };
     }
 
-    // ─── 3. FAST-PATH: OPEN & TYPE IN APPS (Notepad, Word, Editor) ──────────
+    const dragMatch = input.match(/^(?:drag|move)\s+(?:the\s+)?cursor\s+to\s+(?:the\s+)?(.+)$/i);
+    if (dragMatch) {
+      const targetDesc = dragMatch[1].trim();
+      await this.executeVisualDrag(targetDesc);
+      return { isAction: true, replyText: `Moving cursor to ${targetDesc}.` };
+    }
+
+    const profileMatch = input.match(/^(?:select|choose|click)\s+(?:the\s+)?profile\s*(.*)$/i);
+    if (profileMatch) {
+      const profileName = profileMatch[1].trim() || 'Gaurav Kharade';
+      await this.executeVisualClick(`profile card for ${profileName}`);
+      return { isAction: true, replyText: `Selecting profile ${profileName}.` };
+    }
+
+    // ─── 5. FAST-PATH: OPEN & TYPE IN APPS ──────────────────────────────────
     const openTypeMatch = input.match(/^(?:open\s+([A-Za-z0-9]+)\s+and\s+type|type\s+(.+?)\s+in\s+([A-Za-z0-9]+))\s*(.*)$/i);
     if (openTypeMatch) {
       let app = '';
@@ -130,7 +159,7 @@ export class AutonomousActionAgent {
       }
     }
 
-    // ─── 4. FAST-PATH: SCREEN VISION & SUMMARIZE ────────────────────────────
+    // ─── 6. FAST-PATH: SCREEN VISION & SUMMARIZE ────────────────────────────
     if (/(?:summar(?:ise|ize)|read|analyze|analyse|describe)\s+(?:my\s+)?(?:the\s+)?screen/i.test(lower) || lower === 'summarise' || lower === 'summarize') {
       await this.executeSummarizeScreen();
       return { isAction: true, replyText: 'Analyzing your screen now.' };
@@ -141,7 +170,7 @@ export class AutonomousActionAgent {
       return { isAction: true, replyText: 'Inspecting screen for UI bugs and errors.' };
     }
 
-    // ─── 5. FAST-PATH: SYSTEM OPTIMIZATION ─────────────────────────────────
+    // ─── 7. FAST-PATH: SYSTEM OPTIMIZATION ─────────────────────────────────
     if (/(?:free|optimize|clean|clear|boost)\s+(?:the\s+)?(?:ram|memory|mem)/i.test(lower)) {
       await this.diagnostics.optimizeMemory();
       return { isAction: true, replyText: 'Memory optimized successfully.' };
@@ -164,7 +193,7 @@ export class AutonomousActionAgent {
       return { isAction: true, replyText: 'Screenshot captured to clipboard.' };
     }
 
-    // ─── 6. FAST-PATH: APP LAUNCHES ─────────────────────────────────────────
+    // ─── 8. FAST-PATH: APP LAUNCHES ─────────────────────────────────────────
     const appLaunchMatch = lower.match(/^(?:open|launch|start|run)\s+(.+)$/i);
     if (appLaunchMatch) {
       const appName = appLaunchMatch[1].trim();
@@ -172,7 +201,7 @@ export class AutonomousActionAgent {
       if (handled) return { isAction: true, replyText: `Opening ${appName}.` };
     }
 
-    // ─── 7. GEMINI AI INTENT PARSER (Deep fallback for complex natural language) ─
+    // ─── 9. GEMINI AI INTENT PARSER (Visual Computer Use fallback) ─────────
     try {
       const intent = await this.parseIntentWithGemini(input);
       if (!intent || intent.action === 'chat_reply') {
@@ -188,31 +217,22 @@ export class AutonomousActionAgent {
 
   /**
    * Robust NLP extractor for WhatsApp sending commands.
-   * Accurately parses contacts and messages from arbitrary sentences like:
-   * "open whats app and send hi message to pratik pdea"
-   * "send hi to Gaurav on WhatsApp"
-   * "tell Rahul on WhatsApp that I will be late"
    */
   private extractWhatsAppIntent(raw: string): { contact: string; message: string } | null {
     const text = raw.trim();
     const lower = text.toLowerCase();
 
-    // Check if this is a WhatsApp send instruction
     if (!lower.includes('whatsapp') && !lower.includes('whats app') && !lower.includes('wa ') && !lower.startsWith('send ')) {
       return null;
     }
 
-    // Clean leading phrases
-    const cleaned = text.replace(/^(?:please\s+)?(?:open\s+(?:whats\s*app|wa)\s+(?:and\s+)?|go\s+to\s+whatsapp\s+and\s+)/i, '').trim();
+    const cleaned = text.replace(/^(?:please\s+)?(?:open\s+(?:whats\s*app|wa)\s*(?:and\s+)?|go\s+to\s+whatsapp\s+and\s+)/i, '').trim();
 
-    // Pattern 1: send (a )?message to <contact> (on whatsapp )?(saying|that|with text|say) <message>
     const m1 = cleaned.match(/^send\s+(?:a\s+)?message\s+to\s+([A-Za-z0-9\s]+?)(?:\s+(?:on\s+whatsapp\s+)?(?:saying|that|with\s+text|say)\s+)(.+)$/i);
     if (m1) {
       return { contact: m1[1].trim(), message: m1[2].trim() };
     }
 
-    // Pattern 2: send <message> (message)? to <contact> (on whatsapp)?
-    // E.g.: "send hi message to pratik pdea" -> message: "hi", contact: "pratik pdea"
     const m2 = cleaned.match(/^send\s+(?:a\s+)?(?:message\s+)?["']?(.+?)["']?\s+to\s+([A-Za-z0-9\s]+?)(?:\s+on\s+whatsapp)?$/i);
     if (m2) {
       let msg = m2[1].replace(/^(?:saying|message)\s+/i, '').replace(/\s+message$/i, '').trim();
@@ -222,13 +242,11 @@ export class AutonomousActionAgent {
       }
     }
 
-    // Pattern 3: tell <contact> on whatsapp (that )?<message>
     const m3 = cleaned.match(/^tell\s+([A-Za-z0-9\s]+?)\s+(?:on\s+whatsapp\s+)?(?:that\s+)?(.+)$/i);
     if (m3 && lower.includes('whatsapp')) {
       return { contact: m3[1].trim(), message: m3[2].trim() };
     }
 
-    // Pattern 4: whatsapp <contact> <message>
     const m4 = cleaned.match(/^(?:whatsapp|wa|msg)\s+([A-Za-z0-9\s]+?)\s+["']?([A-Za-z0-9].+?)["']?$/i);
     if (m4) {
       return { contact: m4[1].trim(), message: m4[2].trim() };
@@ -291,6 +309,18 @@ export class AutonomousActionAgent {
         await this.executeCallWhatsApp(params.contact);
         break;
 
+      case 'search_chrome':
+        await this.executeSearchChrome(params.query);
+        break;
+
+      case 'visual_click':
+        await this.executeVisualClick(params.target);
+        break;
+
+      case 'visual_drag':
+        await this.executeVisualDrag(params.target);
+        break;
+
       case 'open_and_type':
         await this.executeOpenAndType(params.app, params.text);
         break;
@@ -305,10 +335,6 @@ export class AutonomousActionAgent {
 
       case 'launch_app':
         await this.tryLaunchNamedApp(params.app || '');
-        break;
-
-      case 'search_web':
-        await this.executeOpenUrl(`https://www.google.com/search?q=${encodeURIComponent(params.query || '')}`, 'Google');
         break;
 
       case 'play_youtube':
@@ -355,6 +381,203 @@ export class AutonomousActionAgent {
       default:
         break;
     }
+  }
+
+  /**
+   * Search Chrome with Visual Computer Use Auto-Profile Selection:
+   * 1. Launches Chrome directly with Google Search query URL.
+   * 2. Waits 1000ms.
+   * 3. Checks if Chrome is stuck on the Profile Chooser ("Who's using Chrome?").
+   * 4. If stuck, visually locates Gaurav Kharade's profile card and clicks it!
+   */
+  private async executeSearchChrome(query: string): Promise<void> {
+    const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+
+    this.notifyIsland({
+      id: 'chrome-search-' + Date.now(),
+      title: 'Google Chrome',
+      body: `Searching for "${query}"...`,
+      kind: 'chrome',
+      durationMs: 5000
+    });
+
+    this.safeOpenExternal(searchUrl);
+
+    // Wait for Chrome to load and check if it gets stuck on the Profile Chooser modal
+    setTimeout(async () => {
+      try {
+        const capture = await this.aiManager.captureScreen();
+        if (capture.success && capture.dataUrl) {
+          const prompt = `Observe this desktop screenshot.
+Is Google Chrome currently showing the "Who's using Chrome?" profile picker screen with user profile cards?
+If YES, locate the profile card for "Gaurav Kharade" (or the first user profile card on the left).
+Return ONLY JSON:
+{
+  "isProfilePicker": true,
+  "x": number,
+  "y": number
+}
+If NO (e.g. browser is already open with search results):
+{
+  "isProfilePicker": false
+}`;
+
+          let responseText = '';
+          await (this.aiManager as any).streamWithSystem(
+            'You are a precise screen coordinate locator.',
+            'gemini',
+            prompt,
+            'gemini-3-flash-preview',
+            (chunk: string) => { responseText += chunk; },
+            undefined,
+            'chrome-profile-detect-' + Date.now(),
+            capture.dataUrl
+          );
+
+          const match = responseText.match(/\{[\s\S]*?\}/);
+          if (match) {
+            const data = JSON.parse(match[0]);
+            if (data.isProfilePicker && typeof data.x === 'number' && typeof data.y === 'number') {
+              // Click the profile card
+              await this.clickScreenCoordinate(data.x, data.y);
+              this.aiManager.speakTTS('Selected profile to open search results.').catch(() => {});
+            }
+          }
+        }
+      } catch (err: any) {
+        console.warn('[AutonomousActionAgent] Chrome profile auto-selection check failed:', err.message);
+      }
+    }, 1200);
+  }
+
+  /**
+   * Visual Computer Use: Locate any element on screen and click it.
+   */
+  private async executeVisualClick(targetDescription: string): Promise<void> {
+    this.notifyIsland({
+      id: 'visual-click-' + Date.now(),
+      title: 'JARVIS Vision Action',
+      body: `Locating "${targetDescription}" on screen...`,
+      kind: 'terminal',
+      durationMs: 4000
+    });
+
+    try {
+      const capture = await this.aiManager.captureScreen();
+      if (!capture.success || !capture.dataUrl) {
+        throw new Error('Screen capture failed');
+      }
+
+      const prompt = `You are a high-precision Computer Use Vision Agent controlling the cursor on Gaurav's Windows desktop.
+Desktop resolution: ${capture.width || 1920}x${capture.height || 1080}.
+Target element to click: "${targetDescription}".
+
+Analyze the full desktop screenshot carefully.
+Find the exact center pixel coordinates (X, Y) of the element described.
+Return ONLY JSON:
+{
+  "found": true,
+  "x": number,
+  "y": number,
+  "description": "Short description of what was located"
+}
+If not found:
+{
+  "found": false,
+  "reason": "why not found"
+}`;
+
+      let responseText = '';
+      await (this.aiManager as any).streamWithSystem(
+        'You are an expert UI locator that outputs exact screen pixel coordinates.',
+        'gemini',
+        prompt,
+        'gemini-3-flash-preview',
+        (chunk: string) => { responseText += chunk; },
+        undefined,
+        'visual-click-' + Date.now(),
+        capture.dataUrl
+      );
+
+      const match = responseText.match(/\{[\s\S]*?\}/);
+      if (!match) throw new Error('Could not parse locator response');
+
+      const data = JSON.parse(match[0]);
+      if (data.found && typeof data.x === 'number' && typeof data.y === 'number') {
+        await this.clickScreenCoordinate(data.x, data.y);
+        this.notifyIsland({
+          id: 'visual-click-done-' + Date.now(),
+          title: 'Clicked',
+          body: `Clicked on ${data.description || targetDescription} at (${data.x}, ${data.y})`,
+          kind: 'done',
+          durationMs: 4000
+        });
+        this.aiManager.speakTTS(`Clicked on ${targetDescription}.`).catch(() => {});
+      } else {
+        throw new Error(data.reason || 'Element not found on screen');
+      }
+    } catch (err: any) {
+      console.warn('[AutonomousActionAgent] Visual click failed:', err.message);
+      this.notifyIsland({
+        id: 'visual-click-err-' + Date.now(),
+        title: 'Vision Action Failed',
+        body: err.message,
+        kind: 'error',
+        durationMs: 4000
+      });
+    }
+  }
+
+  /**
+   * Visual Computer Use: Move/drag cursor to an element on screen.
+   */
+  private async executeVisualDrag(targetDescription: string): Promise<void> {
+    try {
+      const capture = await this.aiManager.captureScreen();
+      if (!capture.success || !capture.dataUrl) return;
+
+      const prompt = `Analyze this desktop screenshot.
+Find the exact pixel coordinates (X, Y) of: "${targetDescription}".
+Return ONLY JSON:
+{
+  "found": true,
+  "x": number,
+  "y": number
+}`;
+
+      let responseText = '';
+      await (this.aiManager as any).streamWithSystem(
+        'You are a screen coordinate locator.',
+        'gemini',
+        prompt,
+        'gemini-3-flash-preview',
+        (chunk: string) => { responseText += chunk; },
+        undefined,
+        'visual-drag-' + Date.now(),
+        capture.dataUrl
+      );
+
+      const match = responseText.match(/\{[\s\S]*?\}/);
+      if (match) {
+        const data = JSON.parse(match[0]);
+        if (data.found && typeof data.x === 'number' && typeof data.y === 'number') {
+          const scriptPath = path.join(__dirname, '..', 'native', 'computer-use.ps1');
+          const psCmd = `powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}" -Action "move" -X ${Math.round(data.x)} -Y ${Math.round(data.y)}`;
+          exec(psCmd, () => {});
+          this.aiManager.speakTTS(`Moved cursor to ${targetDescription}.`).catch(() => {});
+        }
+      }
+    } catch {}
+  }
+
+  private clickScreenCoordinate(x: number, y: number): Promise<void> {
+    return new Promise((resolve) => {
+      const scriptPath = path.join(__dirname, '..', 'native', 'computer-use.ps1');
+      const psCmd = `powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}" -Action "click" -X ${Math.round(x)} -Y ${Math.round(y)}`;
+      exec(psCmd, () => {
+        resolve();
+      });
+    });
   }
 
   /**
@@ -413,10 +636,6 @@ export class AutonomousActionAgent {
     }
   }
 
-  /**
-   * Autonomous typing in any app:
-   * Launches or activates the app, pastes text, and provides visual confirmation.
-   */
   private async executeOpenAndType(appName: string, text: string): Promise<void> {
     const scriptPath = path.join(__dirname, '..', 'native', 'windows-robot.ps1');
     const safeApp = appName.replace(/'/g, "''");
@@ -435,9 +654,6 @@ export class AutonomousActionAgent {
     });
   }
 
-  /**
-   * Type text directly into the current active window.
-   */
   private async executeTypeText(text: string): Promise<void> {
     const scriptPath = path.join(__dirname, '..', 'native', 'windows-robot.ps1');
     const safeText = text.replace(/'/g, "''");

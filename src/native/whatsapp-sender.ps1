@@ -97,7 +97,7 @@ if ($Autonomous -or ($Contact -and -not $Phone)) {
 # Notification Quick-Reply Mode (Background Offscreen)
 $targetHwnd = [IntPtr]::Zero
 # Moves window offscreen (-32000, -32000) so user never sees it open
-[WhatsAppSenderNative]::SetWindowPos($targetHwnd, [IntPtr]1, -32000, -32000, 0, 0, 0x0001 | 0x0010) | Out-Null
+[WhatsAppSenderNative]::SetWindowPos($targetHwnd, [IntPtr]1, -32000, -32000, 0, 0, (0x0001 -bor 0x0010)) | Out-Null
 
 # Direct send enter
 [WhatsAppSenderNative]::SendEnter()
