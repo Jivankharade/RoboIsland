@@ -3141,9 +3141,22 @@ export class CanvasEngine {
       }
       const hasActions = Boolean(n.actions && n.actions.length > 0);
       const isWhatsApp = n.kind === 'whatsapp';
+      if (hasActions) {
+        let actionsW = 0;
+        for (const a of n.actions || []) {
+          const estLabelW = (a.label || '').length * 7.5;
+          actionsW += Math.max(56, Math.round(estLabelW + 24)) + 8;
+        }
+        const titleEstimateW = Math.min(260, Math.round(n.title.length * 7.8 + 36));
+        const neededW = titleEstimateW + actionsW + 36;
+        this.targetWidth = Math.max(380, Math.min(580, neededW));
+        this.targetHeight = hasBody ? 46 : 38;
+        this.targetRadius = hasBody ? 23 : 19;
+        return;
+      }
       const textLen = Math.max(n.title.length, (n.body || '').length * 0.65);
       const baseMinW = isWhatsApp ? 320 : 280;
-      this.targetWidth = hasActions ? 430 : Math.max(baseMinW, Math.min(420, 100 + textLen * 7.5 + (isWhatsApp ? 50 : 0)));
+      this.targetWidth = Math.max(baseMinW, Math.min(420, 100 + textLen * 7.5 + (isWhatsApp ? 50 : 0)));
       this.targetHeight = hasBody ? 42 : 36;
       this.targetRadius = hasBody ? 21 : 18;
       return;
@@ -6513,14 +6526,18 @@ export class CanvasEngine {
     // Interactive Action Buttons (e.g. Deny & Allow for Claude Code tool execution)
     const actions = n.actions;
     if (actions && actions.length > 0) {
-      const bw = 76;
-      const bh = 26;
+      const bh = 24;
       const by = Math.round(cy - bh / 2);
+      const btnFont = '600 11.5px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
 
       let curRight = right;
       for (let i = actions.length - 1; i >= 0; i--) {
         const item = actions[i];
         if (!item) continue;
+
+        this.ctx.font = btnFont;
+        const metrics = this.ctx.measureText(item.label);
+        const bw = Math.max(54, Math.round(metrics.width + 22)); // 11px padding on each side
         const bx = curRight - bw;
         const isPrimary = item.primary ?? (item.id === 'allow');
         const isAnswer = item.id === 'wa-answer';
@@ -6529,7 +6546,7 @@ export class CanvasEngine {
 
         this.ctx.save();
         this.ctx.beginPath();
-        this.ctx.roundRect(bx, by, bw, bh, 8);
+        this.ctx.roundRect(bx, by, bw, bh, 7);
         this.ctx.fillStyle = isAnswer
           ? (isHovered ? '#34c759' : '#30d158')
           : isDecline
@@ -6539,7 +6556,7 @@ export class CanvasEngine {
               : (isHovered ? '#3a3a3c' : '#2c2c2e');
         this.ctx.fill();
 
-        this.ctx.font = '600 12px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
+        this.ctx.font = btnFont;
         this.ctx.fillStyle = (isAnswer || isDecline) ? '#ffffff' : (isPrimary ? '#000000' : '#ffffff');
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'middle';
@@ -6556,10 +6573,14 @@ export class CanvasEngine {
         curRight -= bw + 8;
       }
 
-      // Title truncated before the buttons
-      const maxTextW = Math.max(50, curRight - textLeft - 8);
-      const titleFont = '600 13px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
+      // Title & Body before the buttons
+      const maxTextW = Math.max(60, curRight - textLeft - 10);
       const isCall = n.kind === 'whatsapp' && (actions.some(a => a.id === 'wa-answer'));
+      const hasBody = Boolean(n.body && n.body.trim().length > 0);
+      const titleFont = hasBody
+        ? '600 12px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif'
+        : '600 13px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
+      const bodyFont = '400 11px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
 
       this.ctx.save();
       this.ctx.textAlign = 'left';
@@ -6576,6 +6597,19 @@ export class CanvasEngine {
         this.ctx.textBaseline = 'top';
         const truncCaller = this.truncateText(wa.senderName, maxTextW, this.ctx.font);
         this.ctx.fillText(truncCaller, textLeft, cy + 1);
+      } else if (hasBody && n.body) {
+        const truncTitle = this.truncateText(n.title, maxTextW, titleFont);
+        const truncBody = this.truncateText(n.body, maxTextW, bodyFont);
+
+        this.ctx.font = titleFont;
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.textBaseline = 'bottom';
+        this.ctx.fillText(truncTitle, textLeft, cy - 1);
+
+        this.ctx.font = bodyFont;
+        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.72)';
+        this.ctx.textBaseline = 'top';
+        this.ctx.fillText(truncBody, textLeft, cy + 2);
       } else {
         const truncTitle = this.truncateText(n.title, maxTextW, titleFont);
         this.ctx.font = titleFont;

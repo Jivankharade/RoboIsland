@@ -160,9 +160,9 @@ Respond with ONLY a raw JSON object (no markdown backticks, no text outside JSON
 {
   "app": "Application Name (e.g. VS Code, Chrome, Terminal)",
   "state": "error" | "warning" | "working" | "idle",
-  "headline": "Short title under 28 chars (e.g. 'TypeScript Error Line 42')",
-  "insight": "1 clear, concise sentence explaining the root cause or workflow insight",
-  "actionLabel": "Short button label (e.g. 'Copy Fix', 'Run Build', 'Free RAM')",
+  "headline": "Short title under 22 chars (e.g. 'TypeScript Error', 'Build Succeeded')",
+  "insight": "1 punchy sentence under 65 chars explaining root cause or insight",
+  "actionLabel": "1-2 words max button label (e.g. 'Copy Fix', 'Run Fix', 'Free RAM')",
   "actionPayload": "Exact code fix or terminal command to copy/execute if applicable, else empty string",
   "spokenText": "1 natural sentence for JARVIS to speak aloud via laptop speakers"
 }`;
@@ -192,20 +192,15 @@ Respond with ONLY a raw JSON object (no markdown backticks, no text outside JSON
       }
 
       if (diagnosis) {
-        // Build actions array for the Island notification
+        // Build actions array for the Island notification (clean, single primary action)
         const actions: Array<{ id: string; label: string; primary?: boolean }> = [];
         if (diagnosis.actionPayload && diagnosis.actionPayload.trim().length > 0) {
+          const rawLabel = (diagnosis.actionLabel || 'Copy Fix').trim();
+          const cleanLabel = rawLabel.length > 16 ? rawLabel.slice(0, 15) + '…' : rawLabel;
           actions.push({
             id: 'copy:' + diagnosis.actionPayload.trim(),
-            label: diagnosis.actionLabel || 'Copy Fix',
+            label: cleanLabel,
             primary: true
-          });
-        }
-        if (diagnosis.spokenText) {
-          actions.push({
-            id: 'speak:' + diagnosis.spokenText,
-            label: 'Speak',
-            primary: false
           });
         }
 
