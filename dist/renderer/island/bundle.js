@@ -4197,7 +4197,8 @@
             this.targetHeight = this.hasSyncedLyrics() ? 330 : 280;
             break;
           case "chat":
-            this.targetHeight = 320;
+            this.targetWidth = 560;
+            this.targetHeight = 400;
             break;
           case "ai":
             this.targetHeight = 310;

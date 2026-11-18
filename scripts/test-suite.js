@@ -580,7 +580,7 @@ async function runTests() {
     { tab: 'home', expectedW: 520, expectedH: 240 },
     { tab: 'ai', expectedW: 520, expectedH: 310 },
     { tab: 'music', expectedW: 520, expectedH: 280 },
-    { tab: 'chat', expectedW: 520, expectedH: 320 },
+    { tab: 'chat', expectedW: 560, expectedH: 400 },
     { tab: 'focus', expectedW: 520, expectedH: 270 },
     { tab: 'tray', expectedW: 520, expectedH: 270 },
     { tab: 'clipboard', expectedW: 560, expectedH: 370 },

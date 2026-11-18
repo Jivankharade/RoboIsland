@@ -25,6 +25,7 @@ const SVG_ICONS = {
     speaker: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>`,
     speakerMuted: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>`,
     export: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`,
+    document: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`,
     chevronDown: `<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>`
 };
 /**
@@ -321,17 +322,40 @@ function injectChatStyles() {
       transform: scale(1.03);
     }
     .msg-file-chip {
-      display: inline-flex;
+      display: flex;
       align-items: center;
-      gap: 6px;
-      background: rgba(0, 210, 255, 0.15);
-      border: 1px solid rgba(0, 210, 255, 0.35);
-      border-radius: 8px;
-      padding: 3px 8px;
-      margin-bottom: 6px;
-      font-size: 11px;
+      gap: 7px;
+      background: rgba(255, 255, 255, 0.22);
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border-radius: 10px;
+      padding: 5px 11px;
+      margin-bottom: 7px;
+      font-size: 11.5px;
       font-weight: 600;
-      color: #00d2ff;
+      color: #ffffff !important;
+      width: fit-content;
+      max-width: 100%;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+    }
+    .msg-file-chip svg {
+      flex-shrink: 0;
+      color: #ffffff !important;
+    }
+    .msg-file-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 240px;
+      color: #ffffff !important;
+    }
+    .msg-file-chip * {
+      color: #ffffff !important;
+    }
+    .msg-text-content {
+      line-height: 1.48;
+      word-break: break-word;
     }
     .code-block-wrapper {
       margin: 6px 0;
@@ -428,43 +452,52 @@ function injectChatStyles() {
       50% { opacity: 0; }
     }
 
-    /* TwoCode AI Quick Action Chips & Frosted Glass */
+    /* Apple macOS Siri Suggestion Quick Action Chips */
     .chat-quick-chips.cr-list {
       display: flex;
       justify-content: center;
-      gap: 8px;
-      margin: 8px 10px 4px 10px;
+      gap: 6px;
+      margin: 4px 8px 3px 8px;
       max-width: 100%;
       pointer-events: auto;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .chat-quick-chips.cr-list::-webkit-scrollbar {
+      display: none;
     }
     .cr-row {
       flex: none;
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      height: 30px;
-      padding: 0 12px 0 10px;
+      gap: 5px;
+      height: 25px;
+      padding: 0 10px;
       border: 0;
-      border-radius: 10px;
+      border-radius: 13px;
       background: rgba(255, 255, 255, 0.08);
-      color: #ffffff;
-      font: 500 12.5px Inter, "Segoe UI", sans-serif;
+      color: #e5e5ea;
+      font: 500 11px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif;
       white-space: nowrap;
       cursor: pointer;
-      transition: background 0.15s, transform 0.1s ease-out;
-      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.09);
+      transition: all 0.15s ease;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
       backdrop-filter: blur(14px);
       -webkit-backdrop-filter: blur(14px);
     }
     .cr-row:hover {
-      background: rgba(255, 255, 255, 0.16);
+      background: rgba(255, 255, 255, 0.15);
+      color: #ffffff;
+      transform: translateY(-1px);
     }
     .cr-row:active {
-      transform: scale(0.97);
+      transform: scale(0.96);
     }
     .cr-row svg {
       flex: none;
+      width: 12px;
+      height: 12px;
       color: var(--k);
     }
   `;
@@ -1014,8 +1047,9 @@ class ChatUI {
             const bubble = document.createElement('div');
             bubble.className = 'msg-bubble';
             const imageHtml = msg.imageData ? `<div class="msg-attachment-thumb-wrap"><img class="msg-attachment-thumb" src="${msg.imageData}" alt="Screen Glance" /></div>` : '';
-            const fileChipHtml = msg.fileName ? `<div class="msg-file-chip"><span class="msg-file-icon">📄</span><span class="msg-file-name">${sanitizeHtml(msg.fileName)}</span></div>` : '';
-            bubble.innerHTML = `${imageHtml}${fileChipHtml}${msg.role === 'robo' ? renderMarkdown(msg.text) : sanitizeHtml(msg.text)}`;
+            const fileChipHtml = msg.fileName ? `<div class="msg-file-chip"><span class="msg-file-icon">${SVG_ICONS.document}</span><span class="msg-file-name">${sanitizeHtml(msg.fileName)}</span></div>` : '';
+            const textHtml = msg.text ? `<div class="msg-text-content">${msg.role === 'robo' ? renderMarkdown(msg.text) : sanitizeHtml(msg.text)}</div>` : '';
+            bubble.innerHTML = `${imageHtml}${fileChipHtml}${textHtml}`;
             el.appendChild(bubble);
             container.appendChild(el);
         }
@@ -1029,8 +1063,9 @@ class ChatUI {
         const userMsgEl = document.createElement('div');
         userMsgEl.className = 'chat-msg user';
         const imageHtml = imageData ? `<div class="msg-attachment-thumb-wrap"><img class="msg-attachment-thumb" src="${imageData}" alt="Screen Glance" /></div>` : '';
-        const fileChipHtml = fileName ? `<div class="msg-file-chip"><span class="msg-file-icon">📄</span><span class="msg-file-name">${sanitizeHtml(fileName)}</span></div>` : '';
-        userMsgEl.innerHTML = `<div class="msg-bubble">${imageHtml}${fileChipHtml}${sanitizeHtml(text)}</div>`;
+        const fileChipHtml = fileName ? `<div class="msg-file-chip"><span class="msg-file-icon">${SVG_ICONS.document}</span><span class="msg-file-name">${sanitizeHtml(fileName)}</span></div>` : '';
+        const textHtml = text ? `<div class="msg-text-content">${sanitizeHtml(text)}</div>` : '';
+        userMsgEl.innerHTML = `<div class="msg-bubble">${imageHtml}${fileChipHtml}${textHtml}</div>`;
         container.appendChild(userMsgEl);
         // Save to message list
         this.messages.push({
