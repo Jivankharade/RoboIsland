@@ -2244,6 +2244,17 @@ export class CanvasEngine {
     const waInput = document.getElementById('whatsapp-reply-input') as HTMLInputElement | null;
     const waBtn = document.getElementById('whatsapp-reply-send-btn');
 
+    // Emoji reaction buttons
+    const reactBtns = document.querySelectorAll('.wa-react-btn');
+    reactBtns.forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const emoji = btn.getAttribute('data-emoji') || '👍';
+        this.submitWhatsAppReply(emoji);
+      });
+    });
+
     if (waInput) {
       waInput.addEventListener('input', () => {
         this.whatsAppReplyText = waInput.value;
@@ -3127,7 +3138,7 @@ export class CanvasEngine {
       const n = this.activeNotification!;
       if (this.isWhatsAppReplying) {
         this.targetWidth = 360;
-        this.targetHeight = 74;
+        this.targetHeight = 98;
         this.targetRadius = 22;
         return;
       }
@@ -4739,10 +4750,10 @@ export class CanvasEngine {
     if (waBar) {
       if (this.isWhatsAppReplying && this.isNotificationActive() && !this.whatsAppReplySent) {
         const pillLeft = cx - this.currentWidth / 2;
-        waBar.style.left = `${Math.round(pillLeft + 14)}px`;
-        waBar.style.top = `${Math.round(topY + 36)}px`;
-        waBar.style.width = `${Math.round(this.currentWidth - 28)}px`;
-        waBar.style.height = `28px`;
+        waBar.style.left = `${Math.round(pillLeft + 12)}px`;
+        waBar.style.top = `${Math.round(topY + 30)}px`;
+        waBar.style.width = `${Math.round(this.currentWidth - 24)}px`;
+        waBar.style.height = `60px`;
         if (waBar.classList.contains('hidden')) waBar.classList.remove('hidden');
       } else if (!waBar.classList.contains('hidden')) {
         waBar.classList.add('hidden');

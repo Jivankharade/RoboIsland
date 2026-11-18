@@ -302,7 +302,8 @@ function setupAppIPC(): void {
             '-Phone',
             phone,
             '-Tag',
-            tag
+            tag,
+            '-Autonomous'
           ], {
             windowsHide: true,
             stdio: ['ignore', 'pipe', 'pipe']
@@ -314,7 +315,7 @@ function setupAppIPC(): void {
           const timeout = setTimeout(() => {
             try { ps.kill(); } catch {}
             resolve(true);
-          }, 4500);
+          }, 15000);
 
           ps.on('close', (code) => {
             clearTimeout(timeout);
@@ -340,6 +341,38 @@ function setupAppIPC(): void {
       console.warn('[WhatsAppReply] Failed to dispatch reply:', err);
       return false;
     }
+  });
+
+  ipcMain.handle('whatsapp:react', async (_event, payload: { contact?: string; emoji: string }) => {
+    const emoji = payload?.emoji || '👍';
+    const contact = payload?.contact || '';
+    if (!contact) return false;
+    // Send emoji reaction directly
+    const scriptPath = path.join(__dirname, '../native/whatsapp-sender.ps1');
+    if (fs.existsSync(scriptPath)) {
+      return await new Promise<boolean>((resolve) => {
+        const ps = spawn('powershell.exe', [
+          '-NoProfile',
+          '-NonInteractive',
+          '-ExecutionPolicy',
+          'Bypass',
+          '-File',
+          scriptPath,
+          '-Text',
+          emoji,
+          '-Contact',
+          contact,
+          '-Autonomous'
+        ], {
+          windowsHide: true,
+          stdio: ['ignore', 'pipe', 'pipe']
+        });
+        const timeout = setTimeout(() => { try { ps.kill(); } catch {} resolve(true); }, 15000);
+        ps.on('close', () => { clearTimeout(timeout); resolve(true); });
+        ps.on('error', () => { clearTimeout(timeout); resolve(true); });
+      });
+    }
+    return true;
   });
 
   ipcMain.handle('system:open-external', (_event, url: string) => {

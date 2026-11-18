@@ -306,7 +306,8 @@ function setupAppIPC() {
                         '-Phone',
                         phone,
                         '-Tag',
-                        tag
+                        tag,
+                        '-Autonomous'
                     ], {
                         windowsHide: true,
                         stdio: ['ignore', 'pipe', 'pipe']
@@ -319,7 +320,7 @@ function setupAppIPC() {
                         }
                         catch { }
                         resolve(true);
-                    }, 4500);
+                    }, 15000);
                     ps.on('close', (code) => {
                         clearTimeout(timeout);
                         if (code === 0 && stdoutData.includes('OK')) {
@@ -344,6 +345,41 @@ function setupAppIPC() {
             console.warn('[WhatsAppReply] Failed to dispatch reply:', err);
             return false;
         }
+    });
+    electron_1.ipcMain.handle('whatsapp:react', async (_event, payload) => {
+        const emoji = payload?.emoji || '👍';
+        const contact = payload?.contact || '';
+        if (!contact)
+            return false;
+        // Send emoji reaction directly
+        const scriptPath = path.join(__dirname, '../native/whatsapp-sender.ps1');
+        if (fs.existsSync(scriptPath)) {
+            return await new Promise((resolve) => {
+                const ps = (0, child_process_1.spawn)('powershell.exe', [
+                    '-NoProfile',
+                    '-NonInteractive',
+                    '-ExecutionPolicy',
+                    'Bypass',
+                    '-File',
+                    scriptPath,
+                    '-Text',
+                    emoji,
+                    '-Contact',
+                    contact,
+                    '-Autonomous'
+                ], {
+                    windowsHide: true,
+                    stdio: ['ignore', 'pipe', 'pipe']
+                });
+                const timeout = setTimeout(() => { try {
+                    ps.kill();
+                }
+                catch { } resolve(true); }, 15000);
+                ps.on('close', () => { clearTimeout(timeout); resolve(true); });
+                ps.on('error', () => { clearTimeout(timeout); resolve(true); });
+            });
+        }
+        return true;
     });
     electron_1.ipcMain.handle('system:open-external', (_event, url) => {
         if (typeof url === 'string' && (url.startsWith('https://') || url.startsWith('http://') || url.startsWith('ms-settings:'))) {

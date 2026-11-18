@@ -146,6 +146,12 @@ if ($Autonomous -or ($Contact -and -not $Phone)) {
   # 7. Press Enter to send!
   [WhatsAppSenderNative]::SendEnter()
 
+  # 8. Restore previous active window if needed
+  if ($prevForeground -ne [IntPtr]::Zero) {
+    Start-Sleep -Milliseconds 250
+    [WhatsAppSenderNative]::SetForegroundWindow($prevForeground) | Out-Null
+  }
+
   Write-Output "OK: Sent '$msg' to '$Contact'"
   exit 0
 }

@@ -436,7 +436,7 @@ export class AIProviderManager {
 
     const systemMessage = overrideSystemPrompt
       ? overrideSystemPrompt
-      : 'You are Robo, a concise and friendly Windows Dynamic Island companion with advanced vision capabilities. Provide helpful answers with markdown formatting and code snippets when requested.';
+      : 'You are Robo, Gaurav\'s autonomous Windows Dynamic Island assistant. You possess native OS automation and Computer Use tools (WhatsApp messaging, Chrome search, RAM optimization, app launching, screen vision, and keyboard/mouse control). Assist Gaurav enthusiastically and execute desktop tasks autonomously.';
 
     const payload = {
       model,
@@ -594,7 +594,7 @@ export class AIProviderManager {
     const payload = {
       model,
       max_tokens: 4096,
-      system: 'You are Robo, a concise and friendly Windows Dynamic Island companion with advanced vision capabilities. Provide helpful answers with markdown formatting and code snippets when requested.',
+      system: 'You are Robo, Gaurav\'s autonomous Windows Dynamic Island assistant. You possess native OS automation and Computer Use tools (WhatsApp messaging, Chrome search, RAM optimization, app launching, screen vision, and keyboard/mouse control). Assist Gaurav enthusiastically and execute desktop tasks autonomously.',
       messages: [
         {
           role: 'user',
@@ -797,12 +797,17 @@ export function registerAIProviderIPC(manager: AIProviderManager, actionAgent?: 
     return manager.captureScreen(event.sender);
   });
 
-  ipcMain.handle('ai-chat:send-prompt', async (event, args: { provider: AIProvider; prompt: string; model?: string; imageData?: string }) => {
-    const { provider, prompt, model, imageData } = args || {};
+  ipcMain.handle('ai-chat:send-prompt', async (event, args: { provider: AIProvider; prompt: string; model?: string; imageData?: string; fileText?: string }) => {
+    const { provider, prompt, model, imageData, fileText } = args || {};
     const win = BrowserWindow.fromWebContents(event.sender);
 
+    // If a file (PDF/text) was attached, prepend its content to the prompt
+    const enrichedPrompt = fileText
+      ? `The user attached a document with the following content:\n\n---\n${fileText}\n---\n\nUser question: ${prompt}`
+      : prompt;
+
     // Autonomous Agent Action Interceptor (Zero-click execution on Windows)
-    if (actionAgent && !imageData && typeof actionAgent.processCommand === 'function') {
+    if (actionAgent && !imageData && !fileText && typeof actionAgent.processCommand === 'function') {
       try {
         const actionResult = await actionAgent.processCommand(prompt);
         if (actionResult && actionResult.isAction) {
@@ -821,7 +826,7 @@ export function registerAIProviderIPC(manager: AIProviderManager, actionAgent?: 
     let result = '';
     await manager.streamPrompt(
       provider || 'openai',
-      prompt || '',
+      enrichedPrompt || '',
       model,
       (chunk: string) => {
         result += chunk;
@@ -844,6 +849,88 @@ export function registerAIProviderIPC(manager: AIProviderManager, actionAgent?: 
   ipcMain.handle('ai-chat:save-credentials', async (_event, args: { provider: string; apiKey: string; baseUrl?: string; model?: string }) => {
     if (!args || !args.provider) return false;
     return manager.saveCredential(args.provider, args.apiKey || '', args.baseUrl, args.model);
+  });
+
+  // PDF / Text File Reader — extracts text content from uploaded documents
+  ipcMain.handle('ai-chat:read-file', async (_event, filePath: string) => {
+    try {
+      const ext = filePath.toLowerCase().split('.').pop() || '';
+      if (['txt', 'md', 'csv', 'json', 'xml', 'html', 'js', 'ts', 'py', 'java', 'c', 'cpp', 'h', 'css', 'yaml', 'yml', 'toml', 'ini', 'cfg', 'log', 'sql', 'sh', 'bat', 'ps1'].includes(ext)) {
+        // Plain text file — read directly
+        const content = fs.readFileSync(filePath, 'utf-8');
+        return { success: true, text: content, name: path.basename(filePath) };
+      } else if (ext === 'pdf') {
+        // PDF — extract text via PowerShell + .NET
+        return await new Promise<{ success: boolean; text?: string; name?: string }>((resolve) => {
+          const safePath = filePath.replace(/'/g, "''");
+          const psScript = `
+            Add-Type -Path "$env:windir\\Microsoft.NET\\Framework64\\v4.0.30319\\System.dll" -ErrorAction SilentlyContinue
+            try {
+              Add-Type -AssemblyName 'System.Windows.Forms' -ErrorAction SilentlyContinue
+              $pdfPath = '${safePath}'
+              $sb = New-Object System.Text.StringBuilder
+              # Use iTextSharp-like approach via Shell.Application
+              $shell = New-Object -ComObject Shell.Application
+              $folder = $shell.Namespace([System.IO.Path]::GetDirectoryName($pdfPath))
+              $file = $folder.ParseName([System.IO.Path]::GetFileName($pdfPath))
+              # Fallback: read raw bytes and extract ASCII text between stream markers
+              $bytes = [System.IO.File]::ReadAllBytes($pdfPath)
+              $raw = [System.Text.Encoding]::UTF8.GetString($bytes)
+              # Extract text between BT...ET markers (PDF text objects)
+              $matches = [regex]::Matches($raw, '\\(([^)]+)\\)')
+              $textParts = @()
+              foreach ($m in $matches) {
+                $val = $m.Groups[1].Value
+                if ($val.Length -gt 2 -and $val -notmatch '^[\\x00-\\x1f]+$') {
+                  $textParts += $val
+                }
+              }
+              $result = ($textParts -join ' ').Trim()
+              if ($result.Length -lt 50) {
+                # If regex extraction fails, try reading with pdftotext if available
+                $pdfToText = Get-Command pdftotext -ErrorAction SilentlyContinue
+                if ($pdfToText) {
+                  $tmpFile = [System.IO.Path]::GetTempFileName()
+                  & pdftotext '${safePath}' $tmpFile 2>$null
+                  $result = Get-Content $tmpFile -Raw -ErrorAction SilentlyContinue
+                  Remove-Item $tmpFile -Force -ErrorAction SilentlyContinue
+                }
+              }
+              if ($result.Length -gt 0) {
+                Write-Output $result
+              } else {
+                Write-Output "[PDF text extraction limited. The document may contain scanned images. Try a text-based PDF.]"
+              }
+            } catch {
+              Write-Output "[Error reading PDF: $_]"
+            }
+          `;
+          const { spawn } = require('child_process');
+          const ps = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', psScript], {
+            windowsHide: true,
+            stdio: ['ignore', 'pipe', 'pipe']
+          });
+          let stdout = '';
+          ps.stdout?.on('data', (d: Buffer) => { stdout += d.toString(); });
+          ps.on('close', () => {
+            resolve({ success: true, text: stdout.trim() || '[Could not extract PDF text]', name: path.basename(filePath) });
+          });
+          ps.on('error', () => {
+            resolve({ success: false, text: '[PDF read error]', name: path.basename(filePath) });
+          });
+        });
+      } else {
+        // Unsupported file type — try reading as text
+        try {
+          const content = fs.readFileSync(filePath, 'utf-8');
+          return { success: true, text: content, name: path.basename(filePath) };
+        } catch {
+          return { success: false, text: `[Unsupported file type: .${ext}]`, name: path.basename(filePath) };
+        }
+      }
+    } catch (err: any) {
+      return { success: false, text: `[Error: ${err.message}]`, name: path.basename(filePath) };
+    }
   });
 
   ipcMain.handle('ai-chat:get-credential-status', async () => {

@@ -83,10 +83,11 @@ const api = {
   getAIMonitorHistory: () => ipcRenderer.invoke('ai-monitor:get-history'),
   controlAIAgent: (action: 'stop' | 'pause' | 'allow' | 'deny') => ipcRenderer.invoke('ai-monitor:control', action),
 
-  // AI Chat API (OpenAI, Claude, Custom, Ollama, Robo Vision)
+  // AI Chat API (OpenAI, Claude, Custom, Ollama, Robo Vision, Document/PDF Reader)
   captureScreen: () => ipcRenderer.invoke('ai-chat:capture-screen'),
-  sendAIChatPrompt: (provider: 'openai' | 'anthropic' | 'custom' | 'ollama', prompt: string, model?: string, imageData?: string) =>
-    ipcRenderer.invoke('ai-chat:send-prompt', { provider, prompt, model, imageData }),
+  sendAIChatPrompt: (provider: 'openai' | 'anthropic' | 'custom' | 'ollama' | 'gemini' | string, prompt: string, model?: string, imageData?: string, fileText?: string) =>
+    ipcRenderer.invoke('ai-chat:send-prompt', { provider, prompt, model, imageData, fileText }),
+  readChatFile: (filePath: string) => ipcRenderer.invoke('ai-chat:read-file', filePath),
   onAIChatChunk: (callback: (chunk: string) => void) => {
     const handler = (_event: any, chunk: string) => callback(chunk);
     ipcRenderer.on('ai-chat:chunk', handler);
@@ -202,6 +203,8 @@ const api = {
   },
   replyWhatsApp: (payload: { contact?: string; phone?: string; tag?: string; text: string }) =>
     ipcRenderer.invoke('whatsapp:reply', payload),
+  reactWhatsApp: (payload: { contact?: string; emoji: string }) =>
+    ipcRenderer.invoke('whatsapp:react', payload),
   onCollapseRequested: (callback: () => void) => {
     const handler = () => callback();
     ipcRenderer.on('island:request-collapse', handler);

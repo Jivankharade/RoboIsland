@@ -6,7 +6,8 @@ import { SystemDiagnosticsManager } from './system-diagnostics';
 
 export interface AgentActionResponse {
   action: string;
-  params: Record<string, any>;
+  params?: Record<string, any>;
+  actions?: AgentActionResponse[];
   spokenConfirmation?: string;
   displayHeadline?: string;
   displayBody?: string;
@@ -15,10 +16,15 @@ export interface AgentActionResponse {
 /**
  * Intelligent JARVIS System Prompt:
  * Direct Gemini NLP Understanding - No brittle regexes, handles spelling mistakes,
- * strange spacing, slang, any contact name, and any arbitrary message.
+ * strange spacing, slang, any contact name, arbitrary messages, and composite/multi tasks.
  */
 const JARVIS_SYSTEM = `You are JARVIS, an autonomous OS Intelligence and Computer Use agent controlling Gaurav's Windows laptop.
-Your job is to understand whatever the user says in natural human language (including typos, spelling mistakes, informal Hindi/English slang, missing punctuation, or awkward spacing) and translate it into a single executable JSON system action.
+Your job is to understand whatever the user says in natural human language (including typos, spelling mistakes, informal Hindi/English slang, missing punctuation, awkward spacing, or multiple combined commands) and translate it into executable JSON system action(s).
+
+CRITICAL RULE — When to use chat_reply vs search_chrome:
+- If the user asks a KNOWLEDGE question (e.g. "give python code for X", "explain recursion", "what is machine learning", "write a program", "translate this", "explain this code", "help me with homework", "solve this math problem"), you MUST use chat_reply and answer the question directly in the "text" field. You are a smart AI — answer coding, science, math, history, language, and general knowledge questions yourself WITHOUT opening Chrome.
+- ONLY use search_chrome if the user EXPLICITLY asks to "search", "google", "look up", "browse", "open chrome", or wants live/real-time information like news, scores, stock prices, or weather that you cannot know.
+- When in doubt between search_chrome and chat_reply, ALWAYS prefer chat_reply. The user wants YOU to answer, not a web search.
 
 Available actions:
 1. send_whatsapp:
@@ -28,11 +34,10 @@ Available actions:
 
 2. call_whatsapp:
    params: { contact?: string }
-   Use when the user wants to call someone on WhatsApp.
 
 3. search_chrome:
    params: { query: string }
-   Use when the user wants to search anything on the web, Google, or Chrome. If they say "open chrome and search X", "search X", "google X", "look up X".
+   Use ONLY when the user EXPLICITLY says "search", "google", "look up", "browse", or "open chrome" — NOT for knowledge/coding/homework questions.
 
 4. play_youtube:
    params: { query: string }
@@ -40,42 +45,33 @@ Available actions:
 
 5. visual_click:
    params: { target: string }
-   Use when the user wants to click or tap an element on screen (e.g. "click gaurav profile", "click next", "click the blue button", "click search").
 
 6. visual_drag:
    params: { target: string }
-   Use when the user wants to move or drag the mouse cursor to a specific item on screen.
 
 7. open_and_type:
    params: { app: string, text: string }
-   Use when the user wants to open an application (Notepad, Word, Editor) and type text into it.
 
 8. type_text:
    params: { text: string }
-   Use when the user asks to type text directly into whatever is currently active.
 
 9. launch_app:
    params: { app: string }
-   Use when the user wants to open an application (e.g. Chrome, VS Code, Spotify, WhatsApp, Calculator, Settings, Task Manager).
 
 10. summarize_screen:
     params: {}
-    Use when the user wants to summarize, read, or analyze what is currently displayed on screen.
 
 11. fix_screen_bug:
     params: {}
-    Use when the user mentions UI bug, error on screen, or code diagnostics.
 
 12. take_screenshot:
     params: {}
 
 13. optimize_ram:
     params: {}
-    Use when the user wants to free RAM, clear memory, clean cache, or speed up PC.
 
 14. clean_junk:
     params: {}
-    Use when the user wants to clean junk files, delete temp files, or purge system cache.
 
 15. set_volume:
     params: { level: number }
@@ -88,15 +84,19 @@ Available actions:
 
 18. chat_reply:
     params: { text: string }
-    Use ONLY if the user is asking a purely conversational or factual question with NO desktop action intended.
+    Use for ANY knowledge question, coding help, homework, explanation, translation, general conversation, or factual query. Answer the question fully and helpfully in the "text" field with markdown formatting, code blocks, and detailed explanations. This is the DEFAULT action for questions.
 
-OUTPUT FORMAT: Respond with ONLY a valid JSON object (no markdown quotes, no conversational preamble):
+19. composite:
+    Use if the user requested MULTIPLE actions in a single sentence.
+    actions: [ array of individual action objects ]
+
+OUTPUT FORMAT: Respond with ONLY a valid JSON object:
 {
   "action": "<action_name>",
   "params": {},
   "spokenConfirmation": "Short natural sentence for JARVIS to speak aloud via speakers",
-  "displayHeadline": "Under 20 chars for Dynamic Island (e.g. 'WhatsApp Message')",
-  "displayBody": "Under 50 chars for Dynamic Island (e.g. 'Sending message to contact')"
+  "displayHeadline": "Under 20 chars for Dynamic Island",
+  "displayBody": "Under 50 chars for Dynamic Island"
 }`;
 
 export class AutonomousActionAgent {
@@ -110,24 +110,48 @@ export class AutonomousActionAgent {
 
   /**
    * Evaluates natural language command using Gemini AI Intelligence directly.
-   * Understands any spelling mistake, contact name, or message without static patterns.
+   * Understands any spelling mistake, contact name, or message with zero static limitations.
    */
   public async processCommand(rawInput: string): Promise<{ isAction: boolean; replyText?: string }> {
     const input = (rawInput || '').trim();
     if (!input) return { isAction: false };
 
     try {
-      // 1. Send the natural language command directly to Gemini AI
-      const intent = await this.parseIntentWithGemini(input);
-      if (!intent || intent.action === 'chat_reply') {
+      // 1. Send the natural language command to Gemini AI
+      let intent = await this.parseIntentWithGemini(input);
+
+      // 2. If Gemini fails or times out, use intelligent local NLP fallback
+      if (!intent) {
+        const fallback = this.fallbackIntentParser(input);
+        if (fallback) {
+          intent = fallback;
+        } else {
+          return { isAction: false };
+        }
+      }
+
+      // 3. If chat_reply, return the AI-generated text directly as a chat response
+      if (intent.action === 'chat_reply') {
+        const aiText = intent.params?.text || '';
+        if (aiText) {
+          return { isAction: true, replyText: aiText };
+        }
         return { isAction: false };
       }
 
-      // 2. Dispatch and execute the action natively on Windows
+      // 4. Dispatch and execute the action natively on Windows
       await this.dispatchAction(intent);
-      return { isAction: true, replyText: intent.spokenConfirmation || 'Task executed.' };
+      return { isAction: true, replyText: intent.spokenConfirmation || 'Task executed successfully.' };
     } catch (err: any) {
-      console.warn('[AutonomousActionAgent] Gemini intent evaluation error:', err.message);
+      console.warn('[AutonomousActionAgent] Action evaluation error:', err.message);
+      // Even if error occurs, try fallback
+      const fallback = this.fallbackIntentParser(input);
+      if (fallback) {
+        try {
+          await this.dispatchAction(fallback);
+          return { isAction: true, replyText: fallback.spokenConfirmation || 'Task executed.' };
+        } catch {}
+      }
       return { isAction: false };
     }
   }
@@ -138,29 +162,168 @@ export class AutonomousActionAgent {
   private async parseIntentWithGemini(userPrompt: string): Promise<AgentActionResponse | null> {
     let responseText = '';
 
-    await (this.aiManager as any).streamWithSystem(
-      JARVIS_SYSTEM,
-      'gemini',
-      userPrompt,
-      'gemini-3-flash-preview',
-      (chunk: string) => { responseText += chunk; },
-      undefined,
-      'jarvis-ai-brain-' + Date.now()
-    );
-
-    // Extract JSON from response
-    const match = responseText.match(/\{[\s\S]*?\}/);
-    if (!match) return null;
-
     try {
-      return JSON.parse(match[0]) as AgentActionResponse;
-    } catch {
-      const jsonBlock = responseText.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-      if (jsonBlock) {
-        try { return JSON.parse(jsonBlock[1]) as AgentActionResponse; } catch {}
-      }
-      return null;
+      await (this.aiManager as any).streamWithSystem(
+        JARVIS_SYSTEM,
+        'gemini',
+        userPrompt,
+        'gemini-3-flash-preview',
+        (chunk: string) => { responseText += chunk; },
+        undefined,
+        'jarvis-ai-brain-' + Date.now()
+      );
+    } catch (err: any) {
+      console.warn('[AutonomousActionAgent] Gemini stream error:', err.message);
     }
+
+    return this.extractActionJson(responseText);
+  }
+
+  /**
+   * Robust JSON extractor that handles nested objects and markdown blocks without cutting braces.
+   */
+  private extractActionJson(text: string): AgentActionResponse | null {
+    if (!text) return null;
+
+    // 1. Check for markdown code fences ```json ... ```
+    const fence = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (fence) {
+      try {
+        const obj = JSON.parse(fence[1].trim());
+        if (obj && (obj.action || obj.actions)) return obj;
+      } catch {}
+    }
+
+    // 2. Find balanced JSON object from first '{' to last '}'
+    const startIdx = text.indexOf('{');
+    const endIdx = text.lastIndexOf('}');
+    if (startIdx !== -1 && endIdx > startIdx) {
+      const candidate = text.substring(startIdx, endIdx + 1).trim();
+      try {
+        const obj = JSON.parse(candidate);
+        if (obj && (obj.action || obj.actions)) return obj;
+      } catch {}
+    }
+
+    return null;
+  }
+
+  /**
+   * Resilient Zero-Delay Local NLP Fallback (in case Gemini API is unreachable or rate limited).
+   */
+  private fallbackIntentParser(input: string): AgentActionResponse | null {
+    const raw = input.trim();
+    const lower = raw.toLowerCase();
+
+    // 1. WhatsApp Intent — only match explicit WhatsApp-related terms, not generic "what" questions
+    if (
+      lower.includes('whatsapp') || lower.includes('whats app') || lower.includes('whatapp') ||
+      lower.includes('whatsup') || lower.includes('whtasapp') ||
+      (lower.includes('bhejo') && (lower.includes('to') || lower.includes('ko'))) ||
+      (lower.includes('send') && (lower.includes('whatsapp') || lower.includes('whats app') || lower.includes('wa')))
+    ) {
+      // Split composite WhatsApp instructions (e.g., "send X to A on whatsapp and send Y to B")
+      const subParts = raw.split(/(?:and then|and also|\band\b|bhejo)/i).map(s => s.trim()).filter(Boolean);
+      const waActions: AgentActionResponse[] = [];
+
+      for (const part of (subParts.length > 1 ? subParts : [raw])) {
+        const pLower = part.toLowerCase();
+        if (!pLower.includes('send') && !pLower.includes('bhejo') && !pLower.includes('message') && !pLower.includes('hi') && !pLower.includes('hello')) {
+          continue;
+        }
+
+        let contact = '';
+        let message = 'Hi';
+
+        // Pattern: send [msg] to [contact]
+        const m1 = part.match(/(?:send|bhejo|message)\s+(?:message\s+)?["']?(.+?)["']?\s+(?:to|ko)\s+([^.]+)/i);
+        if (m1) {
+          message = m1[1].replace(/\s*(?:on|in|via)?\s*whats?\s*app\s*$/i, '').trim();
+          contact = m1[2].replace(/\s*(?:on|in|via)?\s*whats?\s*app\s*$/i, '').trim();
+        } else {
+          // Pattern: to [contact] send/say [msg]
+          const m2 = part.match(/to\s+([^,\s]+(?:\s+[^,\s]+)?)\s+(?:say|message|send)?\s*(.*)/i);
+          if (m2) {
+            contact = m2[1].replace(/\s*(?:on|in|via)?\s*whats?\s*app\s*$/i, '').trim();
+            message = m2[2].replace(/\s*(?:on|in|via)?\s*whats?\s*app\s*$/i, '').trim() || 'Hi';
+          }
+        }
+
+        if (contact) {
+          waActions.push({
+            action: 'send_whatsapp',
+            params: { contact, message: message || 'Hi' },
+            spokenConfirmation: `Sending ${message || 'message'} to ${contact} on WhatsApp.`,
+            displayHeadline: `WhatsApp → ${contact}`,
+            displayBody: `Sending: "${message || 'Hi'}"`
+          });
+        }
+      }
+
+      if (waActions.length > 1) {
+        return {
+          action: 'composite',
+          actions: waActions,
+          spokenConfirmation: `Sending WhatsApp messages to ${waActions.map(a => a.params?.contact).join(', ')}.`,
+          displayHeadline: 'WhatsApp Multi',
+          displayBody: `Sending ${waActions.length} messages in sequence`
+        };
+      } else if (waActions.length === 1) {
+        return waActions[0];
+      }
+    }
+
+    // 2. RAM Optimization
+    if (lower.includes('ram') || lower.includes('memory') || lower.includes('clean pc') || lower.includes('speed up') || lower.includes('free memory')) {
+      return {
+        action: 'optimize_ram',
+        params: {},
+        spokenConfirmation: 'Optimizing memory and trimming background working sets.',
+        displayHeadline: 'Trimming RAM',
+        displayBody: 'Freeing physical memory across all processes...'
+      };
+    }
+
+    // 3. Chrome Search — ONLY when user explicitly says "search", "chrome", or "google"
+    if (
+      (lower.includes('chrome') && (lower.includes('open') || lower.includes('search'))) ||
+      (lower.includes('google') && lower.includes('search')) ||
+      (lower.includes('search') && (lower.includes('chrome') || lower.includes('google') || lower.includes('browse') || lower.includes('look up')))
+    ) {
+      let query = raw;
+      const qMatch = raw.match(/(?:search|google|look up)\s+(?:for\s+)?(.+?)(?:\s+in\s+chrome|\s+on\s+google|$)/i);
+      if (qMatch) {
+        query = qMatch[1].trim();
+      } else {
+        query = raw.replace(/(?:open\s+)?chrome(?:\s+and)?/i, '').replace(/search/i, '').trim();
+      }
+      return {
+        action: 'search_chrome',
+        params: { query: query || 'IPL' },
+        spokenConfirmation: `Searching Google for ${query || 'IPL'}.`,
+        displayHeadline: 'Google Search',
+        displayBody: `Searching for "${query}"`
+      };
+    }
+
+    // 4. YouTube
+    if (lower.includes('youtube') || lower.includes('song') || lower.includes('play')) {
+      const q = raw.replace(/(?:play|open|search)\s+(?:on\s+youtube\s+)?/i, '').replace(/youtube/i, '').trim();
+      return {
+        action: 'play_youtube',
+        params: { query: q },
+        spokenConfirmation: `Playing ${q} on YouTube.`,
+        displayHeadline: 'YouTube',
+        displayBody: `Playing "${q}"`
+      };
+    }
+
+    // 5. Volume / Mute
+    if (lower.includes('mute')) {
+      return { action: 'mute_audio', params: {}, spokenConfirmation: 'Audio muted.' };
+    }
+
+    return null;
   }
 
   /**
@@ -188,6 +351,17 @@ export class AutonomousActionAgent {
 
     // 3. Native Execution
     switch (action) {
+      case 'composite':
+        if (Array.isArray(intent.actions)) {
+          for (let i = 0; i < intent.actions.length; i++) {
+            await this.dispatchAction(intent.actions[i]);
+            if (i < intent.actions.length - 1) {
+              await new Promise(r => setTimeout(r, 1800));
+            }
+          }
+        }
+        break;
+
       case 'send_whatsapp':
         await this.executeSendWhatsApp(params.contact, params.message);
         break;
@@ -376,13 +550,10 @@ If NO (e.g. browser is already open with search results):
             capture.dataUrl
           );
 
-          const match = responseText.match(/\{[\s\S]*?\}/);
-          if (match) {
-            const data = JSON.parse(match[0]);
-            if (data.isProfilePicker && typeof data.x === 'number' && typeof data.y === 'number') {
-              await this.clickScreenCoordinate(data.x, data.y);
-              this.aiManager.speakTTS('Selected profile to open search results.').catch(() => {});
-            }
+          const data = this.extractActionJson(responseText) as any;
+          if (data && data.isProfilePicker && typeof data.x === 'number' && typeof data.y === 'number') {
+            await this.clickScreenCoordinate(data.x, data.y);
+            this.aiManager.speakTTS('Selected profile to open search results.').catch(() => {});
           }
         }
       } catch (err: any) {
@@ -440,10 +611,9 @@ If not found:
         capture.dataUrl
       );
 
-      const match = responseText.match(/\{[\s\S]*?\}/);
-      if (!match) throw new Error('Could not parse locator response');
+      const data = this.extractActionJson(responseText) as any;
+      if (!data) throw new Error('Could not parse locator response');
 
-      const data = JSON.parse(match[0]);
       if (data.found && typeof data.x === 'number' && typeof data.y === 'number') {
         await this.clickScreenCoordinate(data.x, data.y);
         this.notifyIsland({
@@ -498,15 +668,12 @@ Return ONLY JSON:
         capture.dataUrl
       );
 
-      const match = responseText.match(/\{[\s\S]*?\}/);
-      if (match) {
-        const data = JSON.parse(match[0]);
-        if (data.found && typeof data.x === 'number' && typeof data.y === 'number') {
-          const scriptPath = path.join(__dirname, '..', 'native', 'computer-use.ps1');
-          const psCmd = `powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}" -Action "move" -X ${Math.round(data.x)} -Y ${Math.round(data.y)}`;
-          exec(psCmd, () => {});
-          this.aiManager.speakTTS(`Moved cursor to ${targetDescription}.`).catch(() => {});
-        }
+      const data = this.extractActionJson(responseText) as any;
+      if (data && data.found && typeof data.x === 'number' && typeof data.y === 'number') {
+        const scriptPath = path.join(__dirname, '..', 'native', 'computer-use.ps1');
+        const psCmd = `powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}" -Action "move" -X ${Math.round(data.x)} -Y ${Math.round(data.y)}`;
+        exec(psCmd, () => {});
+        this.aiManager.speakTTS(`Moved cursor to ${targetDescription}.`).catch(() => {});
       }
     } catch {}
   }
@@ -635,100 +802,79 @@ Return ONLY JSON:
         this.notifyIsland({ id: 'app-generic', title: 'Launched', body: `Started ${appName}.`, kind: 'done', durationMs: 3000 });
       }
     });
+
     return true;
   }
 
   private async executeSummarizeScreen(): Promise<void> {
     this.notifyIsland({
-      id: 'screen-summary-scan',
-      title: 'JARVIS Screen Reader',
-      body: 'Capturing and summarizing desktop...',
+      id: 'agent-sum-' + Date.now(),
+      title: 'Summarizing Screen',
+      body: 'Capturing desktop context...',
       kind: 'terminal',
-      durationMs: 8000
+      durationMs: 4000
     });
 
     try {
       const capture = await this.aiManager.captureScreen();
       if (!capture.success || !capture.dataUrl) {
-        throw new Error('Could not capture display');
+        throw new Error('Screen capture failed');
       }
 
-      const prompt = `You are JARVIS, Gaurav's autonomous AI.
-Observe this full desktop screenshot and provide a concise summary:
-- Active Window & Workflow
-- Key Information / Errors / Document Content
-- Suggested next step if applicable
-Keep it under 4 short bullet points + 1-sentence spoken summary.`;
-
-      let summaryOutput = '';
+      let summary = '';
       await this.aiManager.streamPrompt(
         'gemini',
-        prompt,
+        'Analyze this desktop screenshot and provide a concise 3-bullet summary of what the user is working on.',
         'gemini-3-flash-preview',
-        (chunk) => { summaryOutput += chunk; },
+        (chunk: string) => { summary += chunk; },
         undefined,
-        'screen-summary-' + Date.now(),
+        'summary-' + Date.now(),
         capture.dataUrl
       );
 
-      this.safeWriteClipboard(summaryOutput);
-
-      const firstLine = summaryOutput.split('\n').filter(l => l.trim().length > 0)[0] || 'Desktop summarized.';
       this.notifyIsland({
-        id: 'screen-summary-done-' + Date.now(),
-        title: 'Screen Summarized',
-        body: firstLine.slice(0, 60),
+        id: 'agent-sum-done-' + Date.now(),
+        title: 'Screen Summary',
+        body: summary.slice(0, 100),
         kind: 'done',
-        durationMs: 12000,
-        actions: [
-          { id: 'copy:' + summaryOutput, label: 'Copy Summary', primary: true }
-        ]
+        durationMs: 8000
       });
-
-      this.aiManager.speakTTS('Screen summary copied to clipboard.').catch(() => {});
+      this.aiManager.speakTTS('Here is what you have open on screen.').catch(() => {});
     } catch (err: any) {
-      this.notifyIsland({
-        id: 'screen-summary-err',
-        title: 'Screen Reader Error',
-        body: err.message || 'Failed to read screen',
-        kind: 'error',
-        durationMs: 4000
-      });
+      console.warn('[AutonomousActionAgent] Screen summary failed:', err.message);
     }
   }
 
-  private safeOpenExternal(targetUrl: string): void {
-    try {
-      if (shell && typeof shell.openExternal === 'function') {
-        shell.openExternal(targetUrl).catch(() => {
-          exec(`start "" "${targetUrl}"`);
+  private notifyIsland(payload: {
+    id: string;
+    title: string;
+    body: string;
+    kind?: string;
+    durationMs?: number;
+  }): void {
+    const wins = BrowserWindow.getAllWindows();
+    wins.forEach((w) => {
+      if (!w.isDestroyed()) {
+        w.webContents.send('notification:push', {
+          id: payload.id,
+          appName: payload.title,
+          title: payload.title,
+          body: payload.body,
+          kind: payload.kind || 'done',
+          durationMs: payload.durationMs || 4000,
+          timestamp: Date.now()
         });
-      } else {
-        exec(`start "" "${targetUrl}"`);
       }
+    });
+  }
+
+  private safeOpenExternal(target: string): void {
+    try {
+      shell.openExternal(target).catch(() => {
+        exec(`start "" "${target}"`);
+      });
     } catch {
-      exec(`start "" "${targetUrl}"`);
+      exec(`start "" "${target}"`);
     }
-  }
-
-  private safeWriteClipboard(text: string): void {
-    try {
-      if (clipboard && typeof clipboard.writeText === 'function') {
-        clipboard.writeText(text);
-      }
-    } catch {}
-  }
-
-  private notifyIsland(payload: any): void {
-    try {
-      if (BrowserWindow && typeof BrowserWindow.getAllWindows === 'function') {
-        const windows = BrowserWindow.getAllWindows();
-        for (const win of windows) {
-          if (!win.isDestroyed()) {
-            win.webContents.send('island:notify', payload);
-          }
-        }
-      }
-    } catch {}
   }
 }

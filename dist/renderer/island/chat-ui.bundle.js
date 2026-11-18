@@ -9,6 +9,7 @@
     check: `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="#34c759" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`,
     mic: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>`,
     camera: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>`,
+    paperclip: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>`,
     close: `<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`,
     speaker: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>`,
     speakerMuted: `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>`,
@@ -269,6 +270,19 @@
     .msg-attachment-thumb:hover {
       transform: scale(1.03);
     }
+    .msg-file-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(0, 210, 255, 0.15);
+      border: 1px solid rgba(0, 210, 255, 0.35);
+      border-radius: 8px;
+      padding: 3px 8px;
+      margin-bottom: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #00d2ff;
+    }
     .code-block-wrapper {
       margin: 6px 0;
       border-radius: 6px;
@@ -416,6 +430,8 @@
     activeAssistantBubble = null;
     activeAssistantText = "";
     pendingImageData = null;
+    pendingFileText = null;
+    pendingFileName = null;
     constructor() {
       this.loadState();
       this.enhanceUI();
@@ -514,6 +530,29 @@
         `;
           form.parentNode.insertBefore(attachBar, form);
         }
+        if (!document.getElementById("btn-chat-attach")) {
+          let fileInput = document.getElementById("chat-file-input");
+          if (!fileInput) {
+            fileInput = document.createElement("input");
+            fileInput.type = "file";
+            fileInput.id = "chat-file-input";
+            fileInput.accept = ".pdf,.txt,.md,.py,.js,.ts,.json,.csv,.doc,.docx,.html,.c,.cpp,.java,.xml,.yaml,.yml,.log";
+            fileInput.style.display = "none";
+            form.appendChild(fileInput);
+          }
+          const attachBtn = document.createElement("button");
+          attachBtn.type = "button";
+          attachBtn.id = "btn-chat-attach";
+          attachBtn.className = "chat-vision-btn";
+          attachBtn.title = "Attach Document or PDF (Analyze like ChatGPT)";
+          attachBtn.innerHTML = SVG_ICONS.paperclip;
+          const input = document.getElementById("chat-input");
+          if (input) {
+            form.insertBefore(attachBtn, input);
+          } else {
+            form.prepend(attachBtn);
+          }
+        }
         if (!document.getElementById("btn-chat-vision")) {
           const visionBtn = document.createElement("button");
           visionBtn.type = "button";
@@ -601,12 +640,14 @@
             e.stopPropagation();
             e.stopImmediatePropagation();
             const text = input ? input.value.trim() : "";
-            if (!text && !this.pendingImageData || this.isStreaming) return;
-            const promptText = text || "Analyze what is visible on my screen and provide concise, helpful insights or troubleshooting steps.";
+            if (!text && !this.pendingImageData && !this.pendingFileText || this.isStreaming) return;
+            const promptText = text || (this.pendingFileText ? "Please analyze this attached document and provide a helpful summary or answer." : "Analyze what is visible on my screen and provide concise, helpful insights or troubleshooting steps.");
             const attachedImage = this.pendingImageData;
+            const attachedFileText = this.pendingFileText;
+            const attachedFileName = this.pendingFileName;
             this.clearAttachment();
             if (input) input.value = "";
-            this.handleSendMessage(promptText, attachedImage);
+            this.handleSendMessage(promptText, attachedImage, attachedFileText, attachedFileName);
           },
           true
           // Capture phase
@@ -735,6 +776,61 @@
           }, 3e3);
         });
       }
+      const attachBtn = document.getElementById("btn-chat-attach");
+      const fileInput = document.getElementById("chat-file-input");
+      if (attachBtn && fileInput) {
+        attachBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          fileInput.click();
+        });
+        fileInput.addEventListener("change", async () => {
+          const file = fileInput.files?.[0];
+          if (!file) return;
+          let content = "";
+          const api = window.roboIsland;
+          const filePath = file.path;
+          if (api && typeof api.readChatFile === "function" && filePath) {
+            try {
+              const res = await api.readChatFile(filePath);
+              if (res && res.success && res.text) {
+                content = res.text;
+              }
+            } catch {
+            }
+          }
+          if (!content) {
+            try {
+              content = await file.text();
+            } catch {
+              content = `[File attached: ${file.name} (${Math.round(file.size / 1024)} KB)]`;
+            }
+          }
+          this.pendingFileText = content;
+          this.pendingFileName = file.name;
+          const attachBar = document.getElementById("chat-attachment-bar");
+          const attachThumb = document.getElementById("chat-attachment-thumb");
+          const attachLabel = document.querySelector(".chat-attachment-label");
+          const attachSub = document.getElementById("chat-attachment-meta");
+          if (attachBar) {
+            attachBar.classList.remove("hidden");
+            if (attachThumb) {
+              attachThumb.style.display = "none";
+            }
+            if (attachLabel) {
+              attachLabel.textContent = `\u{1F4C4} ${file.name}`;
+            }
+            if (attachSub) {
+              attachSub.textContent = `${Math.round(file.size / 1024)} KB \u2022 Document Attached for Analysis`;
+            }
+            const input2 = document.getElementById("chat-input");
+            if (input2) {
+              input2.placeholder = `Ask anything about ${file.name}...`;
+              input2.focus();
+            }
+          }
+          fileInput.value = "";
+        });
+      }
       const visionBtn = document.getElementById("btn-chat-vision");
       if (visionBtn) {
         visionBtn.addEventListener("click", (e) => {
@@ -824,26 +920,29 @@
         const bubble = document.createElement("div");
         bubble.className = "msg-bubble";
         const imageHtml = msg.imageData ? `<div class="msg-attachment-thumb-wrap"><img class="msg-attachment-thumb" src="${msg.imageData}" alt="Screen Glance" /></div>` : "";
-        bubble.innerHTML = `${imageHtml}${msg.role === "robo" ? renderMarkdown(msg.text) : sanitizeHtml(msg.text)}`;
+        const fileChipHtml = msg.fileName ? `<div class="msg-file-chip"><span class="msg-file-icon">\u{1F4C4}</span><span class="msg-file-name">${sanitizeHtml(msg.fileName)}</span></div>` : "";
+        bubble.innerHTML = `${imageHtml}${fileChipHtml}${msg.role === "robo" ? renderMarkdown(msg.text) : sanitizeHtml(msg.text)}`;
         el.appendChild(bubble);
         container.appendChild(el);
       }
       container.scrollTop = container.scrollHeight;
     }
-    handleSendMessage(text, imageData) {
+    handleSendMessage(text, imageData, fileText, fileName) {
       const container = document.getElementById("chat-messages");
       if (!container) return;
       const userMsgEl = document.createElement("div");
       userMsgEl.className = "chat-msg user";
       const imageHtml = imageData ? `<div class="msg-attachment-thumb-wrap"><img class="msg-attachment-thumb" src="${imageData}" alt="Screen Glance" /></div>` : "";
-      userMsgEl.innerHTML = `<div class="msg-bubble">${imageHtml}${sanitizeHtml(text)}</div>`;
+      const fileChipHtml = fileName ? `<div class="msg-file-chip"><span class="msg-file-icon">\u{1F4C4}</span><span class="msg-file-name">${sanitizeHtml(fileName)}</span></div>` : "";
+      userMsgEl.innerHTML = `<div class="msg-bubble">${imageHtml}${fileChipHtml}${sanitizeHtml(text)}</div>`;
       container.appendChild(userMsgEl);
       this.messages.push({
         id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         role: "user",
         text,
         timestamp: Date.now(),
-        imageData: imageData || void 0
+        imageData: imageData || void 0,
+        fileName: fileName || void 0
       });
       const roboMsgEl = document.createElement("div");
       roboMsgEl.className = "chat-msg robo";
@@ -858,7 +957,7 @@
       this.isStreaming = true;
       const api = window.roboIsland;
       if (api && typeof api.sendAIChatPrompt === "function") {
-        api.sendAIChatPrompt(this.currentProvider, text, this.currentModel || void 0, imageData || void 0).then((fullResponse) => {
+        api.sendAIChatPrompt(this.currentProvider, text, this.currentModel || void 0, imageData || void 0, fileText || void 0).then((fullResponse) => {
           if (this.isStreaming && fullResponse) {
             this.activeAssistantText = fullResponse;
             this.handleStreamDone();
@@ -873,7 +972,8 @@
       } else {
         setTimeout(() => {
           const imageNote = imageData ? " [Screen captured]" : "";
-          this.activeAssistantText = `I analyzed your screen${imageNote} and prompt: "${text}". Connect OpenAI, Claude, or local Ollama in settings for live visual inference!`;
+          const fileNote = fileName ? ` [File: ${fileName}]` : "";
+          this.activeAssistantText = `I analyzed your prompt${imageNote}${fileNote}: "${text}". Connect OpenAI, Claude, or local Ollama in settings for live visual inference!`;
           this.handleStreamDone();
         }, 350);
       }
@@ -908,10 +1008,19 @@
     }
     clearAttachment() {
       this.pendingImageData = null;
+      this.pendingFileText = null;
+      this.pendingFileName = null;
       const attachBar = document.getElementById("chat-attachment-bar");
       const attachThumb = document.getElementById("chat-attachment-thumb");
+      const attachLabel = document.querySelector(".chat-attachment-label");
+      const attachSub = document.getElementById("chat-attachment-meta");
       if (attachBar) attachBar.classList.add("hidden");
-      if (attachThumb) attachThumb.src = "";
+      if (attachThumb) {
+        if (attachThumb instanceof HTMLImageElement) attachThumb.src = "";
+        attachThumb.style.display = "";
+      }
+      if (attachLabel) attachLabel.textContent = "Screen attached";
+      if (attachSub) attachSub.textContent = "1920x1080 JPEG";
       const input = document.getElementById("chat-input");
       if (input) {
         input.placeholder = "Ask Robo...";

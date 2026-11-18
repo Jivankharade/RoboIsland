@@ -4375,19 +4375,61 @@ html, body {
   position: absolute;
   z-index: 99999;
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  gap: 6px;
   box-sizing: border-box;
-  padding: 0 4px 0 12px;
-  background: #1c1c1e;
-  border-radius: 14px;
+  padding: 6px 8px;
+  background: rgba(28, 28, 30, 0.94);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   pointer-events: auto;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.1);
   transition: opacity 0.18s ease;
 }
 
 .whatsapp-quick-reply-bar.hidden {
   display: none !important;
+}
+
+.whatsapp-reactions-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 2px 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.wa-react-btn {
+  background: transparent;
+  border: none;
+  font-size: 16px;
+  line-height: 1;
+  padding: 3px 6px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease;
+  user-select: none;
+}
+
+.wa-react-btn:hover {
+  transform: scale(1.35);
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.wa-react-btn:active {
+  transform: scale(0.95);
+}
+
+.whatsapp-reply-input-wrap {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 0 2px 0 6px;
+  box-sizing: border-box;
 }
 
 .whatsapp-reply-input {

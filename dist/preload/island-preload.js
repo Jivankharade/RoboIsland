@@ -79,9 +79,10 @@ const api = {
     },
     getAIMonitorHistory: () => electron_1.ipcRenderer.invoke('ai-monitor:get-history'),
     controlAIAgent: (action) => electron_1.ipcRenderer.invoke('ai-monitor:control', action),
-    // AI Chat API (OpenAI, Claude, Custom, Ollama, Robo Vision)
+    // AI Chat API (OpenAI, Claude, Custom, Ollama, Robo Vision, Document/PDF Reader)
     captureScreen: () => electron_1.ipcRenderer.invoke('ai-chat:capture-screen'),
-    sendAIChatPrompt: (provider, prompt, model, imageData) => electron_1.ipcRenderer.invoke('ai-chat:send-prompt', { provider, prompt, model, imageData }),
+    sendAIChatPrompt: (provider, prompt, model, imageData, fileText) => electron_1.ipcRenderer.invoke('ai-chat:send-prompt', { provider, prompt, model, imageData, fileText }),
+    readChatFile: (filePath) => electron_1.ipcRenderer.invoke('ai-chat:read-file', filePath),
     onAIChatChunk: (callback) => {
         const handler = (_event, chunk) => callback(chunk);
         electron_1.ipcRenderer.on('ai-chat:chunk', handler);
@@ -186,6 +187,7 @@ const api = {
         return () => electron_1.ipcRenderer.removeListener('island:trigger-greeting', handler);
     },
     replyWhatsApp: (payload) => electron_1.ipcRenderer.invoke('whatsapp:reply', payload),
+    reactWhatsApp: (payload) => electron_1.ipcRenderer.invoke('whatsapp:react', payload),
     onCollapseRequested: (callback) => {
         const handler = () => callback();
         electron_1.ipcRenderer.on('island:request-collapse', handler);
