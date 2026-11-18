@@ -468,7 +468,7 @@ export class AutonomousActionAgent {
     const scriptPath = path.join(__dirname, '..', 'native', 'whatsapp-sender.ps1');
     const safeText = msg.replace(/'/g, "''");
     const safeContact = targetContact.replace(/'/g, "''");
-    const psCmd = `powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}" -Text '${safeText}' -Contact '${safeContact}'`;
+    const psCmd = `powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}" -Text '${safeText}' -Contact '${safeContact}' -Autonomous`;
 
     exec(psCmd, (err) => {
       if (err) {
