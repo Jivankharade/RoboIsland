@@ -91,18 +91,15 @@ try {
 
 # ─── Autonomous Mode (Full UI Automation & Keystrokes) ───────────────────────
 if ($Autonomous -or ($Contact -and -not $Phone)) {
-  # 1. Ensure WhatsApp is running and in foreground
-  $wa = Get-Process -Name "WhatsApp.Root" -ErrorAction SilentlyContinue
-  if (-not $wa) {
-    Start-Process "whatsapp://"
-    Start-Sleep -Milliseconds 2500
-    $wa = Get-Process -Name "WhatsApp.Root" -ErrorAction SilentlyContinue
-  }
+  # 1. Bring WhatsApp to front via protocol activation
+  Start-Process "whatsapp://"
+  Start-Sleep -Milliseconds 650
 
   $wshell = New-Object -ComObject WScript.Shell
   $wshell.AppActivate("WhatsApp") | Out-Null
-  Start-Sleep -Milliseconds 400
+  Start-Sleep -Milliseconds 250
 
+  $wa = Get-Process -Name "WhatsApp.Root" -ErrorAction SilentlyContinue
   $hwnd = [WhatsAppSenderNative]::FindWindowByTitleSubstr("WhatsApp")
   if ($hwnd -eq [IntPtr]::Zero -and $wa) {
     $hwnd = [WhatsAppSenderNative]::FindWindowByPid([uint32]$wa.Id)
@@ -111,42 +108,51 @@ if ($Autonomous -or ($Contact -and -not $Phone)) {
   if ($hwnd -ne [IntPtr]::Zero) {
     [WhatsAppSenderNative]::ShowWindow($hwnd, 9) | Out-Null
     [WhatsAppSenderNative]::SetForegroundWindow($hwnd) | Out-Null
-    Start-Sleep -Milliseconds 400
+    Start-Sleep -Milliseconds 350
   }
 
-  # 2. Focus WhatsApp Search Bar (Ctrl+F)
+  # 2. Dismiss any open modals or dialogs
+  [System.Windows.Forms.SendKeys]::SendWait("{ESC}")
+  Start-Sleep -Milliseconds 120
+  [System.Windows.Forms.SendKeys]::SendWait("{ESC}")
+  Start-Sleep -Milliseconds 120
+
+  # 3. Focus WhatsApp Search Bar (Ctrl+E / Ctrl+F)
+  [System.Windows.Forms.SendKeys]::SendWait("^e")
+  Start-Sleep -Milliseconds 150
   [System.Windows.Forms.SendKeys]::SendWait("^f")
-  Start-Sleep -Milliseconds 400
+  Start-Sleep -Milliseconds 300
 
-  # 3. Clear existing text
+  # 4. Clear existing search text
   [System.Windows.Forms.SendKeys]::SendWait("^a")
-  Start-Sleep -Milliseconds 80
+  Start-Sleep -Milliseconds 60
   [System.Windows.Forms.SendKeys]::SendWait("{BACKSPACE}")
-  Start-Sleep -Milliseconds 80
+  Start-Sleep -Milliseconds 60
 
-  # 4. Search Contact
+  # 5. Search Contact or Group
   if ($Contact) {
     Set-Clipboard -Value $Contact.Trim()
     [System.Windows.Forms.SendKeys]::SendWait("^v")
-    Start-Sleep -Milliseconds 1000
+    Start-Sleep -Milliseconds 900
 
-    # 5. Highlight first matching contact and press Enter to open chat
+    # 6. Highlight first matching contact and press Enter to open chat
     [WhatsAppSenderNative]::PressKey([WhatsAppSenderNative]::VK_DOWN)
     Start-Sleep -Milliseconds 250
     [WhatsAppSenderNative]::SendEnter()
-    Start-Sleep -Milliseconds 600
+    Start-Sleep -Milliseconds 650
   }
 
-  # 6. Type message into the chat
+  # 7. Type message or emoji into the chat
   $msg = if ($Text) { $Text.Trim() } else { "Hi" }
   Set-Clipboard -Value $msg
   [System.Windows.Forms.SendKeys]::SendWait("^v")
   Start-Sleep -Milliseconds 300
 
-  # 7. Press Enter to send!
+  # 8. Press Enter to send!
   [WhatsAppSenderNative]::SendEnter()
+  Start-Sleep -Milliseconds 250
 
-  # 8. Restore previous active window if needed
+  # 9. Restore previous active window so WhatsApp does not get in user's way
   if ($prevForeground -ne [IntPtr]::Zero) {
     Start-Sleep -Milliseconds 250
     [WhatsAppSenderNative]::SetForegroundWindow($prevForeground) | Out-Null

@@ -175,6 +175,7 @@ class CanvasEngine {
     whatsAppReplyText = '';
     whatsAppReplySent = false;
     whatsAppReplySentUntil = 0;
+    whatsAppReplyContext = null;
     // TwoCode Resting Geometry Parity (matching Screenshot 2):
     // Rest Mode: 32 x 18 px (radius = 9px)
     // Resting Compact Dock: 98 x 26 px (radius = 13px)
@@ -605,6 +606,10 @@ class CanvasEngine {
         }
     }
     triggerNotification(n) {
+        // CRITICAL GUARD: If user is actively replying in WhatsApp, ignore unrelated background toasts (battery, snipping tool)
+        if (this.isWhatsAppReplying && n.kind !== 'whatsapp') {
+            return;
+        }
         const resolved = this.resolveNotificationKind(n.kind, n.status, n.app, n.title);
         if (resolved && resolved !== 'info') {
             n.kind = resolved;
@@ -707,6 +712,16 @@ class CanvasEngine {
     openWhatsAppReply() {
         if (!this.activeNotification)
             return;
+        const wa = this.parseWhatsAppDetails(this.activeNotification?.title, this.activeNotification?.body);
+        const target = wa.isGroup ? (wa.groupName || wa.senderName) : wa.senderName;
+        // Lock in the reply context so it cannot be corrupted by subsequent system toasts
+        this.whatsAppReplyContext = {
+            contact: target || 'WhatsApp',
+            phone: this.activeNotification?.phone || '',
+            tag: this.activeNotification?.tag || '',
+            title: this.activeNotification?.title || '',
+            body: this.activeNotification?.body || ''
+        };
         this.isWhatsAppReplying = true;
         this.whatsAppReplyText = '';
         this.whatsAppReplySent = false;
@@ -725,8 +740,6 @@ class CanvasEngine {
         const bar = document.getElementById('whatsapp-quick-reply-bar');
         const input = document.getElementById('whatsapp-reply-input');
         const sendBtn = document.getElementById('whatsapp-reply-send-btn');
-        const wa = this.parseWhatsAppDetails(this.activeNotification?.title, this.activeNotification?.body);
-        const target = wa.isGroup ? (wa.groupName || wa.senderName) : wa.senderName;
         if (bar && input) {
             bar.classList.remove('hidden');
             input.value = '';
@@ -740,6 +753,7 @@ class CanvasEngine {
     }
     closeWhatsAppReply() {
         this.isWhatsAppReplying = false;
+        this.whatsAppReplyContext = null;
         this.whatsAppReplyText = '';
         this.whatsAppReplySent = false;
         const bar = document.getElementById('whatsapp-quick-reply-bar');
@@ -766,9 +780,10 @@ class CanvasEngine {
         catch { }
         this.mascot.setMood('happy', 4000);
         const wa = this.parseWhatsAppDetails(this.activeNotification?.title, this.activeNotification?.body);
-        const contact = wa.isGroup ? (wa.groupName || wa.senderName) : wa.senderName;
-        const phone = this.activeNotification?.phone || '';
-        const tag = this.activeNotification?.tag || '';
+        const fallbackContact = wa.isGroup ? (wa.groupName || wa.senderName) : wa.senderName;
+        const contact = this.whatsAppReplyContext?.contact || fallbackContact;
+        const phone = this.whatsAppReplyContext?.phone || this.activeNotification?.phone || '';
+        const tag = this.whatsAppReplyContext?.tag || this.activeNotification?.tag || '';
         if (window.roboIsland?.replyWhatsApp) {
             window.roboIsland.replyWhatsApp({ contact, phone, tag, text });
         }
@@ -2997,9 +3012,9 @@ class CanvasEngine {
         if (this.isNotificationActive()) {
             const n = this.activeNotification;
             if (this.isWhatsAppReplying) {
-                this.targetWidth = 360;
-                this.targetHeight = 98;
-                this.targetRadius = 22;
+                this.targetWidth = 400;
+                this.targetHeight = 108;
+                this.targetRadius = 24;
                 return;
             }
             const hasBody = Boolean(n.body && n.body.trim().length > 0);
@@ -4549,9 +4564,9 @@ class CanvasEngine {
             if (this.isWhatsAppReplying && this.isNotificationActive() && !this.whatsAppReplySent) {
                 const pillLeft = cx - this.currentWidth / 2;
                 waBar.style.left = `${Math.round(pillLeft + 12)}px`;
-                waBar.style.top = `${Math.round(topY + 30)}px`;
+                waBar.style.top = `${Math.round(topY + 34)}px`;
                 waBar.style.width = `${Math.round(this.currentWidth - 24)}px`;
-                waBar.style.height = `60px`;
+                waBar.style.height = `64px`;
                 if (waBar.classList.contains('hidden'))
                     waBar.classList.remove('hidden');
             }
@@ -6049,9 +6064,10 @@ class CanvasEngine {
             this.drawAppleAppIcon(badgeCx, headCy, badgeR, 'whatsapp');
             // Contact / Group Title
             const wa = this.parseWhatsAppDetails(n.title, n.body);
-            const target = wa.isGroup ? (wa.groupName || wa.senderName) : wa.senderName;
+            const fallbackTarget = wa.isGroup ? (wa.groupName || wa.senderName) : wa.senderName;
+            const target = this.whatsAppReplyContext?.contact || fallbackTarget;
             this.ctx.font = '600 12px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
-            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
             this.ctx.textAlign = 'left';
             this.ctx.textBaseline = 'middle';
             const maxHeadW = right - (badgeCx + badgeR + 10) - 24;
