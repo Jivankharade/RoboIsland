@@ -53,6 +53,12 @@ const system_metrics_1 = require("./system-metrics");
 const game_mode_1 = require("./game-mode");
 const license_manager_1 = require("./license-manager");
 const download_monitor_1 = require("./download-monitor");
+const sports_service_1 = require("./sports-service");
+const launcher_engine_1 = require("./launcher-engine");
+const screen_glance_engine_1 = require("./screen-glance-engine");
+const whatsapp_smart_service_1 = require("./whatsapp-smart-service");
+const bluetooth_monitor_1 = require("./bluetooth-monitor");
+const voice_companion_service_1 = require("./voice-companion-service");
 // Enforce single instance lock
 const gotTheLock = electron_1.app.requestSingleInstanceLock();
 if (!gotTheLock) {
@@ -117,6 +123,13 @@ electron_1.app.whenReady().then(() => {
     islandWindow = new island_window_1.IslandWindow();
     game_mode_1.gameModeManager.setIslandWindow(islandWindow);
     weather_service_1.weatherService.startPolling();
+    sports_service_1.sportsService.setBroadcastCallback((data) => {
+        islandWindow?.getWindow()?.webContents.send('island:sports-update', data);
+    });
+    sports_service_1.sportsService.startPolling(4000);
+    screen_glance_engine_1.screenGlanceEngine.onErrorsChanged((errors) => {
+        islandWindow?.getWindow()?.webContents.send('island:glance-error', errors);
+    });
     // Initialize Engines
     mediaEngine = new media_engine_1.MediaEngine();
     downloadMonitor = new download_monitor_1.DownloadMonitor();
@@ -127,6 +140,23 @@ electron_1.app.whenReady().then(() => {
     diagnosticsManager = new system_diagnostics_1.SystemDiagnosticsManager(aiProviderManager);
     actionAgent = new action_agent_1.AutonomousActionAgent(aiProviderManager, diagnosticsManager);
     (0, ai_provider_manager_1.registerAIProviderIPC)(aiProviderManager, actionAgent);
+    whatsapp_smart_service_1.whatsappSmartService.setAIProviderManager(aiProviderManager);
+    whatsapp_smart_service_1.whatsappSmartService.setBroadcastCallback((channel, data) => {
+        islandWindow?.getWindow()?.webContents.send(channel, data);
+    });
+    bluetooth_monitor_1.bluetoothMonitorService.setBroadcastCallback((channel, data) => {
+        islandWindow?.getWindow()?.webContents.send(channel, data);
+    });
+    bluetooth_monitor_1.bluetoothMonitorService.startPolling(8000);
+    voice_companion_service_1.voiceCompanionService.setDependencies({
+        sportsService: sports_service_1.sportsService,
+        launcherEngine: launcher_engine_1.launcherEngine,
+        screenGlanceEngine: screen_glance_engine_1.screenGlanceEngine,
+        bluetoothMonitorService: bluetooth_monitor_1.bluetoothMonitorService
+    });
+    voice_companion_service_1.voiceCompanionService.setBroadcastCallback((channel, data) => {
+        islandWindow?.getWindow()?.webContents.send(channel, data);
+    });
     // Create System Tray
     trayManager = new tray_manager_1.TrayManager(islandWindow, () => {
         openSettingsWindow();
@@ -381,6 +411,16 @@ function setupAppIPC() {
         }
         return true;
     });
+    // WhatsApp Smart Replies & Voice Note Reader IPC (R4)
+    electron_1.ipcMain.handle('whatsapp:get-smart-replies', async (_event, payload) => {
+        return whatsapp_smart_service_1.whatsappSmartService.getSmartReplies(payload?.message || '', payload?.sender);
+    });
+    electron_1.ipcMain.handle('whatsapp:transcribe-voice-note', async (_event, payload) => {
+        return whatsapp_smart_service_1.whatsappSmartService.transcribeVoiceNote(payload?.voiceNoteId, payload?.durationSeconds, payload?.context);
+    });
+    electron_1.ipcMain.handle('whatsapp:simulate-incoming', async (_event, payload) => {
+        return whatsapp_smart_service_1.whatsappSmartService.simulateIncomingMessage(payload?.sender, payload?.body, payload?.isVoiceNote, payload?.durationSeconds);
+    });
     electron_1.ipcMain.handle('system:open-external', (_event, url) => {
         if (typeof url === 'string' && (url.startsWith('https://') || url.startsWith('http://') || url.startsWith('ms-settings:'))) {
             electron_1.shell.openExternal(url).catch(() => { });
@@ -388,12 +428,99 @@ function setupAppIPC() {
         }
         return false;
     });
+    electron_1.ipcMain.handle('sports:get-state', () => {
+        return sports_service_1.sportsService.getState();
+    });
+    electron_1.ipcMain.handle('sports:toggle-match', (_event, sport) => {
+        return sports_service_1.sportsService.toggleSport(sport);
+    });
+    electron_1.ipcMain.handle('sports:toggle-sport', (_event, sport) => {
+        return sports_service_1.sportsService.toggleSport(sport);
+    });
+    electron_1.ipcMain.handle('sports:switch-sport', (_event, sport) => {
+        return sports_service_1.sportsService.toggleSport(sport);
+    });
+    electron_1.ipcMain.handle('sports:set-mode', (_event, mode) => {
+        return sports_service_1.sportsService.setMode(mode);
+    });
+    electron_1.ipcMain.handle('sports:step-simulation', () => {
+        return sports_service_1.sportsService.stepSimulation();
+    });
+    // Spotlight / Raycast Launcher IPC (R2)
+    electron_1.ipcMain.handle('launcher:query', async (_event, payload) => {
+        return launcher_engine_1.launcherEngine.query(payload?.query || '');
+    });
+    electron_1.ipcMain.handle('launcher:launch', async (_event, payload) => {
+        return launcher_engine_1.launcherEngine.launch(payload?.target, payload?.type || 'app');
+    });
+    electron_1.ipcMain.on('launcher:hide', () => {
+        islandWindow?.getWindow()?.webContents.send('island:toggle-launcher', false);
+    });
+    electron_1.ipcMain.on('island:toggle-launcher', () => {
+        islandWindow?.getWindow()?.webContents.send('island:toggle-launcher');
+    });
+    // Ambient Screen Glance & Error Fixer IPC (R3)
+    electron_1.ipcMain.handle('screen-glance:check-errors', async (_event, customText) => {
+        return screen_glance_engine_1.screenGlanceEngine.checkErrors(customText);
+    });
+    electron_1.ipcMain.handle('screen-glance:apply-fix', async (_event, payload) => {
+        return screen_glance_engine_1.screenGlanceEngine.applyFix(payload?.fixId);
+    });
+    electron_1.ipcMain.handle('screen-glance:summarize-active', async (event, context) => {
+        const summary = await screen_glance_engine_1.screenGlanceEngine.summarizeActive({
+            ...context,
+            senderWebContents: event.sender
+        });
+        islandWindow?.getWindow()?.webContents.send('island:glance-summary', summary);
+        return summary;
+    });
+    electron_1.ipcMain.handle('screen-glance:get-state', async () => {
+        return screen_glance_engine_1.screenGlanceEngine.getState();
+    });
+    electron_1.ipcMain.handle('screen-glance:clear-errors', async () => {
+        screen_glance_engine_1.screenGlanceEngine.clearErrors();
+        return true;
+    });
+    // Bluetooth Battery & Device HUD IPC (R5)
+    electron_1.ipcMain.handle('bluetooth:get-devices', async () => {
+        return bluetooth_monitor_1.bluetoothMonitorService.getConnectedDevices();
+    });
+    electron_1.ipcMain.handle('bluetooth:simulate-event', async (_event, payload) => {
+        return bluetooth_monitor_1.bluetoothMonitorService.simulateEvent(payload);
+    });
+    // Voice Companion Mode IPC (R6)
+    electron_1.ipcMain.handle('voice:start-listening', async () => {
+        return voice_companion_service_1.voiceCompanionService.startListening();
+    });
+    electron_1.ipcMain.handle('voice:stop-listening', async () => {
+        return voice_companion_service_1.voiceCompanionService.stopListening();
+    });
+    electron_1.ipcMain.handle('voice:toggle', async () => {
+        return voice_companion_service_1.voiceCompanionService.toggleListening();
+    });
+    electron_1.ipcMain.handle('voice:process-command', async (_event, payload) => {
+        const text = typeof payload === 'string' ? payload : (payload?.text || '');
+        return voice_companion_service_1.voiceCompanionService.handleVoiceInput(text);
+    });
+    electron_1.ipcMain.handle('voice:speak', async (_event, payload) => {
+        const text = typeof payload === 'string' ? payload : (payload?.text || '');
+        return voice_companion_service_1.voiceCompanionService.speak(text);
+    });
+    electron_1.ipcMain.handle('voice:stop-speaking', async () => {
+        return voice_companion_service_1.voiceCompanionService.stopSpeaking();
+    });
+    electron_1.ipcMain.handle('voice:get-state', async () => {
+        return voice_companion_service_1.voiceCompanionService.getState();
+    });
     electron_1.ipcMain.on('app:quit', () => {
         electron_1.app.quit();
     });
 }
 electron_1.app.on('will-quit', () => {
     electron_1.globalShortcut.unregisterAll();
+    sports_service_1.sportsService.dispose();
+    bluetooth_monitor_1.bluetoothMonitorService.dispose();
+    voice_companion_service_1.voiceCompanionService.dispose();
     mediaEngine?.dispose();
     aiMonitorHub?.dispose();
     productivityEngine?.dispose();

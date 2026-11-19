@@ -789,6 +789,1152 @@ async function runTests() {
     buddyManagerTs.includes("process.platform !== 'win32'") &&
     islandWindowTs.includes('setIgnoreMouseEvents(!effectiveInteractive'));
 
+  // --- 30. Testing R1: Live Activities & Sports Scoreboard (Cricket, Football, F1) ---
+  console.log('\n--- 30. Testing R1: Live Activities & Sports Scoreboard (Cricket, Football, F1) ---');
+  const sportsServicePath = path.join(__dirname, '../dist/main/sports-service.js');
+  assert('sports-service.js exists in dist/main', fs.existsSync(sportsServicePath));
+
+  const { SportsService, SportsSimulationEngine } = require(sportsServicePath);
+  const simEngine = new SportsSimulationEngine();
+
+  // Cricket data model and procedural simulation test
+  const cricketAct = simEngine.getCricketActivity();
+  assert('Cricket activity matches IND vs AUS T20 World Cup model',
+    cricketAct.sport === 'cricket' &&
+    cricketAct.title === 'IND vs AUS' &&
+    cricketAct.scorecard.cricket &&
+    cricketAct.scorecard.cricket.homeTeam.code === 'IND' &&
+    cricketAct.scorecard.cricket.awayTeam.code === 'AUS');
+  assert('Cricket scorecard contains batters, bowler, recent balls and run rates',
+    Array.isArray(cricketAct.scorecard.cricket.currentBatters) &&
+    cricketAct.scorecard.cricket.currentBatters.length >= 2 &&
+    cricketAct.scorecard.cricket.currentBowler.name.length > 0 &&
+    Array.isArray(cricketAct.scorecard.cricket.recentBalls) &&
+    typeof cricketAct.scorecard.cricket.requiredRunRate === 'number');
+
+  const beforeOvers = cricketAct.scorecard.cricket.homeTeam.overs;
+  const steppedCricket = simEngine.stepCricket();
+  assert('Cricket simulation advances ball progression and commentary',
+    steppedCricket.scorecard.cricket.homeTeam.overs !== beforeOvers &&
+    steppedCricket.scorecard.cricket.commentary.length > 0);
+
+  // Football data model and procedural simulation test
+  const footballAct = simEngine.getFootballActivity();
+  assert('Football activity matches UCL MCI vs RMA model with timeline and clock',
+    footballAct.sport === 'football' &&
+    footballAct.title === 'MCI vs RMA' &&
+    footballAct.scorecard.football &&
+    footballAct.scorecard.football.matchClock.includes("'") &&
+    Array.isArray(footballAct.scorecard.football.events));
+  assert('Football stats sum accurately for possession percentage',
+    footballAct.scorecard.football.stats.possession[0] +
+    footballAct.scorecard.football.stats.possession[1] === 100);
+
+  const beforeClock = footballAct.scorecard.football.matchClock;
+  const steppedFootball = simEngine.stepFootball();
+  assert('Football simulation advances match minute and stats',
+    steppedFootball.scorecard.football.matchClock !== beforeClock);
+
+  // F1 data model and telemetry simulation test
+  const f1Act = simEngine.getF1Activity();
+  assert('F1 activity matches Monaco GP model with 78 total laps and driver leaderboard',
+    f1Act.sport === 'f1' &&
+    f1Act.title === 'Monaco GP' &&
+    f1Act.scorecard.f1 &&
+    f1Act.scorecard.f1.totalLaps === 78 &&
+    Array.isArray(f1Act.scorecard.f1.leaderboard) &&
+    f1Act.scorecard.f1.leaderboard.length >= 5);
+  assert('F1 driver leaderboard contains team color stripes and tyre compound tracking',
+    f1Act.scorecard.f1.leaderboard[0].teamColor.startsWith('#') &&
+    ['SOFT', 'MEDIUM', 'HARD', 'INTER', 'WET'].includes(f1Act.scorecard.f1.leaderboard[0].tyreCompound));
+
+  const beforeLap = f1Act.scorecard.f1.currentLap;
+  const steppedF1 = simEngine.stepF1();
+  assert('F1 simulation advances lap count and telemetry intervals',
+    steppedF1.scorecard.f1.currentLap > beforeLap);
+
+  // SportsService singleton and sport switching lifecycle
+  const service = SportsService.getInstance();
+  const initialSportsState = service.getState();
+  assert('SportsService initializes with enabled status and all 3 sport models',
+    initialSportsState.enabled === true &&
+    initialSportsState.activities.cricket &&
+    initialSportsState.activities.football &&
+    initialSportsState.activities.f1);
+
+  const initialSport = initialSportsState.activeSport;
+  const toggledSport = service.toggleSport();
+  assert('SportsService.toggleSport switches active sport cleanly',
+    toggledSport.sport !== initialSport);
+  service.toggleSport('cricket');
+  assert('SportsService can select explicit sport target',
+    service.getActiveActivity().sport === 'cricket');
+
+  // Mode switching & fallback resilience per R7
+  const modeRes = service.setMode('simulated');
+  assert('SportsService switches mode to simulated fallback per R7',
+    modeRes.isSimulated === true && service.getState().mode === 'simulated');
+
+  // Preload and IPC interface contracts
+  const islandPreloadTs = fs.readFileSync(path.join(__dirname, '../src/preload/island-preload.ts'), 'utf-8');
+  assert('island-preload.ts exposes typed sports API with getState, toggleSport, setMode, onSportsUpdate',
+    islandPreloadTs.includes('sports:') &&
+    islandPreloadTs.includes('getState:') &&
+    islandPreloadTs.includes('toggleSport:') &&
+    islandPreloadTs.includes('setMode:') &&
+    islandPreloadTs.includes('onSportsUpdate:'));
+
+  // Main process IPC registration in index.ts
+  assert('index.ts registers sports IPC endpoints and broadcast callback',
+    indexTs.includes('sports:get-state') &&
+    indexTs.includes('sports:toggle-match') &&
+    indexTs.includes('sports:set-mode') &&
+    indexTs.includes('sports:step-simulation') &&
+    indexTs.includes('sportsService.setBroadcastCallback'));
+
+  // CanvasEngine renderer and physics contract
+  assert('canvas-engine.ts defines drawCompactSportsScoreboard method on prototype',
+    canvasEngineSrc.includes('drawCompactSportsScoreboard') &&
+    canvasEngineSrc.includes('calculateSportsPillWidth'));
+  assert('canvas-engine.ts defines renderSportsScorecardDOM method',
+    canvasEngineSrc.includes('renderSportsScorecardDOM'));
+
+  // DOM & CSS contracts in index.html and island.css
+  assert('index.html contains #panel-sports and #sports-scorecard-modal',
+    indexHtml.includes('id="panel-sports"') &&
+    indexHtml.includes('id="sports-scorecard-modal"'));
+  assert('index.html provides interactive sport-switcher-tabs for Cricket, Football, and F1',
+    indexHtml.includes('id="sport-tab-cricket"') &&
+    indexHtml.includes('id="sport-tab-football"') &&
+    indexHtml.includes('id="sport-tab-f1"') &&
+    indexHtml.includes('id="sport-mode-toggle"'));
+  assert('island.css styles #panel-sports and active sports tab glow',
+    islandCss.includes('#panel-sports') &&
+    islandCss.includes('.nav-item.active[data-tab="sports"]') &&
+    islandCss.includes('.sports-scorecard-container'));
+
+  // --- 31. Testing R2: Universal Spotlight / Raycast Launcher (Alt + Space) ---
+  console.log('\n--- 31. Testing R2: Universal Spotlight / Raycast Launcher (Alt + Space) ---');
+  const launcherEnginePath = path.join(__dirname, '../dist/main/launcher-engine.js');
+  assert('launcher-engine.js exists in dist/main', fs.existsSync(launcherEnginePath));
+
+  const {
+    SafeMathParser,
+    UnitConverter,
+    CurrencyConverter,
+    AppFileSearch,
+    QuickAIPrompt,
+    LauncherEngine,
+    launcherEngine
+  } = require(launcherEnginePath);
+
+  // 1. SafeMathParser: Arithmetic, precedence, power, and parentheses
+  const calc1 = SafeMathParser.evaluate('2 + 2 * 3');
+  assert('SafeMathParser evaluates operator precedence: 2 + 2 * 3 = 8',
+    calc1 && calc1.result === 8 && calc1.formatted === '8');
+
+  const calc2 = SafeMathParser.evaluate('(10 + 5) * 2');
+  assert('SafeMathParser evaluates parentheses: (10 + 5) * 2 = 30',
+    calc2 && calc2.result === 30 && calc2.formatted === '30');
+
+  const calc3 = SafeMathParser.evaluate('2^8');
+  assert('SafeMathParser evaluates power: 2^8 = 256',
+    calc3 && calc3.result === 256 && calc3.formatted === '256');
+
+  const calc3b = SafeMathParser.evaluate('2 ** 8');
+  assert('SafeMathParser evaluates JavaScript ** exponent operator: 2 ** 8 = 256',
+    calc3b && calc3b.result === 256 && calc3b.formatted === '256');
+
+  const calc4 = SafeMathParser.evaluate('3.5 * 2.5');
+  assert('SafeMathParser evaluates decimals: 3.5 * 2.5 = 8.75',
+    calc4 && Math.abs(calc4.result - 8.75) < 0.001);
+
+  // 2. SafeMathParser: Percentages
+  const pct1 = SafeMathParser.evaluate('15% of 850');
+  assert('SafeMathParser evaluates percentage "of": 15% of 850 = 127.5',
+    pct1 && Math.abs(pct1.result - 127.5) < 0.001);
+
+  const pct2 = SafeMathParser.evaluate('25% off 200');
+  assert('SafeMathParser evaluates percentage "off": 25% off 200 = 150',
+    pct2 && Math.abs(pct2.result - 150) < 0.001);
+
+  const pct3 = SafeMathParser.evaluate('10 + 5%');
+  assert('SafeMathParser evaluates percentage addition modifier: 10 + 5% = 10.5',
+    pct3 && Math.abs(pct3.result - 10.5) < 0.001);
+
+  const pct4 = SafeMathParser.evaluate('200 - 10%');
+  assert('SafeMathParser evaluates percentage subtraction modifier: 200 - 10% = 180',
+    pct4 && Math.abs(pct4.result - 180) < 0.001);
+
+  const pct5 = SafeMathParser.evaluate('10 + 20 + 10%');
+  assert('SafeMathParser evaluates compound percentage: 10 + 20 + 10% = 33',
+    pct5 && Math.abs(pct5.result - 33) < 0.001);
+
+  // 3. SafeMathParser: Functions, Constants, and Implicit Multiplication
+  const fn1 = SafeMathParser.evaluate('sqrt(144)');
+  assert('SafeMathParser evaluates sqrt(144) = 12',
+    fn1 && fn1.result === 12);
+
+  const fn2 = SafeMathParser.evaluate('abs(-42)');
+  assert('SafeMathParser evaluates abs(-42) = 42',
+    fn2 && fn2.result === 42);
+
+  const fn3 = SafeMathParser.evaluate('pi * 2');
+  assert('SafeMathParser evaluates constants: pi * 2 approx 6.283185',
+    fn3 && Math.abs(fn3.result - Math.PI * 2) < 0.001);
+
+  const fn4 = SafeMathParser.evaluate('2(10 + 5)');
+  assert('SafeMathParser evaluates implicit multiplication with parentheses: 2(10 + 5) = 30',
+    fn4 && fn4.result === 30);
+
+  const fn5 = SafeMathParser.evaluate('-5 + 10');
+  assert('SafeMathParser evaluates unary minus: -5 + 10 = 5',
+    fn5 && fn5.result === 5);
+
+  // 4. SafeMathParser: Security & Non-eval verification
+  assert('SafeMathParser rejects arbitrary code injection (alert)',
+    SafeMathParser.evaluate('alert(1)') === null);
+  assert('SafeMathParser rejects arbitrary code injection (process.exit)',
+    SafeMathParser.evaluate('process.exit()') === null);
+  assert('SafeMathParser rejects __proto__ property access',
+    SafeMathParser.evaluate('__proto__') === null);
+  assert('SafeMathParser ignores plain numbers without operator',
+    SafeMathParser.evaluate('42') === null);
+
+  // 5. UnitConverter: Length, Mass, Temperature, Data, Time
+  const uLen = UnitConverter.convert('5 km to miles');
+  assert('UnitConverter converts length: 5 km to miles approx 3.10686',
+    uLen && uLen.category === 'length' && Math.abs(uLen.toValue - 3.10686) < 0.01);
+
+  const uMass = UnitConverter.convert('100 lbs to kg');
+  assert('UnitConverter converts mass: 100 lbs to kg approx 45.3592',
+    uMass && uMass.category === 'mass' && Math.abs(uMass.toValue - 45.3592) < 0.01);
+
+  const uTemp1 = UnitConverter.convert('100 C to F');
+  assert('UnitConverter converts temperature: 100 C to F = 212',
+    uTemp1 && uTemp1.category === 'temp' && Math.abs(uTemp1.toValue - 212) < 0.01);
+
+  const uTemp2 = UnitConverter.convert('32 F to C');
+  assert('UnitConverter converts temperature: 32 F to C = 0',
+    uTemp2 && uTemp2.category === 'temp' && Math.abs(uTemp2.toValue - 0) < 0.01);
+
+  const uTemp3 = UnitConverter.convert('-40 C to F');
+  assert('UnitConverter converts negative temperature: -40 C to F = -40',
+    uTemp3 && uTemp3.category === 'temp' && Math.abs(uTemp3.toValue - (-40)) < 0.01);
+
+  const uData = UnitConverter.convert('1 TB to GB');
+  assert('UnitConverter converts data storage: 1 TB to GB = 1024',
+    uData && uData.category === 'data' && uData.toValue === 1024);
+
+  const uTime = UnitConverter.convert('2 hours in minutes');
+  assert('UnitConverter converts time: 2 hours in minutes = 120',
+    uTime && uTime.category === 'time' && uTime.toValue === 120);
+
+  assert('UnitConverter rejects cross-category invalid conversion',
+    UnitConverter.convert('5 km to kg') === null);
+
+  // 6. CurrencyConverter: Offline Matrix & Rates
+  const rates = CurrencyConverter.getRates();
+  assert('CurrencyConverter contains major fiat currencies in offline matrix',
+    typeof rates.USD === 'number' &&
+    typeof rates.EUR === 'number' &&
+    typeof rates.GBP === 'number' &&
+    typeof rates.JPY === 'number' &&
+    typeof rates.INR === 'number' &&
+    typeof rates.CAD === 'number');
+
+  const cur1 = CurrencyConverter.convert('100 USD to EUR');
+  assert('CurrencyConverter converts USD to EUR using offline matrix',
+    cur1 && cur1.fromCurrency === 'USD' && cur1.toCurrency === 'EUR' && cur1.toAmount > 0);
+
+  const cur2 = CurrencyConverter.convert('$50 in INR');
+  assert('CurrencyConverter handles symbol syntax: $50 in INR',
+    cur2 && cur2.fromCurrency === 'USD' && cur2.toCurrency === 'INR' && cur2.toAmount > 0);
+
+  // 7. AppFileSearch: Fuzzy matching & Windows system apps
+  assert('AppFileSearch defines system application shortcuts',
+    AppFileSearch.search('').length >= 5);
+
+  const fuzzyScoreExact = AppFileSearch.calculateFuzzyScore('calc', 'calculator');
+  assert('AppFileSearch assigns high fuzzy score to prefix match',
+    fuzzyScoreExact >= 80);
+
+  const fuzzyScoreBoundary = AppFileSearch.calculateFuzzyScore('term', 'windows terminal');
+  assert('AppFileSearch assigns high fuzzy score to word boundary match',
+    fuzzyScoreBoundary >= 70);
+
+  const noteApp = AppFileSearch.search('note');
+  assert('AppFileSearch finds Notepad for query "note"',
+    noteApp.length > 0 && noteApp[0].name.toLowerCase().includes('note'));
+
+  // 8. QuickAIPrompt: Prefix parsing & Question routing
+  const ai1 = QuickAIPrompt.parse('ai: explain dynamic island physics');
+  assert('QuickAIPrompt parses ai: prefix query',
+    ai1 && ai1.type === 'ai' && ai1.prompt === 'explain dynamic island physics');
+
+  const ai2 = QuickAIPrompt.parse('? best ways to optimize Windows performance');
+  assert('QuickAIPrompt parses ? prefix query',
+    ai2 && ai2.type === 'ai' && ai2.prompt === 'best ways to optimize Windows performance');
+
+  const ai3 = QuickAIPrompt.parse('how does shunting yard algorithm work');
+  assert('QuickAIPrompt parses natural language question prefix',
+    ai3 && ai3.type === 'ai' && ai3.prompt.startsWith('how'));
+
+  // 9. Master LauncherEngine query dispatch
+  const qCalc = await launcherEngine.query('50 * 4');
+  assert('LauncherEngine routes math expression to type "calc"',
+    qCalc.type === 'calc' && qCalc.result.result === 200);
+
+  const qConv = await launcherEngine.query('5 miles to km');
+  assert('LauncherEngine routes conversion expression to type "convert"',
+    qConv.type === 'convert' && qConv.result.toValue > 0);
+
+  const qCurr = await launcherEngine.query('100 EUR to USD');
+  assert('LauncherEngine routes currency query to type "convert"',
+    qCurr.type === 'convert' && qCurr.result.toAmount > 0);
+
+  const qApp = await launcherEngine.query('calculator');
+  assert('LauncherEngine routes application query to type "app"',
+    qApp.type === 'app' && qApp.items.length > 0);
+
+  const qAI = await launcherEngine.query('ai: help me write a poem');
+  assert('LauncherEngine routes AI query to type "ai"',
+    qAI.type === 'ai' && qAI.items[0].category === 'ai');
+
+  // 10. Preload, Main IPC, and Global Shortcut contracts for R2
+  assert('island-preload.ts exposes typed launcher API with query, launch, hide, toggle, setActive, onToggleLauncher',
+    islandPreloadTs.includes('launcher:') &&
+    islandPreloadTs.includes('queryLauncher:') &&
+    islandPreloadTs.includes('launchLauncherItem:') &&
+    islandPreloadTs.includes('onToggleLauncher:'));
+
+  assert('island-window.ts registers Alt+Space global shortcut with CommandOrControl+Space fallback',
+    islandWindowTs.includes("'Alt+Space'") &&
+    islandWindowTs.includes("'CommandOrControl+Space'") &&
+    islandWindowTs.includes('toggleLauncherShortcut'));
+
+  assert('island-window.ts tracks isLauncherActive and ensures interactivity for launcher',
+    islandWindowTs.includes('isLauncherActive') &&
+    islandWindowTs.includes('island:set-launcher-active'));
+
+  assert('index.ts registers launcher:query and launcher:launch IPC handlers',
+    indexTs.includes("'launcher:query'") &&
+    indexTs.includes("'launcher:launch'") &&
+    indexTs.includes("'launcher:hide'") &&
+    indexTs.includes("'island:toggle-launcher'"));
+
+  // 11. CanvasEngine renderer and DOM contracts for R2
+  assert('canvas-engine.ts handles launcher dimensions (620x54 expanding to 380px) and DOM events',
+    canvasEngineSrc.includes('this.isLauncherActive') &&
+    canvasEngineSrc.includes('setupSpotlightLauncherDOM') &&
+    canvasEngineSrc.includes('toggleLauncher') &&
+    canvasEngineSrc.includes('queryLauncher'));
+
+  assert('index.html contains #spotlight-launcher-overlay with search input and results container',
+    indexHtml.includes('id="spotlight-launcher-overlay"') &&
+    indexHtml.includes('id="spotlight-input"') &&
+    indexHtml.includes('id="spotlight-results"') &&
+    indexHtml.includes('id="spotlight-hero-card"') &&
+    indexHtml.includes('id="spotlight-list"'));
+
+  assert('island.css styles Spotlight / Raycast Launcher bar and hero card',
+    islandCss.includes('.spotlight-launcher-overlay') &&
+    islandCss.includes('.spotlight-bar') &&
+    islandCss.includes('.spotlight-hero-card') &&
+    islandCss.includes('.spotlight-list'));
+
+  // --- 32. Testing R3: Ambient Screen Glance & Error Fixer (Apple Intelligence Style) ---
+  console.log('\n--- 32. Testing R3: Ambient Screen Glance & Error Fixer (Apple Intelligence Style) ---');
+  const screenGlanceEnginePath = path.join(__dirname, '../dist/main/screen-glance-engine.js');
+  assert('screen-glance-engine.js exists in dist/main', fs.existsSync(screenGlanceEnginePath));
+
+  const {
+    ScreenGlanceEngine,
+    screenGlanceEngine,
+    ERROR_CATALOG_RULES
+  } = require(screenGlanceEnginePath);
+
+  // 1. Error catalog rule quantity
+  assert('Error catalog contains 30+ regex compiler/terminal/browser rules',
+    Array.isArray(ERROR_CATALOG_RULES) && ERROR_CATALOG_RULES.length >= 30);
+
+  // 2. Active Window taxonomy classification
+  assert('classifyWindow detects compiler_ide for Code.exe',
+    screenGlanceEngine.classifyWindow('Code.exe', 'server.ts - RoboIsland - Visual Studio Code') === 'compiler_ide');
+  assert('classifyWindow detects terminal for WindowsTerminal.exe',
+    screenGlanceEngine.classifyWindow('WindowsTerminal.exe', 'PowerShell') === 'terminal');
+  assert('classifyWindow detects browser for chrome.exe',
+    screenGlanceEngine.classifyWindow('chrome.exe', 'MDN Web Docs - Google Chrome') === 'browser');
+  assert('classifyWindow detects document_pdf for Acrobat and .pdf in title',
+    screenGlanceEngine.classifyWindow('AcroRd32.exe', 'Annual_Report_2026.pdf') === 'document_pdf');
+  assert('classifyWindow detects media_video for VLC and YouTube',
+    screenGlanceEngine.classifyWindow('vlc.exe', 'Big Buck Bunny') === 'media_video');
+
+  // 3. TypeScript regex catalog patterns & fix suggestions
+  const tsModuleErr = screenGlanceEngine.detectErrors("TS2307: Cannot find module 'axios' or its corresponding type declarations.");
+  assert('TypeScript catalog detects TS2307 and generates npm install fix',
+    tsModuleErr.length > 0 && tsModuleErr[0].ruleId === 'ts-cannot-find-module' && tsModuleErr[0].command === 'npm install axios');
+
+  const tsNameErr = screenGlanceEngine.detectErrors("TS2304: Cannot find name 'useState'.");
+  assert('TypeScript catalog detects TS2304 and generates import fix',
+    tsNameErr.length > 0 && tsNameErr[0].ruleId === 'ts-cannot-find-name' && tsNameErr[0].command.includes('useState'));
+
+  const tsAssignErr = screenGlanceEngine.detectErrors("TS2322: Type 'string' is not assignable to type 'number'.");
+  assert('TypeScript catalog detects TS2322 type mismatch',
+    tsAssignErr.length > 0 && tsAssignErr[0].ruleId === 'ts-not-assignable' && tsAssignErr[0].command.includes('number'));
+
+  const tsPropErr = screenGlanceEngine.detectErrors("TS2339: Property 'userToken' does not exist on type 'SessionContext'.");
+  assert('TypeScript catalog detects TS2339 missing property and suggests optional chain',
+    tsPropErr.length > 0 && tsPropErr[0].ruleId === 'ts-property-not-exist' && tsPropErr[0].command.includes('userToken'));
+
+  // 4. Node / NPM regex catalog patterns & fix suggestions
+  const nodePortErr = screenGlanceEngine.detectErrors("Error: listen EADDRINUSE: address already in use :::3000");
+  assert('Node catalog detects EADDRINUSE and generates kill-port command',
+    nodePortErr.length > 0 && nodePortErr[0].ruleId === 'node-eaddrinuse' && nodePortErr[0].command === 'npx kill-port 3000');
+
+  const nodeModErr = screenGlanceEngine.detectErrors("Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'express' imported from /app/index.js");
+  assert('Node catalog detects ERR_MODULE_NOT_FOUND and suggests npm install',
+    nodeModErr.length > 0 && nodeModErr[0].ruleId === 'node-module-not-found' && nodeModErr[0].command === 'npm install express');
+
+  const npmEresolve = screenGlanceEngine.detectErrors("npm ERR! code ERESOLVE\nnpm ERR! ERESOLVE unable to resolve dependency tree");
+  assert('NPM catalog detects ERESOLVE and suggests --legacy-peer-deps',
+    npmEresolve.length > 0 && npmEresolve[0].ruleId === 'npm-eresolve' && npmEresolve[0].command === 'npm install --legacy-peer-deps');
+
+  const npmScriptErr = screenGlanceEngine.detectErrors('npm ERR! Missing script: "build:prod"\nnpm ERR! To see a list of scripts, run: npm run');
+  assert('NPM catalog detects Missing script and suggests npm run',
+    npmScriptErr.length > 0 && npmScriptErr[0].ruleId === 'npm-missing-script' && npmScriptErr[0].command === 'npm run');
+
+  const nodeConnErr = screenGlanceEngine.detectErrors("connect ECONNREFUSED 127.0.0.1:8080");
+  assert('Network catalog detects ECONNREFUSED and generates curl diagnostic',
+    nodeConnErr.length > 0 && nodeConnErr[0].ruleId === 'node-econnrefused' && nodeConnErr[0].command.includes('8080'));
+
+  // 5. Python regex catalog patterns & fix suggestions
+  const pyModErr = screenGlanceEngine.detectErrors("ModuleNotFoundError: No module named 'torch'");
+  assert('Python catalog detects ModuleNotFoundError and generates pip install',
+    pyModErr.length > 0 && pyModErr[0].ruleId === 'py-modulenotfound' && pyModErr[0].command === 'pip install torch');
+
+  const pyIndentErr = screenGlanceEngine.detectErrors("IndentationError: unexpected indent");
+  assert('Python catalog detects IndentationError and suggests reformat',
+    pyIndentErr.length > 0 && pyIndentErr[0].ruleId === 'py-indentation');
+
+  const pySyntaxErr = screenGlanceEngine.detectErrors("SyntaxError: invalid syntax");
+  assert('Python catalog detects SyntaxError and suggests py_compile',
+    pySyntaxErr.length > 0 && pySyntaxErr[0].ruleId === 'py-syntaxerror');
+
+  const pyZeroErr = screenGlanceEngine.detectErrors("ZeroDivisionError: division by zero");
+  assert('Python catalog detects ZeroDivisionError and suggests zero check',
+    pyZeroErr.length > 0 && pyZeroErr[0].ruleId === 'py-zerodivision');
+
+  // 6. Rust / Cargo regex catalog patterns & fix suggestions
+  const rustE0425 = screenGlanceEngine.detectErrors("error[E0425]: cannot find value `counter` in this scope");
+  assert('Rust catalog detects error[E0425] and generates rustc --explain E0425',
+    rustE0425.length > 0 && rustE0425[0].ruleId === 'rust-e0425' && rustE0425[0].command === 'rustc --explain E0425');
+
+  const rustE0308 = screenGlanceEngine.detectErrors("error[E0308]: mismatched types");
+  assert('Rust catalog detects error[E0308] mismatched types',
+    rustE0308.length > 0 && rustE0308[0].ruleId === 'rust-e0308');
+
+  const rustE0382 = screenGlanceEngine.detectErrors("error[E0382]: use of moved value: `buffer`");
+  assert('Rust catalog detects error[E0382] and suggests .clone()',
+    rustE0382.length > 0 && rustE0382[0].ruleId === 'rust-e0382' && rustE0382[0].command === '.clone()');
+
+  const rustCargoLock = screenGlanceEngine.detectErrors("error: failed to select a version for the requirement `serde`");
+  assert('Rust catalog detects Cargo version conflict and suggests cargo update',
+    rustCargoLock.length > 0 && rustCargoLock[0].ruleId === 'rust-cargo-lock' && rustCargoLock[0].command === 'cargo update');
+
+  // 7. Git regex catalog patterns & fix suggestions
+  const gitNotRepo = screenGlanceEngine.detectErrors("fatal: not a git repository (or any of the parent directories): .git");
+  assert('Git catalog detects not a git repo and suggests git init',
+    gitNotRepo.length > 0 && gitNotRepo[0].ruleId === 'git-not-a-repo' && gitNotRepo[0].command === 'git init');
+
+  const gitPushFail = screenGlanceEngine.detectErrors("error: failed to push some refs to 'git@github.com:user/repo.git'");
+  assert('Git catalog detects failed push and suggests git pull --rebase',
+    gitPushFail.length > 0 && gitPushFail[0].ruleId === 'git-failed-push' && gitPushFail[0].command === 'git pull --rebase');
+
+  const gitUnrelated = screenGlanceEngine.detectErrors("fatal: refusing to merge unrelated histories");
+  assert('Git catalog detects refusing to merge unrelated histories and suggests override',
+    gitUnrelated.length > 0 && gitUnrelated[0].ruleId === 'git-unrelated-histories' && gitUnrelated[0].command.includes('--allow-unrelated-histories'));
+
+  const gitRemoteExists = screenGlanceEngine.detectErrors("fatal: remote origin already exists.");
+  assert('Git catalog detects remote already exists and suggests git remote -v',
+    gitRemoteExists.length > 0 && gitRemoteExists[0].ruleId === 'git-remote-exists');
+
+  const gitSsh = screenGlanceEngine.detectErrors("Permission denied (publickey). fatal: Could not read from remote repository.");
+  assert('Git catalog detects SSH permission denied and suggests ssh-add',
+    gitSsh.length > 0 && gitSsh[0].ruleId === 'git-ssh-permission' && gitSsh[0].command.includes('ssh-add'));
+
+  // 8. Web / Network / Terminal regex catalog patterns & fix suggestions
+  const webCors = screenGlanceEngine.detectErrors("Access to fetch has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.");
+  assert('Web catalog detects CORS policy block and suggests Access-Control header',
+    webCors.length > 0 && webCors[0].ruleId === 'web-cors-policy');
+
+  const termNotFound = screenGlanceEngine.detectErrors("bash: command not found: ripgrep");
+  assert('Terminal catalog detects command not found and suggests winget search',
+    termNotFound.length > 0 && termNotFound[0].ruleId === 'terminal-command-not-found' && termNotFound[0].command.includes('ripgrep'));
+
+  const cmdNotFound = screenGlanceEngine.detectErrors("'make' is not recognized as an internal or external command, operable program or batch file.");
+  assert('Terminal catalog detects Windows command not recognized and suggests winget search',
+    cmdNotFound.length > 0 && cmdNotFound[0].ruleId === 'terminal-command-not-found' && cmdNotFound[0].command.includes('make'));
+
+  const dockerErr = screenGlanceEngine.detectErrors("Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?");
+  assert('Terminal catalog detects Docker daemon stopped and suggests starting Docker',
+    dockerErr.length > 0 && dockerErr[0].ruleId === 'docker-daemon-stopped');
+
+  // 9. 1-Tap applyFix execution & clipboard dispatch
+  const checkResults = await screenGlanceEngine.checkErrors("Cannot find module 'lodash'");
+  assert('checkErrors detects error and tracks active errors in state',
+    checkResults.length > 0 && screenGlanceEngine.getState().activeErrors.length > 0);
+
+  const applyRes = await screenGlanceEngine.applyFix(checkResults[0].id, { executeCommand: false });
+  assert('applyFix produces successful command payload for execution',
+    applyRes && applyRes.success && applyRes.command === 'npm install lodash');
+
+  // 10. 1-Click Document & Media Summarizer with structured offline heuristic fallback per R7
+  const pdfSummary = await screenGlanceEngine.summarizeActive({
+    title: 'Distributed_Systems_Architecture.pdf - Adobe Acrobat Reader'
+  });
+  assert('summarizeActive detects PDF document and provides reading time and takeaways',
+    pdfSummary && pdfSummary.type === 'pdf' && pdfSummary.title === 'Distributed_Systems_Architecture.pdf' && pdfSummary.takeaways.length >= 2);
+
+  const videoSummary = await screenGlanceEngine.summarizeActive({
+    title: 'Building a Dynamic Island for Windows - YouTube'
+  });
+  assert('summarizeActive detects Video media and provides watch time and takeaways',
+    videoSummary && videoSummary.type === 'video' && videoSummary.title === 'Building a Dynamic Island for Windows' && videoSummary.takeaways.length >= 2);
+
+  const articleText = `
+    Apple Intelligence represents a major leap in personal contextual intelligence.
+    The architecture combines on-device small language models with private cloud compute.
+    Key takeaways include sub-second inference latency, deterministic safety filters, and zero data retention.
+    Important results show a 40% reduction in cognitive load during complex debugging sessions.
+  `;
+  const articleSummary = await screenGlanceEngine.summarizeActive({
+    title: 'Apple Intelligence Architecture Review',
+    text: articleText
+  });
+  assert('summarizeActive parses long article text and extracts structured takeaways and action items',
+    articleSummary && articleSummary.takeaways.length >= 2 && articleSummary.actionItems.length >= 2 && articleSummary.source === 'offline_heuristic');
+
+  // 11. Preload, Main IPC, and DOM contracts for R3
+  assert('island-preload.ts exposes typed screenGlance API with checkErrors, applyFix, summarizeActive, getState, onGlanceError, onGlanceSummary',
+    islandPreloadTs.includes('screenGlance:') &&
+    islandPreloadTs.includes('checkErrors:') &&
+    islandPreloadTs.includes('applyFix:') &&
+    islandPreloadTs.includes('summarizeActive:') &&
+    islandPreloadTs.includes('onGlanceError:') &&
+    islandPreloadTs.includes('onGlanceSummary:'));
+
+  assert('index.ts registers screen-glance IPC endpoints and broadcast callback',
+    indexTs.includes("'screen-glance:check-errors'") &&
+    indexTs.includes("'screen-glance:apply-fix'") &&
+    indexTs.includes("'screen-glance:summarize-active'") &&
+    indexTs.includes("'screen-glance:get-state'") &&
+    indexTs.includes('screenGlanceEngine.onErrorsChanged'));
+
+  assert('canvas-engine.ts defines setupScreenGlanceDOM, showGlanceErrorPill, and openGlanceSummaryModal',
+    canvasEngineSrc.includes('setupScreenGlanceDOM') &&
+    canvasEngineSrc.includes('showGlanceErrorPill') &&
+    canvasEngineSrc.includes('openGlanceErrorModal') &&
+    canvasEngineSrc.includes('openGlanceSummaryModal') &&
+    canvasEngineSrc.includes('triggerScreenSummarizer'));
+
+  assert('index.html contains #glance-error-pill, #glance-error-modal, #glance-summary-modal, and #btn-glance-summarize',
+    indexHtml.includes('id="glance-error-pill"') &&
+    indexHtml.includes('id="glance-error-modal"') &&
+    indexHtml.includes('id="glance-summary-modal"') &&
+    indexHtml.includes('id="btn-glance-summarize"'));
+
+  assert('island.css styles .glance-error-pill, .glance-error-modal, and .glance-summary-modal',
+    islandCss.includes('.glance-error-pill') &&
+    islandCss.includes('.glance-error-modal') &&
+    islandCss.includes('.glance-summary-modal') &&
+    islandCss.includes('.glance-takeaways-list'));
+
+  // --- 33. Testing R4: WhatsApp AI Smart Replies & Voice Note Reader ---
+  console.log('\n--- 33. Testing R4: WhatsApp AI Smart Replies & Voice Note Reader ---');
+
+  const { whatsappSmartService, WhatsAppSmartService } = require('../dist/main/whatsapp-smart-service');
+  assert('whatsapp-smart-service.js exists in dist/main',
+    fs.existsSync(path.join(__dirname, '../dist/main/whatsapp-smart-service.js')));
+  assert('whatsappSmartService is an instance of WhatsAppSmartService',
+    whatsappSmartService instanceof WhatsAppSmartService);
+
+  // 1. Intent Classification across all 7 Categories
+  const greetingIntent = whatsappSmartService.classifyIntent('Hi there! Good morning, how are you?');
+  assert('Intent classifier detects GREETING', greetingIntent === 'GREETING');
+
+  const schedulingIntent = whatsappSmartService.classifyIntent('Are you free at 3pm for a quick sync?');
+  assert('Intent classifier detects SCHEDULING', schedulingIntent === 'SCHEDULING');
+
+  const confirmationIntent = whatsappSmartService.classifyIntent('Can you do this task before the deployment?');
+  assert('Intent classifier detects CONFIRMATION', confirmationIntent === 'CONFIRMATION');
+
+  const gratitudeIntent = whatsappSmartService.classifyIntent('Thank you so much for the incredible help!');
+  assert('Intent classifier detects GRATITUDE', gratitudeIntent === 'GRATITUDE');
+
+  const statusIntent = whatsappSmartService.classifyIntent("What's the status on the milestone 4 build?");
+  assert('Intent classifier detects QUESTION_STATUS', statusIntent === 'QUESTION_STATUS');
+
+  const voiceNoteIntent = whatsappSmartService.classifyIntent('Voice message (0:45)');
+  assert('Intent classifier detects VOICE_NOTE', voiceNoteIntent === 'VOICE_NOTE');
+
+  const fallbackIntent = whatsappSmartService.classifyIntent('The weather outside is rather cloudy today.');
+  assert('Intent classifier detects GENERAL_FALLBACK', fallbackIntent === 'GENERAL_FALLBACK');
+
+  // 2. Reply Generation Format (Exactly 3 distinct non-empty string suggestions per query)
+  const greetingReplies = whatsappSmartService.getSmartReplies('Hello!', 'Alice');
+  assert('GREETING produces exactly 3 non-empty string replies',
+    greetingReplies.replies.length === 3 && greetingReplies.replies.every(r => typeof r === 'string' && r.length > 0));
+
+  const schedulingReplies = whatsappSmartService.getSmartReplies('When should we meet tomorrow?');
+  assert('SCHEDULING produces exactly 3 non-empty string replies',
+    schedulingReplies.replies.length === 3 && schedulingReplies.replies.every(r => typeof r === 'string' && r.length > 0));
+
+  const confirmationReplies = whatsappSmartService.getSmartReplies('Is that okay with you?');
+  assert('CONFIRMATION produces exactly 3 non-empty string replies',
+    confirmationReplies.replies.length === 3 && confirmationReplies.replies.every(r => typeof r === 'string' && r.length > 0));
+
+  const gratitudeReplies = whatsappSmartService.getSmartReplies('Thanks a lot!');
+  assert('GRATITUDE produces exactly 3 non-empty string replies',
+    gratitudeReplies.replies.length === 3 && gratitudeReplies.replies.every(r => typeof r === 'string' && r.length > 0));
+
+  const statusReplies = whatsappSmartService.getSmartReplies('Where are you right now?');
+  assert('QUESTION_STATUS produces exactly 3 non-empty string replies',
+    statusReplies.replies.length === 3 && statusReplies.replies.every(r => typeof r === 'string' && r.length > 0));
+
+  const voiceReplies = whatsappSmartService.getSmartReplies('Voice message (0:20)');
+  assert('VOICE_NOTE produces exactly 3 non-empty string replies',
+    voiceReplies.replies.length === 3 && voiceReplies.replies.every(r => typeof r === 'string' && r.length > 0));
+
+  const fallbackReplies = whatsappSmartService.getSmartReplies('Just random observation here.');
+  assert('GENERAL_FALLBACK produces exactly 3 non-empty string replies',
+    fallbackReplies.replies.length === 3 && fallbackReplies.replies.every(r => typeof r === 'string' && r.length > 0));
+
+  // 3. Sender Personalization
+  assert('Personalized greeting includes sender name',
+    greetingReplies.replies[0].includes('Alice'));
+
+  // 4. Voice Note Pattern Detection & Duration Parsing
+  const vnParse1 = whatsappSmartService.parseVoiceNoteDetails('Voice message (0:45)');
+  assert('parseVoiceNoteDetails detects Voice message (0:45) as 45 seconds',
+    vnParse1.isVoiceNote === true && vnParse1.durationSeconds === 45);
+
+  const vnParse2 = whatsappSmartService.parseVoiceNoteDetails('Audio message (1:15)');
+  assert('parseVoiceNoteDetails detects Audio message (1:15) as 75 seconds',
+    vnParse2.isVoiceNote === true && vnParse2.durationSeconds === 75);
+
+  const vnParse3 = whatsappSmartService.parseVoiceNoteDetails('voice note (30s)');
+  assert('parseVoiceNoteDetails detects voice note (30s) as 30 seconds',
+    vnParse3.isVoiceNote === true && vnParse3.durationSeconds === 30);
+
+  const vnParseNon = whatsappSmartService.parseVoiceNoteDetails('Let us discuss this on phone');
+  assert('parseVoiceNoteDetails rejects non-voice-note text',
+    vnParseNon.isVoiceNote === false && vnParseNon.durationSeconds === 0);
+
+  // 5. Voice Note Transcription Engine & Contextual Synthesizer
+  const vnTranscript = whatsappSmartService.transcribeVoiceNote('test-vn-1', 45, 'engineering build PR review');
+  assert('transcribeVoiceNote returns valid transcript object with confidence and duration',
+    vnTranscript && vnTranscript.voiceNoteId === 'test-vn-1' &&
+    vnTranscript.durationSeconds === 45 &&
+    typeof vnTranscript.transcript === 'string' &&
+    vnTranscript.transcript.length > 10 &&
+    vnTranscript.confidence >= 0.90 && vnTranscript.confidence <= 1.0);
+
+  assert('Contextual synthesizer incorporates technical keywords for engineering context',
+    vnTranscript.transcript.toLowerCase().includes('pull request') ||
+    vnTranscript.transcript.toLowerCase().includes('build') ||
+    vnTranscript.transcript.toLowerCase().includes('milestone'));
+
+  const vnSync = whatsappSmartService.transcribeVoiceNote('test-vn-2', 20, 'let us meet and sync up calendar');
+  assert('Contextual synthesizer incorporates scheduling context',
+    vnSync.transcript.toLowerCase().includes('calendar') ||
+    vnSync.transcript.toLowerCase().includes('sync') ||
+    vnSync.transcript.toLowerCase().includes('schedule'));
+
+  // 6. Simulation Engine & Test Hooks (per R7)
+  let simulatedEventCaptured = null;
+  whatsappSmartService.setBroadcastCallback((channel, payload) => {
+    if (channel === 'island:whatsapp-incoming') {
+      simulatedEventCaptured = payload;
+    }
+  });
+
+  const simMsg = whatsappSmartService.simulateIncomingMessage('John', 'Are you free tomorrow at 4pm?');
+  assert('simulateIncomingMessage emits island:whatsapp-incoming event and updates history',
+    simMsg && simMsg.sender === 'John' &&
+    simulatedEventCaptured && simulatedEventCaptured.sender === 'John' &&
+    simMsg.smartReplies.length === 3);
+
+  const simVoice = whatsappSmartService.simulateIncomingMessage('Sarah', 'Voice message (0:40)', true, 40);
+  assert('simulateIncomingMessage with voice note triggers auto-transcription and smart replies',
+    simVoice && simVoice.isVoiceNote === true &&
+    simVoice.durationSeconds === 40 &&
+    typeof simVoice.transcript === 'string' &&
+    simVoice.smartReplies.length === 3);
+
+  assert('whatsappSmartService state records incomingHistory and voiceNoteCount',
+    whatsappSmartService.getState().incomingHistory.length >= 2 &&
+    whatsappSmartService.getState().voiceNoteCount >= 1);
+
+  // 7. Edge Cases Handling
+  const emptyReplies = whatsappSmartService.getSmartReplies('');
+  assert('Empty string input falls back safely with 3 non-empty replies',
+    emptyReplies.intent === 'GENERAL_FALLBACK' && emptyReplies.replies.length === 3);
+
+  const whitespaceReplies = whatsappSmartService.getSmartReplies('   \t\n  ');
+  assert('Whitespace only input falls back safely with 3 non-empty replies',
+    whitespaceReplies.intent === 'GENERAL_FALLBACK' && whitespaceReplies.replies.length === 3);
+
+  const emojiConfirm = whatsappSmartService.getSmartReplies('👍');
+  assert('Thumbs-up emoji classifies as CONFIRMATION',
+    emojiConfirm.intent === 'CONFIRMATION' && emojiConfirm.replies.length === 3);
+
+  const emojiThanks = whatsappSmartService.getSmartReplies('🙏');
+  assert('Thanks emoji classifies as GRATITUDE',
+    emojiThanks.intent === 'GRATITUDE' && emojiThanks.replies.length === 3);
+
+  const longText = 'Hello there! '.repeat(500);
+  const longResult = whatsappSmartService.getSmartReplies(longText);
+  assert('Very long message (6,500+ chars) processes without ReDoS or failure',
+    longResult && longResult.replies.length === 3);
+
+  const specialCharsResult = whatsappSmartService.getSmartReplies('Hello?!?!? #@$%^&* 123');
+  assert('Special characters and punctuation classify as GREETING',
+    specialCharsResult.intent === 'GREETING');
+
+  const multiIntentResult = whatsappSmartService.getSmartReplies('Hey! How are you? Are you free at 3?');
+  assert('Multi-intent message prioritizes action intent SCHEDULING',
+    multiIntentResult.intent === 'SCHEDULING');
+
+  // Remediation Regressions (R4):
+  assert('SCHEDULING regex rejects non-time phrase "Look at 5 cats"',
+    whatsappSmartService.classifyIntent('Look at 5 cats') === 'GENERAL_FALLBACK');
+  assert('SCHEDULING regex rejects non-time phrase "I was at 2 stores"',
+    whatsappSmartService.classifyIntent('I was at 2 stores') === 'GENERAL_FALLBACK');
+  assert('Conversational mention "I sent you a voice message earlier today, did you hear it?" is rejected from voice note detection',
+    whatsappSmartService.parseVoiceNoteDetails('I sent you a voice message earlier today, did you hear it?').isVoiceNote === false);
+  assert('Actionable SCHEDULING prioritizes over GRATITUDE in "Thanks! Can you meet at 3pm?"',
+    whatsappSmartService.classifyIntent('Thanks! Can you meet at 3pm?') === 'SCHEDULING');
+
+  // 8. IPC and Preload Bridge Contracts for R4
+  assert('island-preload.ts exposes typed whatsapp API bridge and sendWhatsAppReply alias',
+    islandPreloadTs.includes('whatsapp:') &&
+    islandPreloadTs.includes('getSmartReplies:') &&
+    islandPreloadTs.includes('transcribeVoiceNote:') &&
+    islandPreloadTs.includes('simulateIncoming:') &&
+    islandPreloadTs.includes('onVoiceNoteTranscribed:') &&
+    islandPreloadTs.includes('sendWhatsAppReply:'));
+
+  assert('index.ts registers whatsapp smart reply, voice note, and simulation IPC handlers',
+    indexTs.includes("'whatsapp:get-smart-replies'") &&
+    indexTs.includes("'whatsapp:transcribe-voice-note'") &&
+    indexTs.includes("'whatsapp:simulate-incoming'") &&
+    indexTs.includes('whatsappSmartService.setBroadcastCallback'));
+
+  assert('index.html contains #whatsapp-smart-reply-chips and #whatsapp-voicenote-card',
+    indexHtml.includes('id="whatsapp-smart-reply-chips"') &&
+    indexHtml.includes('id="whatsapp-voicenote-card"') &&
+    indexHtml.includes('id="wa-vn-duration"') &&
+    indexHtml.includes('id="wa-vn-transcript"'));
+
+  assert('island.css styles .whatsapp-smart-chip, .whatsapp-voicenote-card, and @keyframes waWaveAnim',
+    islandCss.includes('.whatsapp-smart-chip') &&
+    islandCss.includes('.whatsapp-voicenote-card') &&
+    islandCss.includes('.wa-vn-waves') &&
+    islandCss.includes('.wa-vn-bar') &&
+    islandCss.includes('waWaveAnim'));
+
+  assert('canvas-engine.ts implements isWhatsAppVoiceNoteActive and fetchAndRenderSmartReplies',
+    canvasEngineSrc.includes('isWhatsAppVoiceNoteActive') &&
+    canvasEngineSrc.includes('fetchAndRenderSmartReplies') &&
+    canvasEngineSrc.includes('whatsapp-smart-chip'));
+
+  // --- 34. Testing R5: AirPods / Bluetooth Battery & Device HUD ---
+  console.log('\n--- 34. Testing R5: AirPods / Bluetooth Battery & Device HUD ---');
+
+  const {
+    bluetoothMonitorService,
+    BluetoothMonitorService,
+    BluetoothSimulator,
+    classifyBluetoothDeviceType,
+    normalizeBatteryLevel,
+    normalizeMultiBattery
+  } = require('../dist/main/bluetooth-monitor');
+
+  assert('bluetooth-monitor.js exists in dist/main',
+    fs.existsSync(path.join(__dirname, '../dist/main/bluetooth-monitor.js')));
+  assert('bluetoothMonitorService is an instance of BluetoothMonitorService',
+    bluetoothMonitorService instanceof BluetoothMonitorService);
+  assert('BluetoothSimulator can be instantiated',
+    new BluetoothSimulator() instanceof BluetoothSimulator);
+
+  // 1. Device Type Classification
+  assert('classifyBluetoothDeviceType detects AirPods Pro as airpods',
+    classifyBluetoothDeviceType('AirPods Pro') === 'airpods');
+  assert('classifyBluetoothDeviceType detects AirPods Max as airpods',
+    classifyBluetoothDeviceType('AirPods Max') === 'airpods');
+  assert('classifyBluetoothDeviceType detects Galaxy Buds2 as earbuds',
+    classifyBluetoothDeviceType('Galaxy Buds2 Pro') === 'earbuds');
+  assert('classifyBluetoothDeviceType detects Pixel Buds as earbuds',
+    classifyBluetoothDeviceType('Google Pixel Buds') === 'earbuds');
+  assert('classifyBluetoothDeviceType detects Sony WH-1000XM5 as headphones',
+    classifyBluetoothDeviceType('Sony WH-1000XM5') === 'headphones');
+  assert('classifyBluetoothDeviceType detects Bose QuietComfort 45 as headphones',
+    classifyBluetoothDeviceType('Bose QuietComfort 45') === 'headphones');
+  assert('classifyBluetoothDeviceType detects JBL Flip 6 as speaker',
+    classifyBluetoothDeviceType('JBL Flip 6') === 'speaker');
+  assert('classifyBluetoothDeviceType detects Logitech MX Master 3 as mouse',
+    classifyBluetoothDeviceType('Logitech MX Master 3') === 'mouse');
+  assert('classifyBluetoothDeviceType detects Keychron K2 as keyboard',
+    classifyBluetoothDeviceType('Keychron K2 Keyboard') === 'keyboard');
+  assert('classifyBluetoothDeviceType defaults unknown device to peripheral',
+    classifyBluetoothDeviceType('Generic BLE Sensor 01') === 'peripheral');
+  assert('classifyBluetoothDeviceType handles empty input safely',
+    classifyBluetoothDeviceType('') === 'peripheral');
+
+  // 2. Battery Normalization and Clamping (0-100)
+  assert('normalizeBatteryLevel extracts integer percentage',
+    normalizeBatteryLevel(85) === 85);
+  assert('normalizeBatteryLevel parses string percentage',
+    normalizeBatteryLevel('92%') === 92);
+  assert('normalizeBatteryLevel clamps negative values to 0',
+    normalizeBatteryLevel(-15) === 0);
+  assert('normalizeBatteryLevel clamps overflow values to 100',
+    normalizeBatteryLevel(145) === 100);
+  assert('normalizeBatteryLevel returns null for null/undefined/invalid',
+    normalizeBatteryLevel(null) === null &&
+    normalizeBatteryLevel(undefined) === null &&
+    normalizeBatteryLevel('invalid') === null);
+
+  // 3. Multi-Battery Parsing & Normalization (AirPods L/R/Case)
+  const mbParsed = normalizeMultiBattery({ left: 85, right: 90, case: 100 });
+  assert('normalizeMultiBattery preserves valid multiBattery levels',
+    mbParsed && mbParsed.left === 85 && mbParsed.right === 90 && mbParsed.case === 100);
+
+  const mbClamped = normalizeMultiBattery({ left: -10, right: 110, case: 50 });
+  assert('normalizeMultiBattery clamps out-of-range multiBattery values',
+    mbClamped && mbClamped.left === 0 && mbClamped.right === 100 && mbClamped.case === 50);
+
+  const simInstance = new BluetoothSimulator();
+  const airPodsSim = simInstance.createDevice({
+    name: 'My AirPods',
+    multiBattery: { left: 80, right: 90, case: 100 }
+  });
+  assert('createDevice computes average earbud battery when batteryPercent is omitted',
+    airPodsSim.batteryPercent === 85 && airPodsSim.deviceType === 'airpods');
+
+  // 4. Default State and Device Getters
+  bluetoothMonitorService.resetToPresets();
+  const allDevices = bluetoothMonitorService.getAllDevices();
+  assert('getAllDevices returns initial preset devices list',
+    Array.isArray(allDevices) && allDevices.length >= 4);
+
+  const connectedDevices = bluetoothMonitorService.getConnectedDevices();
+  assert('getConnectedDevices returns only currently connected devices',
+    Array.isArray(connectedDevices) && connectedDevices.length >= 3 &&
+    connectedDevices.every(d => d.connected === true));
+
+  const airpodsDevice = bluetoothMonitorService.getDevice('bt-airpods-pro-1');
+  assert('getDevice returns targeted device by id',
+    airpodsDevice && airpodsDevice.name === 'AirPods Pro' && airpodsDevice.deviceType === 'airpods');
+
+  // 5. Event Transition Detection
+  let lastCapturedEvent = null;
+  const unsubListener = bluetoothMonitorService.onDeviceEvent((ev) => {
+    lastCapturedEvent = ev;
+  });
+
+  // Connection transition
+  const connectDev = simInstance.createDevice({
+    id: 'test-trans-1',
+    name: 'Sony WH-1000XM4',
+    connected: true,
+    batteryPercent: 80
+  });
+  const connectEvents = bluetoothMonitorService.updateDevices([connectDev]);
+  assert('updateDevices emits connected event when new device connects',
+    connectEvents.some(e => e.type === 'connected' && e.device.id === 'test-trans-1') &&
+    lastCapturedEvent?.type === 'connected');
+
+  // Disconnection transition
+  const disconnectDev = { ...connectDev, connected: false };
+  const disconnectEvents = bluetoothMonitorService.updateDevices([disconnectDev]);
+  assert('updateDevices emits disconnected event when device disconnects',
+    disconnectEvents.some(e => e.type === 'disconnected' && e.device.id === 'test-trans-1') &&
+    lastCapturedEvent?.type === 'disconnected');
+
+  // Battery delta threshold >= 2% triggers battery_change
+  const reconnectDev = { ...connectDev, connected: true, batteryPercent: 80 };
+  bluetoothMonitorService.updateDevices([reconnectDev]);
+  const batDeltaDev = { ...connectDev, connected: true, batteryPercent: 85 };
+  const deltaEvents = bluetoothMonitorService.updateDevices([batDeltaDev]);
+  assert('updateDevices emits battery_change event when battery delta >= 2%',
+    deltaEvents.some(e => e.type === 'battery_change' && e.device.batteryPercent === 85) &&
+    lastCapturedEvent?.type === 'battery_change');
+
+  // Battery noise rejection (< 2% delta does NOT trigger event)
+  const minorDeltaDev = { ...connectDev, connected: true, batteryPercent: 86 }; // 1% difference
+  const minorEvents = bluetoothMonitorService.updateDevices([minorDeltaDev]);
+  assert('updateDevices suppresses event when battery delta < 2% (noise rejection)',
+    !minorEvents.some(e => e.type === 'battery_change' && e.device.id === 'test-trans-1'));
+
+  // Charging state change triggers battery_change
+  const chargingDev = { ...minorDeltaDev, isCharging: true };
+  const chargingEvents = bluetoothMonitorService.updateDevices([chargingDev]);
+  assert('updateDevices emits battery_change event when charging state toggles',
+    chargingEvents.some(e => e.type === 'battery_change' && e.device.isCharging === true));
+
+  unsubListener();
+
+  // 6. Simulation Engine & Programmatic Test Hook
+  let simBroadcastPayload = null;
+  bluetoothMonitorService.setBroadcastCallback((channel, payload) => {
+    if (channel === 'island:bluetooth-hud') {
+      simBroadcastPayload = payload;
+    }
+  });
+
+  const simResult = bluetoothMonitorService.simulateEvent({
+    type: 'connected',
+    device: { id: 'sim-test-device', name: 'AirPods Max', batteryPercent: 95 }
+  });
+  assert('simulateEvent registers device and triggers broadcast',
+    simResult.id === 'sim-test-device' &&
+    simResult.deviceType === 'airpods' &&
+    simBroadcastPayload?.type === 'connected' &&
+    simBroadcastPayload?.device?.name === 'AirPods Max');
+
+  // 7. Fallback & Offline Resilience
+  bluetoothMonitorService.setSimulationMode(true);
+  assert('setSimulationMode toggles simulation mode cleanly',
+    bluetoothMonitorService.isSimulationMode() === true);
+
+  const fallbackDevs = await bluetoothMonitorService.queryNativeDevices();
+  assert('queryNativeDevices returns devices without throwing in offline/simulation mode',
+    Array.isArray(fallbackDevs) && fallbackDevs.length > 0);
+  bluetoothMonitorService.setSimulationMode(false);
+
+  // 8. Edge Cases & ReDoS Safety
+  const longName = 'AirPods ' + 'Pro '.repeat(2000);
+  assert('classifyBluetoothDeviceType handles 8000+ char string safely without ReDoS',
+    classifyBluetoothDeviceType(longName) === 'airpods');
+
+  const zeroBat = normalizeBatteryLevel(0);
+  const hundredBat = normalizeBatteryLevel(100);
+  assert('0% and 100% boundary battery levels are preserved accurately',
+    zeroBat === 0 && hundredBat === 100);
+
+  // 9. Preload, Main IPC, and Canvas/DOM Contracts for R5
+  assert('island-preload.ts exposes typed bluetooth API with getDevices, simulateEvent, onHudEvent',
+    islandPreloadTs.includes('bluetooth:') &&
+    islandPreloadTs.includes('getDevices:') &&
+    islandPreloadTs.includes('simulateEvent:') &&
+    islandPreloadTs.includes('onHudEvent:') &&
+    islandPreloadTs.includes('islandAPI'));
+
+  assert('index.ts registers bluetooth IPC endpoints and disposal',
+    indexTs.includes("'bluetooth:get-devices'") &&
+    indexTs.includes("'bluetooth:simulate-event'") &&
+    indexTs.includes('bluetoothMonitorService.setBroadcastCallback') &&
+    indexTs.includes('bluetoothMonitorService.dispose()'));
+
+  assert('canvas-engine.ts defines triggerBluetoothHud, showBluetoothHudCard, and drawBluetoothHudContent',
+    canvasEngineSrc.includes('triggerBluetoothHud') &&
+    canvasEngineSrc.includes('showBluetoothHudCard') &&
+    canvasEngineSrc.includes('drawBluetoothHudContent') &&
+    canvasEngineSrc.includes('__roboIslandTriggerBluetoothHud'));
+
+  assert('index.html contains #bluetooth-hud-card, #bt-hud-name, #bt-hud-battery-percent, #bt-hud-multibattery',
+    indexHtml.includes('id="bluetooth-hud-card"') &&
+    indexHtml.includes('id="bt-hud-name"') &&
+    indexHtml.includes('id="bt-hud-battery-percent"') &&
+    indexHtml.includes('id="bt-hud-multibattery"'));
+
+  assert('island.css styles .bluetooth-hud-card, .bt-hud-battery-badge, and .bt-mb-badge',
+    islandCss.includes('.bluetooth-hud-card') &&
+    islandCss.includes('.bt-hud-battery-badge') &&
+    islandCss.includes('.bt-mb-badge') &&
+    islandCss.includes('btHudPop'));
+
+  // --- 35. Testing R6: Full Hands-Free Voice Companion Mode (Jarvis Voice) ---
+  console.log('\n--- 35. Testing R6: Full Hands-Free Voice Companion Mode (Jarvis Voice) ---');
+
+  const {
+    voiceCompanionService,
+    VoiceCompanionService,
+    detectWakeWord,
+    computeAudioBands
+  } = require('../dist/main/voice-companion-service');
+
+  assert('voice-companion-service.js exists in dist/main',
+    fs.existsSync(path.join(__dirname, '../dist/main/voice-companion-service.js')));
+
+  assert('voiceCompanionService is an instance of VoiceCompanionService',
+    voiceCompanionService instanceof VoiceCompanionService);
+
+  assert('VoiceCompanionService default state is IDLE',
+    voiceCompanionService.getState() === 'IDLE');
+
+  // 1. Wake-Word Detection Matrix (Hey Jarvis, Jarvis, Hey Robo, RoboIsland)
+  const wake1 = detectWakeWord('Hey Jarvis, what time is it?');
+  assert('detectWakeWord detects "Hey Jarvis" and strips punctuation',
+    wake1.detected === true && wake1.triggerWord === 'hey jarvis' && wake1.strippedText === 'what time is it?');
+
+  const wake2 = detectWakeWord('jarvis what is the date');
+  assert('detectWakeWord detects "jarvis" in lowercase',
+    wake2.detected === true && wake2.triggerWord === 'jarvis' && wake2.strippedText === 'what is the date');
+
+  const wake3 = detectWakeWord('HEY ROBO: check battery status');
+  assert('detectWakeWord detects "HEY ROBO" in uppercase with colon',
+    wake3.detected === true && wake3.triggerWord === 'hey robo' && wake3.strippedText === 'check battery status');
+
+  const wake4 = detectWakeWord('roboisland');
+  assert('detectWakeWord detects standalone "roboisland"',
+    wake4.detected === true && wake4.triggerWord === 'roboisland' && wake4.strippedText === '');
+
+  const wakeNon = detectWakeWord('Good morning Alice');
+  assert('detectWakeWord returns false for non-wake phrases',
+    wakeNon.detected === false && wakeNon.strippedText === 'Good morning Alice');
+
+  const wakeEmpty = detectWakeWord('');
+  const wakeNull = detectWakeWord(null);
+  assert('detectWakeWord safely handles empty or null input',
+    wakeEmpty.detected === false && wakeNull.detected === false);
+
+  const longWakeInput = 'Hey Jarvis ' + 'hello world '.repeat(1500);
+  const wakeLong = detectWakeWord(longWakeInput);
+  assert('detectWakeWord safely handles 15,000+ char input without ReDoS',
+    wakeLong.detected === true && wakeLong.triggerWord === 'hey jarvis');
+
+  // 2. State Machine Transitions
+  await voiceCompanionService.startListening();
+  assert('startListening transitions state from IDLE to LISTENING',
+    voiceCompanionService.getState() === 'LISTENING');
+
+  await voiceCompanionService.stopListening();
+  assert('stopListening transitions state from LISTENING to IDLE',
+    voiceCompanionService.getState() === 'IDLE');
+
+  await voiceCompanionService.toggleListening();
+  assert('toggleListening switches from IDLE to LISTENING',
+    voiceCompanionService.getState() === 'LISTENING');
+
+  await voiceCompanionService.toggleListening();
+  assert('toggleListening switches from LISTENING back to IDLE',
+    voiceCompanionService.getState() === 'IDLE');
+
+  // 3. Audio Amplitude & 5-Band Frequency Generation
+  const idleBands = computeAudioBands(1000, 'IDLE');
+  assert('computeAudioBands returns 0 level and zeroed bands for IDLE',
+    idleBands.level === 0 && idleBands.bands.every(b => b === 0));
+
+  const listenBands = computeAudioBands(2500, 'LISTENING');
+  assert('computeAudioBands produces 5 valid normalized frequency bands for LISTENING',
+    listenBands.level > 0 && listenBands.level <= 1.0 &&
+    listenBands.bands.length === 5 &&
+    listenBands.bands.every(b => b >= 0 && b <= 1.0));
+
+  const speakBands = computeAudioBands(3500, 'SPEAKING');
+  assert('computeAudioBands produces dynamic frequency bands for SPEAKING',
+    speakBands.level > 0 && speakBands.level <= 1.0 &&
+    speakBands.bands.length === 5 &&
+    speakBands.bands.every(b => b >= 0 && b <= 1.0));
+
+  const thinkBands = computeAudioBands(1500, 'THINKING');
+  assert('computeAudioBands produces shimmer bands for THINKING',
+    thinkBands.level > 0 && thinkBands.level <= 1.0 &&
+    thinkBands.bands.length === 5 &&
+    thinkBands.bands.every(b => b >= 0 && b <= 1.0));
+
+  // 4. Natural Language Dialogue & Intent Processing
+  const timeRes = await voiceCompanionService.processCommand('What is the current time?');
+  assert('processCommand handles Time query intent',
+    timeRes.action === 'report_time' && timeRes.response.includes('currently'));
+
+  const dateRes = await voiceCompanionService.processCommand("What's today's date?");
+  assert('processCommand handles Date query intent',
+    dateRes.action === 'report_date' && dateRes.response.includes('Today is'));
+
+  const batteryRes = await voiceCompanionService.processCommand('Check my AirPods battery');
+  assert('processCommand handles Battery query intent',
+    batteryRes.action === 'report_battery' && typeof batteryRes.response === 'string');
+
+  const sportsRes = await voiceCompanionService.processCommand('Give me sports cricket score');
+  assert('processCommand handles Sports query intent',
+    sportsRes.action === 'report_sports' && typeof sportsRes.response === 'string');
+
+  const glanceRes = await voiceCompanionService.processCommand('Check screen for errors');
+  assert('processCommand handles Screen Glance & Error Fixer intent',
+    glanceRes.action.startsWith('report_') && typeof glanceRes.response === 'string');
+
+  const mathRes = await voiceCompanionService.processCommand('Calculate 25 * 4');
+  assert('processCommand handles Math Calculation intent',
+    mathRes.action === 'math_result' && mathRes.response.includes('100'));
+
+  const introRes = await voiceCompanionService.processCommand('Who are you?');
+  assert('processCommand handles Assistant introduction intent',
+    introRes.action === 'introduce' && introRes.response.includes('Jarvis'));
+
+  const greetRes = await voiceCompanionService.processCommand('Hello Jarvis');
+  assert('processCommand handles Greeting intent',
+    greetRes.action === 'greeting' && typeof greetRes.response === 'string');
+
+  const jokeRes = await voiceCompanionService.processCommand('Tell me a joke');
+  assert('processCommand handles Humor & Joke intent',
+    jokeRes.action === 'joke' && typeof jokeRes.response === 'string');
+
+  const fallbackRes = await voiceCompanionService.processCommand('Quantum entanglement across parallel universes');
+  assert('processCommand provides graceful Conversational Fallback',
+    fallbackRes.action === 'conversational_fallback' && fallbackRes.response.includes('Quantum entanglement'));
+
+  // 5. Broadcast & Event Flow
+  let voicePayload = null;
+  voiceCompanionService.setBroadcastCallback((ch, p) => {
+    if (ch === 'island:voice-state') voicePayload = p;
+  });
+  voiceCompanionService.setState('LISTENING', { text: 'Test voice query' });
+  assert('broadcastState emits island:voice-state with payload',
+    voicePayload !== null &&
+    voicePayload.state === 'LISTENING' &&
+    voicePayload.text === 'Test voice query');
+
+  // 6. Text-to-Speech & Abort Lifecycle
+  voiceCompanionService.setSimulationMode(true);
+  const speakPromise = voiceCompanionService.speak('Testing speech synthesis execution');
+  assert('speak sets state to SPEAKING',
+    voiceCompanionService.getState() === 'SPEAKING');
+
+  const stopped = voiceCompanionService.stopSpeaking();
+  assert('stopSpeaking aborts active speech and transitions to IDLE',
+    stopped === true && voiceCompanionService.getState() === 'IDLE');
+
+  // 7. Preload, Main IPC, and Canvas/DOM Contracts for R6
+  assert('island-preload.ts exposes typed voice companion API bridge',
+    islandPreloadTs.includes('voice:') &&
+    islandPreloadTs.includes('startListening:') &&
+    islandPreloadTs.includes('stopListening:') &&
+    islandPreloadTs.includes('onVoiceState:'));
+
+  assert('island-preload.ts exposes top-level voice helper aliases',
+    islandPreloadTs.includes('startVoiceListening:') &&
+    islandPreloadTs.includes('stopVoiceSpeaking:') &&
+    islandPreloadTs.includes('onVoiceState:'));
+
+  assert('index.ts registers voice companion IPC handlers and cleanup on will-quit',
+    indexTs.includes("'voice:start-listening'") &&
+    indexTs.includes("'voice:stop-listening'") &&
+    indexTs.includes("'voice:process-command'") &&
+    indexTs.includes('voiceCompanionService.dispose()'));
+
+  assert('canvas-engine.ts, index.html, and island.css integrate dynamic voice sound wave rendering and UI',
+    canvasEngineSrc.includes('drawVoiceCompanionWave') &&
+    canvasEngineSrc.includes('triggerVoiceCompanion') &&
+    canvasEngineSrc.includes('isVoiceCompanionActive') &&
+    indexHtml.includes('id="voice-companion-card"') &&
+    indexHtml.includes('id="btn-voice-companion"') &&
+    islandCss.includes('.voice-companion-card') &&
+    islandCss.includes('voiceHudPop'));
+
   // Summary
   console.log('\n====================================================');
   console.log(`TEST SUMMARY: ${passed} PASSED, ${failed} FAILED`);

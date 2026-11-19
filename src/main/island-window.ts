@@ -8,6 +8,7 @@ export class IslandWindow {
   private isInteractive = false;
   private isDragging = false;
   private isTucked = false;
+  private isLauncherActive = false;
   private currentMode: 'rest' | 'compact' | 'expanded' = 'compact';
   private capsuleBounds: { width: number; height: number; topY: number; isSplit?: boolean; splitSpan?: number } = {
     width: 98,
@@ -119,7 +120,7 @@ export class IslandWindow {
                            cursor.y >= bounds.y && cursor.y < bounds.y + bounds.height;
 
       // Low-CPU optimization: When outside the window and already reported outside with stationary cursor, avoid redundant IPC spam and back off poll frequency
-      if (!insideWindow && !this.wasInsideWindow && Math.abs(cursor.x - this.lastSentScreenX) < 3 && Math.abs(cursor.y - this.lastSentScreenY) < 3 && this.currentMode !== 'expanded' && !this.isInteractive) {
+      if (!insideWindow && !this.wasInsideWindow && Math.abs(cursor.x - this.lastSentScreenX) < 3 && Math.abs(cursor.y - this.lastSentScreenY) < 3 && this.currentMode !== 'expanded' && !this.isInteractive && !this.isLauncherActive) {
         this.cursorTimer = setTimeout(tick, 75);
         return;
       }
@@ -139,8 +140,8 @@ export class IslandWindow {
       const relY = (cursor.y - bounds.y) / scale;
       const cx = (bounds.width / scale) / 2;
 
-      // In expanded mode, maintain interactive = true
-      if (this.currentMode === 'expanded' || this.isDragging) {
+      // In expanded or launcher mode, maintain interactive = true
+      if (this.currentMode === 'expanded' || this.isLauncherActive || this.isDragging) {
         this.setInteractive(true);
       } else if (this.isTucked) {
         const tuckHalfW = 40;
@@ -185,8 +186,8 @@ export class IslandWindow {
 
   public setInteractive(interactive: boolean): void {
     if (!this.window || this.window.isDestroyed()) return;
-    // When the island is in expanded mode, maintain setInteractive(true)
-    const effectiveInteractive = this.currentMode === 'expanded' ? true : interactive;
+    // When the island is in expanded mode or launcher is active, maintain setInteractive(true)
+    const effectiveInteractive = (this.currentMode === 'expanded' || this.isLauncherActive) ? true : interactive;
     if (this.isInteractive === effectiveInteractive) return;
 
     this.isInteractive = effectiveInteractive;
@@ -197,8 +198,8 @@ export class IslandWindow {
         this.window.setIgnoreMouseEvents(!effectiveInteractive);
       } catch {}
     }
-    // Only focus the window in expanded mode. Never steal OS focus simply on hover in rest/compact mode.
-    if (effectiveInteractive && this.currentMode === 'expanded') {
+    // Only focus the window in expanded or launcher mode. Never steal OS focus simply on hover in rest/compact mode.
+    if (effectiveInteractive && (this.currentMode === 'expanded' || this.isLauncherActive)) {
       try { this.window.focus(); } catch {}
     }
   }
@@ -319,9 +320,42 @@ export class IslandWindow {
         if (!this.window || this.window.isDestroyed()) return;
         this.window.webContents.send('island:show-speedometer-hud');
       });
+
+      // Universal Spotlight / Raycast Launcher shortcut (Alt+Space with CommandOrControl+Space fallback) per R2
+      try {
+        const regAltSpace = globalShortcut.register('Alt+Space', () => {
+          this.toggleLauncherShortcut();
+        });
+        if (!regAltSpace) {
+          globalShortcut.register('CommandOrControl+Space', () => {
+            this.toggleLauncherShortcut();
+          });
+        }
+      } catch (err) {
+        console.warn('[IslandWindow] Failed to register Alt+Space launcher shortcut:', err);
+        try {
+          globalShortcut.register('CommandOrControl+Space', () => {
+            this.toggleLauncherShortcut();
+          });
+        } catch {}
+      }
     } catch (err) {
       console.warn('[IslandWindow] Failed to register global shortcut:', err);
     }
+  }
+
+  public toggleLauncherShortcut(): void {
+    if (!this.window || this.window.isDestroyed()) return;
+    if (this.isTucked) {
+      this.setTucked(false);
+    }
+    if (!this.window.isVisible()) {
+      this.window.show();
+    }
+    try {
+      this.window.focus();
+    } catch {}
+    this.window.webContents.send('island:toggle-launcher');
   }
 
   private setupScreenEvents(): void {
@@ -333,6 +367,16 @@ export class IslandWindow {
   private setupIPC(): void {
     ipcMain.on('island:set-interactive', (_event, interactive: boolean) => {
       this.setInteractive(interactive);
+    });
+
+    ipcMain.on('island:set-launcher-active', (_event, active: boolean) => {
+      this.isLauncherActive = Boolean(active);
+      if (this.isLauncherActive) {
+        this.setInteractive(true);
+        try { this.window?.focus(); } catch {}
+      } else if (this.currentMode !== 'expanded') {
+        this.setInteractive(false);
+      }
     });
 
     ipcMain.on('island:capsule-bounds', (_event, bounds: { width: number; height: number; topY: number; isSplit?: boolean; splitSpan?: number }) => {

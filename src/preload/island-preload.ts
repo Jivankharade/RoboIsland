@@ -279,12 +279,172 @@ const api = {
     const handler = (_event: any, data: any) => callback(data);
     ipcRenderer.on('chat:inject-vision-query', handler);
     return () => ipcRenderer.removeListener('chat:inject-vision-query', handler);
+  },
+
+  // Sports API (Cricket, Football, F1)
+  sports: {
+    getState: () => ipcRenderer.invoke('sports:get-state'),
+    toggleSport: (sport?: 'cricket' | 'football' | 'f1') => ipcRenderer.invoke('sports:toggle-match', sport),
+    setMode: (mode: 'live' | 'simulated') => ipcRenderer.invoke('sports:set-mode', mode),
+    stepSimulation: () => ipcRenderer.invoke('sports:step-simulation'),
+    onSportsUpdate: (callback: (data: any) => void) => {
+      const handler = (_event: any, data: any) => callback(data);
+      ipcRenderer.on('island:sports-update', handler);
+      return () => ipcRenderer.removeListener('island:sports-update', handler);
+    }
+  },
+  getSportsState: () => ipcRenderer.invoke('sports:get-state'),
+  toggleSport: (sport?: 'cricket' | 'football' | 'f1') => ipcRenderer.invoke('sports:toggle-match', sport),
+  setSportsMode: (mode: 'live' | 'simulated') => ipcRenderer.invoke('sports:set-mode', mode),
+  stepSportsSimulation: () => ipcRenderer.invoke('sports:step-simulation'),
+  onSportsUpdate: (callback: (data: any) => void) => {
+    const handler = (_event: any, data: any) => callback(data);
+    ipcRenderer.on('island:sports-update', handler);
+    return () => ipcRenderer.removeListener('island:sports-update', handler);
+  },
+
+  // Universal Spotlight / Raycast Launcher API (R2)
+  launcher: {
+    query: (query: string) => ipcRenderer.invoke('launcher:query', { query }),
+    launch: (target: string, type: 'app' | 'file' | 'url' = 'app') => ipcRenderer.invoke('launcher:launch', { target, type }),
+    hide: () => ipcRenderer.send('launcher:hide'),
+    toggle: () => ipcRenderer.send('island:toggle-launcher'),
+    setActive: (active: boolean) => ipcRenderer.send('island:set-launcher-active', Boolean(active)),
+    onToggleLauncher: (callback: (forceState?: boolean) => void) => {
+      const handler = (_event: any, state?: boolean) => callback(state);
+      ipcRenderer.on('island:toggle-launcher', handler);
+      return () => ipcRenderer.removeListener('island:toggle-launcher', handler);
+    }
+  },
+  queryLauncher: (query: string) => ipcRenderer.invoke('launcher:query', { query }),
+  launchLauncherItem: (target: string, type: 'app' | 'file' | 'url' = 'app') => ipcRenderer.invoke('launcher:launch', { target, type }),
+  hideLauncher: () => ipcRenderer.send('launcher:hide'),
+  toggleLauncher: () => ipcRenderer.send('island:toggle-launcher'),
+  onToggleLauncher: (callback: (forceState?: boolean) => void) => {
+    const handler = (_event: any, state?: boolean) => callback(state);
+    ipcRenderer.on('island:toggle-launcher', handler);
+    return () => ipcRenderer.removeListener('island:toggle-launcher', handler);
+  },
+
+  // Ambient Screen Glance & Error Fixer API (R3)
+  screenGlance: {
+    checkErrors: (text?: string) => ipcRenderer.invoke('screen-glance:check-errors', text),
+    applyFix: (fixId: string) => ipcRenderer.invoke('screen-glance:apply-fix', { fixId }),
+    summarizeActive: (context?: { text?: string; title?: string }) => ipcRenderer.invoke('screen-glance:summarize-active', context),
+    getState: () => ipcRenderer.invoke('screen-glance:get-state'),
+    clearErrors: () => ipcRenderer.invoke('screen-glance:clear-errors'),
+    onGlanceError: (callback: (errors: any[]) => void) => {
+      const handler = (_event: any, errors: any) => callback(errors);
+      ipcRenderer.on('island:glance-error', handler);
+      return () => ipcRenderer.removeListener('island:glance-error', handler);
+    },
+    onGlanceSummary: (callback: (summary: any) => void) => {
+      const handler = (_event: any, summary: any) => callback(summary);
+      ipcRenderer.on('island:glance-summary', handler);
+      return () => ipcRenderer.removeListener('island:glance-summary', handler);
+    }
+  },
+  checkScreenErrors: (text?: string) => ipcRenderer.invoke('screen-glance:check-errors', text),
+  applyScreenFix: (fixId: string) => ipcRenderer.invoke('screen-glance:apply-fix', { fixId }),
+  summarizeActiveScreen: (context?: { text?: string; title?: string }) => ipcRenderer.invoke('screen-glance:summarize-active', context),
+  getScreenGlanceState: () => ipcRenderer.invoke('screen-glance:get-state'),
+  onGlanceError: (callback: (errors: any[]) => void) => {
+    const handler = (_event: any, errors: any) => callback(errors);
+    ipcRenderer.on('island:glance-error', handler);
+    return () => ipcRenderer.removeListener('island:glance-error', handler);
+  },
+  onGlanceSummary: (callback: (summary: any) => void) => {
+    const handler = (_event: any, summary: any) => callback(summary);
+    ipcRenderer.on('island:glance-summary', handler);
+    return () => ipcRenderer.removeListener('island:glance-summary', handler);
+  },
+
+  // WhatsApp AI Smart Replies & Voice Note Reader API (R4)
+  whatsapp: {
+    getSmartReplies: (message: string, sender?: string) =>
+      ipcRenderer.invoke('whatsapp:get-smart-replies', { message, sender }),
+    transcribeVoiceNote: (id?: string, duration?: number, context?: string) =>
+      ipcRenderer.invoke('whatsapp:transcribe-voice-note', { voiceNoteId: id, durationSeconds: duration, context }),
+    simulateIncoming: (payload: { sender: string; body: string; isVoiceNote?: boolean; durationSeconds?: number }) =>
+      ipcRenderer.invoke('whatsapp:simulate-incoming', payload),
+    onVoiceNoteTranscribed: (callback: (data: any) => void) => {
+      const handler = (_event: any, data: any) => callback(data);
+      ipcRenderer.on('island:whatsapp-voicenote-transcribed', handler);
+      return () => ipcRenderer.removeListener('island:whatsapp-voicenote-transcribed', handler);
+    },
+    onIncomingMessage: (callback: (data: any) => void) => {
+      const handler = (_event: any, data: any) => callback(data);
+      ipcRenderer.on('island:whatsapp-incoming', handler);
+      return () => ipcRenderer.removeListener('island:whatsapp-incoming', handler);
+    }
+  },
+  getSmartReplies: (message: string, sender?: string) =>
+    ipcRenderer.invoke('whatsapp:get-smart-replies', { message, sender }),
+  transcribeVoiceNote: (id?: string, duration?: number, context?: string) =>
+    ipcRenderer.invoke('whatsapp:transcribe-voice-note', { voiceNoteId: id, durationSeconds: duration, context }),
+  simulateIncomingMessage: (payload: any) =>
+    ipcRenderer.invoke('whatsapp:simulate-incoming', payload),
+  onVoiceNoteTranscribed: (callback: (data: any) => void) => {
+    const handler = (_event: any, data: any) => callback(data);
+    ipcRenderer.on('island:whatsapp-voicenote-transcribed', handler);
+    return () => ipcRenderer.removeListener('island:whatsapp-voicenote-transcribed', handler);
+  },
+  sendWhatsAppReply: (payload: { contact?: string; phone?: string; tag?: string; text: string }) =>
+    ipcRenderer.invoke('whatsapp:reply', payload),
+
+  // AirPods / Bluetooth Battery & Device HUD API (R5)
+  bluetooth: {
+    getDevices: () => ipcRenderer.invoke('bluetooth:get-devices'),
+    simulateEvent: (event: any) => ipcRenderer.invoke('bluetooth:simulate-event', event),
+    onHudEvent: (callback: (event: any) => void) => {
+      const handler = (_event: any, data: any) => callback(data);
+      ipcRenderer.on('island:bluetooth-hud', handler);
+      return () => ipcRenderer.removeListener('island:bluetooth-hud', handler);
+    }
+  },
+  getBluetoothDevices: () => ipcRenderer.invoke('bluetooth:get-devices'),
+  simulateBluetoothEvent: (event: any) => ipcRenderer.invoke('bluetooth:simulate-event', event),
+  onBluetoothHudEvent: (callback: (event: any) => void) => {
+    const handler = (_event: any, data: any) => callback(data);
+    ipcRenderer.on('island:bluetooth-hud', handler);
+    return () => ipcRenderer.removeListener('island:bluetooth-hud', handler);
+  },
+
+  // Full Hands-Free Voice Companion Mode (Jarvis Voice) API (R6)
+  voice: {
+    startListening: () => ipcRenderer.invoke('voice:start-listening'),
+    stopListening: () => ipcRenderer.invoke('voice:stop-listening'),
+    toggle: () => ipcRenderer.invoke('voice:toggle'),
+    processCommand: (text: string) => ipcRenderer.invoke('voice:process-command', { text }),
+    speak: (text: string) => ipcRenderer.invoke('voice:speak', { text }),
+    stopSpeaking: () => ipcRenderer.invoke('voice:stop-speaking'),
+    getState: () => ipcRenderer.invoke('voice:get-state'),
+    onVoiceState: (callback: (event: any) => void) => {
+      const handler = (_event: any, data: any) => callback(data);
+      ipcRenderer.on('island:voice-state', handler);
+      return () => ipcRenderer.removeListener('island:voice-state', handler);
+    }
+  },
+  startVoiceListening: () => ipcRenderer.invoke('voice:start-listening'),
+  stopVoiceListening: () => ipcRenderer.invoke('voice:stop-listening'),
+  toggleVoice: () => ipcRenderer.invoke('voice:toggle'),
+  processVoiceCommand: (text: string) => ipcRenderer.invoke('voice:process-command', { text }),
+  speakVoice: (text: string) => ipcRenderer.invoke('voice:speak', { text }),
+  stopVoiceSpeaking: () => ipcRenderer.invoke('voice:stop-speaking'),
+  onVoiceState: (callback: (event: any) => void) => {
+    const handler = (_event: any, data: any) => callback(data);
+    ipcRenderer.on('island:voice-state', handler);
+    return () => ipcRenderer.removeListener('island:voice-state', handler);
   }
 };
 
 if (process.contextIsolated) {
   contextBridge.exposeInMainWorld('roboIsland', api);
+  contextBridge.exposeInMainWorld('island', api);
+  contextBridge.exposeInMainWorld('islandAPI', api);
 } else {
   (window as any).roboIsland = api;
+  (window as any).island = api;
+  (window as any).islandAPI = api;
 }
 export type RoboIslandApi = typeof api;

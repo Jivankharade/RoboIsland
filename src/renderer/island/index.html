@@ -12,6 +12,28 @@
 
   <!-- Apple iPhone / Mac Style WhatsApp Quick Reply Overlay Input with Direct Reactions -->
   <div id="whatsapp-quick-reply-bar" class="whatsapp-quick-reply-bar hidden">
+    <!-- Voice Note Preview Card with Audio Waveform (per R4) -->
+    <div id="whatsapp-voicenote-card" class="whatsapp-voicenote-card hidden">
+      <div class="wa-vn-header">
+        <div class="wa-vn-wave-wrap">
+          <span class="wa-vn-icon">🎙️</span>
+          <div class="wa-vn-waves">
+            <span class="wa-vn-bar bar-1"></span>
+            <span class="wa-vn-bar bar-2"></span>
+            <span class="wa-vn-bar bar-3"></span>
+            <span class="wa-vn-bar bar-4"></span>
+            <span class="wa-vn-bar bar-5"></span>
+          </div>
+        </div>
+        <span id="wa-vn-duration" class="wa-vn-duration">0:15</span>
+        <span class="wa-vn-badge">TRANSCRIBED</span>
+      </div>
+      <div id="wa-vn-transcript" class="wa-vn-transcript">Transcribing voice note...</div>
+    </div>
+
+    <!-- AI Smart Reply Chips Container (per R4) -->
+    <div id="whatsapp-smart-reply-chips" class="whatsapp-smart-reply-chips"></div>
+
     <div id="whatsapp-reactions-row" class="whatsapp-reactions-row">
       <button type="button" class="wa-react-btn" data-emoji="👍" title="React with Thumbs Up">👍</button>
       <button type="button" class="wa-react-btn" data-emoji="❤️" title="React with Heart">❤️</button>
@@ -28,6 +50,171 @@
           <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
         </svg>
       </button>
+    </div>
+  </div>
+
+  <!-- AirPods / Bluetooth Battery & Device HUD (Apple Dynamic Island Style) per R5 -->
+  <div id="bluetooth-hud-card" class="bluetooth-hud-card hidden" role="status" aria-live="polite">
+    <div class="bt-hud-left">
+      <div id="bt-hud-icon-wrap" class="bt-hud-icon-wrap">
+        <span id="bt-hud-icon" class="bt-hud-icon">🎧</span>
+      </div>
+      <div class="bt-hud-info">
+        <span id="bt-hud-name" class="bt-hud-name">AirPods Pro</span>
+        <span id="bt-hud-status" class="bt-hud-status">Connected</span>
+      </div>
+    </div>
+    <div class="bt-hud-right">
+      <div id="bt-hud-battery-badge" class="bt-hud-battery-badge">
+        <span id="bt-hud-battery-percent" class="bt-hud-battery-percent">88%</span>
+        <div id="bt-hud-battery-icon" class="bt-hud-battery-icon">
+          <div id="bt-hud-battery-fill" class="bt-hud-battery-fill" style="width: 88%;"></div>
+        </div>
+      </div>
+      <div id="bt-hud-multibattery" class="bt-hud-multibattery hidden">
+        <span id="bt-hud-mb-left" class="bt-mb-badge" title="Left Earbud">L 85%</span>
+        <span id="bt-hud-mb-right" class="bt-mb-badge" title="Right Earbud">R 90%</span>
+        <span id="bt-hud-mb-case" class="bt-mb-badge" title="Charging Case">C 100%</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Full Hands-Free Voice Companion Mode (Jarvis Voice) per R6 -->
+  <div id="voice-companion-card" class="voice-companion-card hidden" role="status" aria-live="polite">
+    <div class="voice-hud-left">
+      <div id="voice-hud-icon-wrap" class="voice-hud-icon-wrap">
+        <span id="voice-hud-icon" class="voice-hud-icon">🎙️</span>
+      </div>
+      <div class="voice-hud-info">
+        <span id="voice-hud-title" class="voice-hud-title">Jarvis Voice</span>
+        <span id="voice-hud-status" class="voice-hud-status">Listening...</span>
+      </div>
+    </div>
+    <div class="voice-hud-right">
+      <div id="voice-hud-waves" class="voice-hud-waves">
+        <span class="voice-wave-bar wave-1"></span>
+        <span class="voice-wave-bar wave-2"></span>
+        <span class="voice-wave-bar wave-3"></span>
+        <span class="voice-wave-bar wave-4"></span>
+        <span class="voice-wave-bar wave-5"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Universal Spotlight / Raycast Launcher Overlay (Alt + Space) per R2 -->
+  <div id="spotlight-launcher-overlay" class="spotlight-launcher-overlay hidden" role="dialog" aria-modal="true" aria-label="Universal Spotlight Launcher">
+    <div class="spotlight-bar" id="spotlight-bar">
+      <div class="spotlight-icon-slot">
+        <span id="spotlight-live-icon" class="spotlight-live-icon">🔍</span>
+      </div>
+      <input type="text" id="spotlight-input" class="spotlight-input" placeholder="Search apps, files, calculate, convert, or ask AI..." autocomplete="off" spellcheck="false" />
+      <div id="spotlight-badge" class="spotlight-mode-badge hidden">CALC</div>
+      <button id="spotlight-btn-clear" class="spotlight-clear-btn hidden" type="button" title="Clear (Esc)">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+
+    <!-- Dynamic Results & Action Shelf -->
+    <div id="spotlight-results" class="spotlight-results hidden">
+      <!-- Instant Math / Conversion Hero Result -->
+      <div id="spotlight-hero-card" class="spotlight-hero-card hidden">
+        <div class="hero-left">
+          <span id="spotlight-hero-type" class="hero-tag">CALCULATION</span>
+          <h2 id="spotlight-hero-val" class="hero-value">0</h2>
+          <span id="spotlight-hero-sub" class="hero-sub">Press Enter to copy result</span>
+        </div>
+        <button id="spotlight-btn-hero-copy" class="spotlight-action-pill" type="button">Copy (Enter)</button>
+      </div>
+
+      <!-- Filtered Results List (Apps, Files, AI Suggestions) -->
+      <ul id="spotlight-list" class="spotlight-list">
+        <!-- Dynamically populated -->
+      </ul>
+    </div>
+  </div>
+
+  <!-- Ambient Screen Glance Error Pill (Apple Intelligence Style) per R3 -->
+  <div id="glance-error-pill" class="glance-error-pill hidden" role="button" tabindex="0" title="Click to inspect fix">
+    <div class="glance-pill-left">
+      <span class="glance-pill-icon">⚠️</span>
+      <span id="glance-pill-badge" class="glance-pill-badge">TS2307</span>
+      <span id="glance-pill-fix-text" class="glance-pill-fix-text">npm i react</span>
+    </div>
+    <div class="glance-pill-actions">
+      <button type="button" id="glance-pill-btn-quickfix" class="glance-pill-quickfix-btn" title="1-Tap Quick Fix">Fix</button>
+      <button type="button" id="glance-pill-btn-dismiss" class="glance-pill-dismiss-btn" title="Dismiss">✕</button>
+    </div>
+  </div>
+
+  <!-- Ambient Screen Glance Error Details Modal -->
+  <div id="glance-error-modal" class="glance-error-modal hidden" role="dialog" aria-modal="true" aria-label="Error Diagnosis & Fix">
+    <div class="glance-modal-card">
+      <div class="glance-modal-header">
+        <div class="glance-header-left">
+          <span class="glance-header-icon">⚠️</span>
+          <span id="glance-modal-category" class="glance-category-badge">TYPESCRIPT</span>
+          <h3 id="glance-modal-title" class="glance-modal-title">Cannot find module 'react'</h3>
+        </div>
+        <button type="button" id="glance-modal-close" class="glance-close-btn" title="Close (Esc)">✕</button>
+      </div>
+
+      <div class="glance-modal-body">
+        <div class="glance-info-row">
+          <span class="glance-label">Root Cause</span>
+          <p id="glance-modal-cause" class="glance-cause-text">Missing npm dependency or module 'react'</p>
+        </div>
+
+        <div class="glance-code-box">
+          <div class="glance-code-header">
+            <span>Suggested 1-Tap Fix</span>
+            <span id="glance-code-action-type" class="glance-code-tag">COMMAND</span>
+          </div>
+          <pre id="glance-modal-command" class="glance-code-content">npm install react</pre>
+        </div>
+
+        <p id="glance-modal-explanation" class="glance-explanation-text">The TypeScript compiler cannot locate 'react'. Installing it will resolve module resolution.</p>
+      </div>
+
+      <div class="glance-modal-footer">
+        <span id="glance-modal-toast" class="glance-toast-msg hidden">✓ Fix executed</span>
+        <div class="glance-footer-btns">
+          <button type="button" id="glance-modal-btn-copy" class="glance-btn-secondary">Copy</button>
+          <button type="button" id="glance-modal-btn-run" class="glance-btn-primary">Run Fix (Enter)</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 1-Click Document & Media Summarizer Modal (Apple Intelligence Style) -->
+  <div id="glance-summary-modal" class="glance-summary-modal hidden" role="dialog" aria-modal="true" aria-label="Screen & Document Summary">
+    <div class="glance-summary-card">
+      <div class="glance-summary-header">
+        <div class="glance-summary-header-left">
+          <span id="glance-summary-type-icon" class="glance-summary-type-icon">📄</span>
+          <span id="glance-summary-type-badge" class="glance-category-badge">PDF</span>
+          <span id="glance-summary-readtime" class="glance-readtime-badge">2 min read</span>
+        </div>
+        <button type="button" id="glance-summary-close" class="glance-close-btn" title="Close (Esc)">✕</button>
+      </div>
+
+      <h2 id="glance-summary-title" class="glance-summary-title">Document Title</h2>
+
+      <div class="glance-summary-body">
+        <div class="glance-takeaways-wrap">
+          <span class="glance-takeaways-heading">Key Takeaways</span>
+          <ul id="glance-summary-takeaways" class="glance-takeaways-list">
+            <!-- Dynamically populated takeaways -->
+          </ul>
+        </div>
+      </div>
+
+      <div class="glance-summary-footer">
+        <span id="glance-summary-source" class="glance-source-hint">⚡ Offline Apple Intelligence Heuristic</span>
+        <div class="glance-footer-btns">
+          <button type="button" id="glance-summary-btn-copy" class="glance-btn-secondary">Copy Summary</button>
+          <button type="button" id="glance-summary-btn-action" class="glance-btn-primary">Save to Notes</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -149,6 +336,22 @@
             <line x1="12" y1="18" x2="12.01" y2="18"/>
           </svg>
           <span>Phone</span>
+        </button>
+        <button id="btn-glance-summarize" class="status-btn" title="Summarize Active Screen (Alt + S)">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+            <line x1="10" y1="9" x2="8" y2="9"/>
+          </svg>
+        </button>
+        <button id="btn-voice-companion" class="status-btn" title="Jarvis Voice Companion">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+            <line x1="12" y1="19" x2="12" y2="22"/>
+          </svg>
         </button>
         <button id="btn-island-menu" class="status-btn" title="Open Settings">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -803,6 +1006,44 @@
           </div>
         </div>
       </section>
+
+      <!-- 7. Sports Scoreboard & Mini Match Scorecard Modal (R1) -->
+      <section id="panel-sports" class="island-panel">
+        <div id="sports-scorecard-modal" class="sports-scorecard-container">
+          <div class="sports-header-bar">
+            <div class="sport-switcher-tabs">
+              <button type="button" class="sport-tab-btn active" id="sport-tab-cricket" data-sport="cricket">
+                <span class="sport-tab-icon">🏏</span>
+                <span class="sport-tab-label">Cricket</span>
+              </button>
+              <button type="button" class="sport-tab-btn" id="sport-tab-football" data-sport="football">
+                <span class="sport-tab-icon">⚽</span>
+                <span class="sport-tab-label">Football</span>
+              </button>
+              <button type="button" class="sport-tab-btn" id="sport-tab-f1" data-sport="f1">
+                <span class="sport-tab-icon">🏎️</span>
+                <span class="sport-tab-label">F1</span>
+              </button>
+            </div>
+            <div class="sports-header-right">
+              <button type="button" id="sport-sim-step" class="sport-sim-step-btn" aria-label="Step Simulation">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+                  <polygon points="5 3 19 12 5 21 5 3"/>
+                </svg>
+                <span>Step</span>
+              </button>
+              <button type="button" id="sport-mode-toggle" class="sport-mode-pill simulated" aria-label="Toggle Live or Simulated">
+                <span class="sport-live-dot"></span>
+                <span id="sport-mode-label">SIMULATED</span>
+              </button>
+            </div>
+          </div>
+
+          <div id="sports-card-body" class="sports-card-body">
+            <!-- Dynamic Content populated by renderSportsScorecardDOM() -->
+          </div>
+        </div>
+      </section>
     </main>
 
     <!-- 6. Windows Drag-and-Drop Overlay Target (Screenshot 08) -->
@@ -840,6 +1081,17 @@
             </svg>
           </span>
           <span class="nav-label">Home</span>
+        </button>
+        <button class="nav-item" data-tab="sports" aria-label="Sports Scoreboard">
+          <span class="nav-icon">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="9"/>
+              <path d="M12 3a9 9 0 0 0 0 18"/>
+              <path d="M12 3a9 9 0 0 1 0 18"/>
+              <path d="M3 12h18"/>
+            </svg>
+          </span>
+          <span class="nav-label">Sports</span>
         </button>
         <button class="nav-item" data-tab="ai" aria-label="AI Claude Code">
           <span class="nav-icon">

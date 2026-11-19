@@ -307,6 +307,23 @@ class CanvasEngine {
     airdropHudType = 'received';
     airdropHudFileName = '';
     airdropHudFileSize = '';
+    // Ambient Screen Glance & Error Fixer State (R3)
+    isGlanceSetup = false;
+    activeGlanceError = null;
+    activeGlanceSummary = null;
+    // Apple AirPods / Bluetooth Battery & Device HUD State (R5)
+    bluetoothHudUntil = 0;
+    bluetoothHudStartTime = 0;
+    activeBluetoothDevice = null;
+    activeBluetoothEvent = null;
+    // Full Hands-Free Voice Companion Mode (Jarvis Voice) State (R6)
+    voiceState = 'IDLE';
+    voiceAudioLevel = 0.0;
+    voiceBands = [0, 0, 0, 0, 0];
+    voiceQueryText = '';
+    voiceResponseText = '';
+    voiceHudStartTime = 0;
+    voiceHudUntil = 0;
     // Apple Quick Look & LAN Drop Beam State
     latestTrayFiles = [];
     activeQuickLookPath = null;
@@ -330,6 +347,19 @@ class CanvasEngine {
     appActivityUntil = 0;
     appActivityStartTime = 0;
     activeAppActivity = null;
+    // Sports Live Activity State (Cricket, Football, F1)
+    sportsState = null;
+    activeSportsActivity = null;
+    sportsFlashUntil = 0;
+    sportsFlashText = '';
+    sportsFlashColor = '#22e05a';
+    // Universal Spotlight / Raycast Launcher State (R2)
+    isLauncherActive = false;
+    launcherExpanded = false;
+    selectedLauncherIndex = 0;
+    launcherItems = [];
+    launcherHeroResult = null;
+    isLauncherSetup = false;
     isNotificationActive() {
         if (!this.activeNotification)
             return false;
@@ -394,6 +424,61 @@ class CanvasEngine {
     /**
      * WhatsApp Deep Parsing: Accurately identifies sender, group name, direct message, or call type
      */
+    isWhatsAppVoiceNoteActive() {
+        if (!this.activeNotification)
+            return false;
+        const n = this.activeNotification;
+        return Boolean(n.isVoiceNote ||
+            /(?:voice\s*message|audio\s*message|voice\s*note)\s*\((\d+):(\d+)\)/i.test(n.body || '') ||
+            /\b(?:voice\s*message|audio\s*message|voice\s*note)\b/i.test(n.body || ''));
+    }
+    async fetchAndRenderSmartReplies(bodyText, sender, input, sendBtn) {
+        const chipsContainer = document.getElementById('whatsapp-smart-reply-chips');
+        if (!chipsContainer)
+            return;
+        chipsContainer.innerHTML = '';
+        const waApi = (window.island || window.roboIsland)?.whatsapp || (window.island || window.roboIsland);
+        let replies = [];
+        if (waApi?.getSmartReplies) {
+            try {
+                const res = await waApi.getSmartReplies(bodyText, sender);
+                if (res && Array.isArray(res.replies)) {
+                    replies = res.replies;
+                }
+            }
+            catch (err) {
+                console.warn('[WhatsApp] Smart replies query error:', err);
+            }
+        }
+        if (!replies || replies.length === 0) {
+            replies = ['Sounds good to me!', 'Got it, thanks!', "I'll follow up shortly."];
+        }
+        // Render exactly 3 chips
+        chipsContainer.innerHTML = '';
+        for (const reply of replies.slice(0, 3)) {
+            const chip = document.createElement('button');
+            chip.type = 'button';
+            chip.className = 'whatsapp-smart-chip';
+            chip.textContent = reply;
+            chip.title = `1-Tap reply: "${reply}"`;
+            chip.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (input) {
+                    input.value = reply;
+                    this.whatsAppReplyText = reply;
+                    try {
+                        input.dispatchEvent(new Event('input'));
+                    }
+                    catch { }
+                }
+                if (sendBtn)
+                    sendBtn.classList.add('active');
+                this.submitWhatsAppReply(reply);
+            });
+            chipsContainer.appendChild(chip);
+        }
+    }
     parseWhatsAppDetails(rawTitle, rawBody) {
         let title = (rawTitle || '').replace(/^WhatsApp:\s*/i, '').trim();
         let body = (rawBody || '').trim();
@@ -714,6 +799,13 @@ class CanvasEngine {
             return;
         const wa = this.parseWhatsAppDetails(this.activeNotification?.title, this.activeNotification?.body);
         const target = wa.isGroup ? (wa.groupName || wa.senderName) : wa.senderName;
+        const bar = document.getElementById('whatsapp-quick-reply-bar');
+        const input = document.getElementById('whatsapp-reply-input');
+        const sendBtn = document.getElementById('whatsapp-reply-send-btn');
+        // Populate smart reply chips (per R4)
+        const bodyText = this.activeNotification?.body || '';
+        const sender = target || 'WhatsApp';
+        this.fetchAndRenderSmartReplies(bodyText, sender, input, sendBtn);
         // Lock in the reply context so it cannot be corrupted by subsequent system toasts
         this.whatsAppReplyContext = {
             contact: target || 'WhatsApp',
@@ -737,9 +829,6 @@ class CanvasEngine {
         }
         this.kickJelly(0.14, 4.0, 3.5);
         this.updateTargetDimensions();
-        const bar = document.getElementById('whatsapp-quick-reply-bar');
-        const input = document.getElementById('whatsapp-reply-input');
-        const sendBtn = document.getElementById('whatsapp-reply-send-btn');
         if (bar && input) {
             bar.classList.remove('hidden');
             input.value = '';
@@ -750,6 +839,52 @@ class CanvasEngine {
                 input.focus();
             }, 50);
         }
+        // Voice note card handling (per R4)
+        const vnCard = document.getElementById('whatsapp-voicenote-card');
+        if (this.isWhatsAppVoiceNoteActive()) {
+            if (vnCard)
+                vnCard.classList.remove('hidden');
+            const vnDuration = document.getElementById('wa-vn-duration');
+            const vnTranscript = document.getElementById('wa-vn-transcript');
+            const n = this.activeNotification;
+            // Parse duration
+            const match = (n.body || '').match(/\((\d+):(\d+)\)/);
+            let durationStr = '0:15';
+            let durationSeconds = 15;
+            if (match) {
+                durationStr = `${match[1]}:${match[2]}`;
+                durationSeconds = parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
+            }
+            else if (n.durationSeconds) {
+                const d = n.durationSeconds;
+                durationSeconds = d;
+                durationStr = `${Math.floor(d / 60)}:${(d % 60).toString().padStart(2, '0')}`;
+            }
+            if (vnDuration)
+                vnDuration.textContent = durationStr;
+            // Populate or request transcript
+            if (n.transcript && vnTranscript) {
+                vnTranscript.textContent = n.transcript;
+            }
+            else {
+                if (vnTranscript)
+                    vnTranscript.textContent = 'Transcribing voice note...';
+                const waApi = (window.island || window.roboIsland)?.whatsapp || (window.island || window.roboIsland);
+                if (waApi?.transcribeVoiceNote) {
+                    const vnId = n.voiceNoteId || n.tag || 'vn-active';
+                    waApi.transcribeVoiceNote(vnId, durationSeconds, n.body || n.title).then((res) => {
+                        if (res && res.transcript && vnTranscript) {
+                            vnTranscript.textContent = res.transcript;
+                            n.transcript = res.transcript;
+                        }
+                    }).catch(() => { });
+                }
+            }
+        }
+        else {
+            if (vnCard)
+                vnCard.classList.add('hidden');
+        }
     }
     closeWhatsAppReply() {
         this.isWhatsAppReplying = false;
@@ -758,11 +893,17 @@ class CanvasEngine {
         this.whatsAppReplySent = false;
         const bar = document.getElementById('whatsapp-quick-reply-bar');
         const input = document.getElementById('whatsapp-reply-input');
+        const vnCard = document.getElementById('whatsapp-voicenote-card');
         if (bar)
             bar.classList.add('hidden');
+        if (vnCard)
+            vnCard.classList.add('hidden');
         if (input)
             input.blur();
         this.updateTargetDimensions();
+    }
+    startWhatsAppReply() {
+        this.openWhatsAppReply();
     }
     submitWhatsAppReply(customText) {
         const input = document.getElementById('whatsapp-reply-input');
@@ -819,6 +960,7 @@ class CanvasEngine {
         if (performance.now() < this.chargerSurgeUntil ||
             performance.now() < this.volumeHudUntil ||
             performance.now() < this.speedometerHudUntil ||
+            performance.now() < this.bluetoothHudUntil ||
             performance.now() < this.airdropHudUntil) {
             return false;
         }
@@ -1058,6 +1200,581 @@ class CanvasEngine {
         this.ctx.lineTo(checkCx - 1, checkCy + 3.5);
         this.ctx.lineTo(checkCx + 4.5, checkCy - 3.5);
         this.ctx.stroke();
+        this.ctx.restore();
+    }
+    // ==========================================================================
+    // AirPods / Bluetooth Battery & Device HUD (R5)
+    // ==========================================================================
+    /**
+     * Apple-Style AirPods / Bluetooth Battery & Device HUD
+     * Expands Dynamic Island capsule into HUD view showing:
+     * - Device vector glyph (AirPods, headphones, earbuds, mouse, keyboard, or BT symbol)
+     * - Device name (e.g. "AirPods Pro")
+     * - Status ("Connected", "Disconnected", etc.)
+     * - Battery gauge with color coding (Green >=50%, Yellow 20-49%, Red <20%)
+     * - Multi-battery meters if multiBattery exists (Left, Right, Case)
+     * - Stays strictly within 860x440 transparent viewport
+     */
+    triggerBluetoothHud(eventOrDevice) {
+        if (!eventOrDevice)
+            return;
+        const device = eventOrDevice.device || eventOrDevice;
+        const eventType = eventOrDevice.type || (device.connected ? 'connected' : 'disconnected');
+        this.activeBluetoothEvent = eventOrDevice;
+        this.activeBluetoothDevice = device;
+        this.bluetoothHudStartTime = performance.now();
+        this.bluetoothHudUntil = performance.now() + 4000;
+        this.kickJelly(0.12, 4.0, 3.5);
+        try {
+            audio_synth_1.AudioSynth.getInstance()?.play?.('pop');
+        }
+        catch { }
+        this.updateTargetDimensions();
+        this.showBluetoothHudCard(device, eventType);
+        this.requestRender();
+    }
+    showBluetoothHudCard(device, eventType = 'connected') {
+        const card = document.getElementById('bluetooth-hud-card');
+        if (!card)
+            return;
+        const iconEl = document.getElementById('bt-hud-icon');
+        const nameEl = document.getElementById('bt-hud-name');
+        const statusEl = document.getElementById('bt-hud-status');
+        const pctEl = document.getElementById('bt-hud-battery-percent');
+        const fillEl = document.getElementById('bt-hud-battery-fill');
+        const multiEl = document.getElementById('bt-hud-multibattery');
+        const mbLeft = document.getElementById('bt-hud-mb-left');
+        const mbRight = document.getElementById('bt-hud-mb-right');
+        const mbCase = document.getElementById('bt-hud-mb-case');
+        const devType = device.deviceType || 'peripheral';
+        let iconChar = '🎧';
+        if (devType === 'airpods')
+            iconChar = '🎧';
+        else if (devType === 'earbuds')
+            iconChar = '🫧';
+        else if (devType === 'headphones')
+            iconChar = '🎧';
+        else if (devType === 'mouse')
+            iconChar = '🖱️';
+        else if (devType === 'keyboard')
+            iconChar = '⌨️';
+        else if (devType === 'speaker')
+            iconChar = '🔊';
+        else
+            iconChar = '📶';
+        if (iconEl)
+            iconEl.textContent = iconChar;
+        if (nameEl)
+            nameEl.textContent = device.name || 'Bluetooth Device';
+        if (statusEl) {
+            if (eventType === 'connected')
+                statusEl.textContent = 'Connected';
+            else if (eventType === 'disconnected')
+                statusEl.textContent = 'Disconnected';
+            else
+                statusEl.textContent = `${device.batteryPercent ?? 100}% Battery`;
+        }
+        const pct = typeof device.batteryPercent === 'number' ? device.batteryPercent : 100;
+        if (pctEl)
+            pctEl.textContent = `${pct}%`;
+        if (fillEl) {
+            fillEl.style.width = `${pct}%`;
+            const color = pct >= 50 ? '#30d158' : (pct >= 20 ? '#ffd60a' : '#ff453a');
+            fillEl.style.background = color;
+            if (pctEl)
+                pctEl.style.color = color;
+        }
+        if (device.multiBattery && (device.multiBattery.left !== undefined || device.multiBattery.right !== undefined || device.multiBattery.case !== undefined)) {
+            if (multiEl)
+                multiEl.classList.remove('hidden');
+            if (mbLeft) {
+                if (typeof device.multiBattery.left === 'number') {
+                    mbLeft.textContent = `L ${device.multiBattery.left}%`;
+                    mbLeft.style.display = 'inline-block';
+                }
+                else {
+                    mbLeft.style.display = 'none';
+                }
+            }
+            if (mbRight) {
+                if (typeof device.multiBattery.right === 'number') {
+                    mbRight.textContent = `R ${device.multiBattery.right}%`;
+                    mbRight.style.display = 'inline-block';
+                }
+                else {
+                    mbRight.style.display = 'none';
+                }
+            }
+            if (mbCase) {
+                if (typeof device.multiBattery.case === 'number') {
+                    mbCase.textContent = `C ${device.multiBattery.case}%`;
+                    mbCase.style.display = 'inline-block';
+                }
+                else {
+                    mbCase.style.display = 'none';
+                }
+            }
+        }
+        else {
+            if (multiEl)
+                multiEl.classList.add('hidden');
+        }
+        card.classList.remove('hidden');
+        clearTimeout(this.__btHudTimer);
+        this.__btHudTimer = setTimeout(() => {
+            card.classList.add('hidden');
+        }, 3900);
+    }
+    /**
+     * Pure vector Canvas renderer for Apple AirPods / Bluetooth Battery & Device HUD:
+     * - Left: Device Icon glyph (AirPods stems + bulbs, Headphones, Mouse, or BT rune)
+     * - Middle: Bold Title ("AirPods Pro") + Subtle Status ("Connected" / "88% Battery")
+     * - Right: Color-coded Battery Meter + Multi-Battery Chips (L/R/Case)
+     */
+    drawBluetoothHudContent(cx, topY) {
+        const W = this.currentWidth;
+        const H = this.currentHeight;
+        const midY = topY + H / 2;
+        const pillLeft = cx - W / 2;
+        const dev = this.activeBluetoothDevice || { name: 'AirPods Pro', deviceType: 'airpods', batteryPercent: 88, connected: true };
+        const devType = dev.deviceType || 'airpods';
+        const pct = typeof dev.batteryPercent === 'number' ? dev.batteryPercent : 100;
+        this.ctx.save();
+        // 1. Left Device Icon Badge
+        const iconCx = pillLeft + 22;
+        const iconCy = midY;
+        const iconR = 12;
+        // Platter background for icon
+        this.ctx.beginPath();
+        this.ctx.arc(iconCx, iconCy, iconR, 0, Math.PI * 2);
+        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
+        this.ctx.fill();
+        // Vector Icon Drawing based on deviceType
+        this.ctx.save();
+        if (devType === 'airpods') {
+            // Draw authentic dual AirPods vector glyphs
+            this.ctx.fillStyle = '#ffffff';
+            this.ctx.strokeStyle = '#ffffff';
+            this.ctx.lineWidth = 1.3;
+            this.ctx.lineCap = 'round';
+            // Left AirPod: stem + bulb
+            this.ctx.beginPath();
+            this.ctx.arc(iconCx - 3.5, iconCy - 3, 2.8, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.beginPath();
+            this.ctx.moveTo(iconCx - 2.8, iconCy - 1.5);
+            this.ctx.lineTo(iconCx - 2.2, iconCy + 4.5);
+            this.ctx.stroke();
+            // Right AirPod: stem + bulb
+            this.ctx.beginPath();
+            this.ctx.arc(iconCx + 3.5, iconCy - 3, 2.8, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.beginPath();
+            this.ctx.moveTo(iconCx + 2.8, iconCy - 1.5);
+            this.ctx.lineTo(iconCx + 2.2, iconCy + 4.5);
+            this.ctx.stroke();
+        }
+        else if (devType === 'headphones') {
+            // Over-ear headphones: arch + earcups
+            this.ctx.strokeStyle = '#ffffff';
+            this.ctx.lineWidth = 1.4;
+            this.ctx.beginPath();
+            this.ctx.arc(iconCx, iconCy - 1, 5.5, Math.PI * 0.9, Math.PI * 2.1);
+            this.ctx.stroke();
+            // Left & Right Earcups
+            this.ctx.fillStyle = '#ffffff';
+            this.ctx.beginPath();
+            this.ctx.roundRect(iconCx - 6.5, iconCy - 1, 2.2, 5.5, 1);
+            this.ctx.roundRect(iconCx + 4.3, iconCy - 1, 2.2, 5.5, 1);
+            this.ctx.fill();
+        }
+        else if (devType === 'mouse') {
+            // Mouse body + wheel
+            this.ctx.strokeStyle = '#ffffff';
+            this.ctx.lineWidth = 1.2;
+            this.ctx.beginPath();
+            this.ctx.roundRect(iconCx - 3.5, iconCy - 5.5, 7, 11, 3.5);
+            this.ctx.stroke();
+            // Scroll wheel line
+            this.ctx.beginPath();
+            this.ctx.moveTo(iconCx, iconCy - 3.5);
+            this.ctx.lineTo(iconCx, iconCy - 1);
+            this.ctx.stroke();
+        }
+        else if (devType === 'keyboard') {
+            // Keyboard frame + keys
+            this.ctx.strokeStyle = '#ffffff';
+            this.ctx.lineWidth = 1.2;
+            this.ctx.beginPath();
+            this.ctx.roundRect(iconCx - 6, iconCy - 4, 12, 8, 1.5);
+            this.ctx.stroke();
+            this.ctx.fillStyle = '#ffffff';
+            for (let kx = -3.5; kx <= 3.5; kx += 3.5) {
+                this.ctx.fillRect(iconCx + kx - 0.7, iconCy - 1.5, 1.4, 1.2);
+                this.ctx.fillRect(iconCx + kx - 0.7, iconCy + 0.8, 1.4, 1.2);
+            }
+        }
+        else {
+            // Bluetooth rune symbol
+            this.ctx.strokeStyle = '#38bdf8';
+            this.ctx.lineWidth = 1.4;
+            this.ctx.lineCap = 'round';
+            this.ctx.lineJoin = 'round';
+            this.ctx.beginPath();
+            this.ctx.moveTo(iconCx, iconCy - 5.5);
+            this.ctx.lineTo(iconCx, iconCy + 5.5);
+            this.ctx.lineTo(iconCx + 3.2, iconCy + 2.8);
+            this.ctx.lineTo(iconCx - 2.8, iconCy - 2.5);
+            this.ctx.moveTo(iconCx - 2.8, iconCy + 2.5);
+            this.ctx.lineTo(iconCx + 3.2, iconCy - 2.8);
+            this.ctx.lineTo(iconCx, iconCy - 5.5);
+            this.ctx.stroke();
+        }
+        this.ctx.restore();
+        // 2. Middle Device Name and Connection Status
+        const textLeft = iconCx + iconR + 10;
+        this.ctx.font = '600 12px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.textAlign = 'left';
+        this.ctx.textBaseline = 'middle';
+        const multi = dev.multiBattery;
+        const hasMulti = Boolean(multi && (multi.left !== undefined || multi.right !== undefined || multi.case !== undefined));
+        const maxTextW = hasMulti ? 110 : 150;
+        const devName = this.truncateText(dev.name || 'Bluetooth Device', maxTextW, this.ctx.font);
+        this.ctx.fillText(devName, textLeft, midY - 6);
+        // Subtitle status text
+        this.ctx.font = '500 10px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+        const isConn = dev.connected !== false;
+        this.ctx.fillStyle = isConn ? 'rgba(255, 255, 255, 0.55)' : '#ff453a';
+        const statusText = isConn ? (dev.isCharging ? 'Charging' : 'Connected') : 'Disconnected';
+        this.ctx.fillText(statusText, textLeft, midY + 8);
+        // 3. Right Battery Section
+        // Color coding: Green >= 50%, Yellow 20-49%, Red < 20%
+        const gaugeColor = pct >= 50 ? '#30d158' : (pct >= 20 ? '#ffd60a' : '#ff453a');
+        let rightCursor = pillLeft + W - 14;
+        // Draw main battery icon & percentage
+        const batW = 20;
+        const batH = 10;
+        const batX = rightCursor - batW;
+        const batY = midY - batH / 2;
+        // Main battery outline
+        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.65)';
+        this.ctx.lineWidth = 1.2;
+        this.ctx.beginPath();
+        this.ctx.roundRect(batX, batY, batW, batH, 2.5);
+        this.ctx.stroke();
+        // Terminal nipple on right side
+        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
+        this.ctx.beginPath();
+        this.ctx.roundRect(batX + batW + 1, batY + 2.5, 1.8, batH - 5, [0, 1, 1, 0]);
+        this.ctx.fill();
+        // Battery fill
+        const fillMaxW = batW - 3;
+        const fillW = Math.max(1, Math.round(fillMaxW * (pct / 100)));
+        this.ctx.fillStyle = gaugeColor;
+        this.ctx.beginPath();
+        this.ctx.roundRect(batX + 1.5, batY + 1.5, fillW, batH - 3, 1.2);
+        this.ctx.fill();
+        // Percentage text to left of battery icon
+        this.ctx.font = '700 11px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+        this.ctx.fillStyle = gaugeColor;
+        this.ctx.textAlign = 'right';
+        this.ctx.textBaseline = 'middle';
+        const pctText = `${pct}%`;
+        const pctTextW = this.ctx.measureText(pctText).width;
+        this.ctx.fillText(pctText, batX - 5, midY);
+        rightCursor = batX - pctTextW - 12;
+        // Multi-Battery Display (Left, Right, Case)
+        if (hasMulti) {
+            const mb = multi;
+            const items = [];
+            if (typeof mb.case === 'number')
+                items.unshift({ label: 'C', val: mb.case });
+            if (typeof mb.right === 'number')
+                items.unshift({ label: 'R', val: mb.right });
+            if (typeof mb.left === 'number')
+                items.unshift({ label: 'L', val: mb.left });
+            for (let i = items.length - 1; i >= 0; i--) {
+                const item = items[i];
+                const itemColor = item.val >= 50 ? '#30d158' : (item.val >= 20 ? '#ffd60a' : '#ff453a');
+                const badgeText = `${item.label} ${item.val}%`;
+                this.ctx.font = '600 9px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+                const bw = this.ctx.measureText(badgeText).width + 8;
+                const bx = rightCursor - bw;
+                const by = midY - 8;
+                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+                this.ctx.beginPath();
+                this.ctx.roundRect(bx, by, bw, 16, 4);
+                this.ctx.fill();
+                this.ctx.fillStyle = itemColor;
+                this.ctx.textAlign = 'center';
+                this.ctx.textBaseline = 'middle';
+                this.ctx.fillText(badgeText, bx + bw / 2, midY);
+                rightCursor = bx - 4;
+            }
+        }
+        this.ctx.restore();
+    }
+    // ==========================================================================
+    // Full Hands-Free Voice Companion Mode (Jarvis Voice) Implementation (R6)
+    // ==========================================================================
+    isVoiceCompanionActive() {
+        return this.voiceState === 'LISTENING' || this.voiceState === 'THINKING' || this.voiceState === 'SPEAKING';
+    }
+    triggerVoiceCompanion() {
+        const voiceApi = (window.islandAPI || window.island || window.roboIsland)?.voice || (window.islandAPI || window.island || window.roboIsland);
+        if (this.isVoiceCompanionActive()) {
+            if (voiceApi?.stopSpeaking) {
+                voiceApi.stopSpeaking();
+            }
+            else if (voiceApi?.stopListening) {
+                voiceApi.stopListening();
+            }
+            this.setVoiceState({ state: 'IDLE' });
+        }
+        else {
+            if (voiceApi?.startListening) {
+                voiceApi.startListening();
+            }
+            else if (voiceApi?.toggle) {
+                voiceApi.toggle();
+            }
+            this.setVoiceState({ state: 'LISTENING', text: 'Listening...' });
+        }
+    }
+    interruptVoiceCompanion() {
+        const voiceApi = (window.islandAPI || window.island || window.roboIsland)?.voice || (window.islandAPI || window.island || window.roboIsland);
+        try {
+            if (voiceApi?.stopSpeaking) {
+                voiceApi.stopSpeaking();
+            }
+            if (voiceApi?.stopListening) {
+                voiceApi.stopListening();
+            }
+        }
+        catch { }
+        this.setVoiceState({ state: 'IDLE' });
+        try {
+            audio_synth_1.AudioSynth.getInstance()?.play?.('pop');
+        }
+        catch { }
+    }
+    setVoiceState(payload) {
+        if (!payload)
+            return;
+        const nextState = payload.state || 'IDLE';
+        this.voiceState = nextState;
+        if (typeof payload.audioLevel === 'number')
+            this.voiceAudioLevel = payload.audioLevel;
+        if (Array.isArray(payload.bands))
+            this.voiceBands = payload.bands;
+        if (payload.text !== undefined)
+            this.voiceQueryText = payload.text;
+        if (payload.response !== undefined)
+            this.voiceResponseText = payload.response;
+        if (this.isVoiceCompanionActive()) {
+            this.voiceHudStartTime = performance.now();
+            this.voiceHudUntil = performance.now() + 8000;
+            this.kickJelly(0.1, 3.5, 3.0);
+            this.showVoiceCompanionCard(nextState, this.voiceResponseText || this.voiceQueryText);
+        }
+        else {
+            this.voiceHudUntil = 0;
+            this.hideVoiceCompanionCard();
+        }
+        this.updateTargetDimensions();
+        this.requestRender();
+    }
+    showVoiceCompanionCard(state, text) {
+        const card = document.getElementById('voice-companion-card');
+        if (!card)
+            return;
+        const titleEl = document.getElementById('voice-hud-title');
+        const statusEl = document.getElementById('voice-hud-status');
+        const iconEl = document.getElementById('voice-hud-icon');
+        if (iconEl) {
+            iconEl.textContent = state === 'SPEAKING' ? '🔊' : (state === 'THINKING' ? '⚡' : '🎙️');
+        }
+        if (titleEl) {
+            titleEl.textContent = state === 'SPEAKING' ? 'Jarvis' : (state === 'THINKING' ? 'Thinking...' : 'Listening');
+        }
+        if (statusEl) {
+            if (state === 'LISTENING')
+                statusEl.textContent = text || 'Speak your request...';
+            else if (state === 'THINKING')
+                statusEl.textContent = 'Processing request...';
+            else if (state === 'SPEAKING')
+                statusEl.textContent = text || 'Jarvis speaking';
+            else
+                statusEl.textContent = '';
+        }
+        card.classList.remove('hidden');
+    }
+    hideVoiceCompanionCard() {
+        const card = document.getElementById('voice-companion-card');
+        if (card)
+            card.classList.add('hidden');
+    }
+    /**
+     * 60FPS Vector Canvas Reactive Fluid Sound Wave Rendering for Jarvis Voice Companion.
+     * Renders:
+     * - 3-4 layered fluid sinusoidal waves with varying frequencies, phase offsets, and glowing colors.
+     * - Jarvis cyan (#00f2fe), neon blue (#4facfe), amber (#ffaa00), magenta (#ff007f).
+     * - Left: Animated Voice mic / pulsing orb glyph.
+     * - Center: Live transcribed voice query, "Thinking...", or Jarvis response text.
+     * - Right: 5-band frequency equalizer bars reflecting live audio level.
+     * - All strictly inside 860x440 transparent viewport bounds.
+     */
+    drawVoiceCompanionWave(cx, topY) {
+        const W = this.currentWidth;
+        const H = this.currentHeight;
+        const midY = topY + H / 2;
+        const pillLeft = cx - W / 2;
+        const now = performance.now();
+        const t = now * 0.003;
+        this.ctx.save();
+        // 1. Fluid Sinusoidal Sound Waves
+        const waveLeft = pillLeft + 16;
+        const waveRight = pillLeft + W - 16;
+        const waveWidth = waveRight - waveLeft;
+        // Amplitude dynamically driven by audio level & frequency bands
+        const baseAmp = this.voiceState === 'SPEAKING' ? 9.0 : (this.voiceState === 'THINKING' ? 4.5 : 6.0);
+        const dynamicAmp = baseAmp * (0.3 + 0.7 * Math.max(0.15, this.voiceAudioLevel));
+        // Multi-color sinusoidal waves
+        const waves = [
+            { color: 'rgba(0, 242, 254, 0.75)', freq: 0.035, speed: 2.8, phase: 0.0, ampMul: 1.0, shadow: '#00f2fe' },
+            { color: 'rgba(79, 172, 254, 0.65)', freq: 0.025, speed: 2.1, phase: 1.6, ampMul: 0.85, shadow: '#4facfe' },
+            { color: 'rgba(255, 170, 0, 0.55)', freq: 0.045, speed: 3.4, phase: 3.1, ampMul: 0.70, shadow: '#ffaa00' },
+            { color: 'rgba(255, 0, 127, 0.45)', freq: 0.030, speed: 1.7, phase: 4.8, ampMul: 0.60, shadow: '#ff007f' }
+        ];
+        for (const w of waves) {
+            this.ctx.save();
+            this.ctx.strokeStyle = w.color;
+            this.ctx.lineWidth = 1.6;
+            this.ctx.lineCap = 'round';
+            this.ctx.shadowColor = w.shadow;
+            this.ctx.shadowBlur = 8;
+            this.ctx.beginPath();
+            const step = 4;
+            for (let x = 0; x <= waveWidth; x += step) {
+                const px = waveLeft + x;
+                // Smooth bell curve envelope so wave tapers neatly at pill margins
+                const normX = x / waveWidth;
+                const envelope = Math.sin(normX * Math.PI);
+                const yOffset = Math.sin(x * w.freq + t * w.speed + w.phase) * dynamicAmp * w.ampMul * envelope;
+                const py = midY + yOffset;
+                if (x === 0) {
+                    this.ctx.moveTo(px, py);
+                }
+                else {
+                    this.ctx.lineTo(px, py);
+                }
+            }
+            this.ctx.stroke();
+            this.ctx.restore();
+        }
+        // 2. Left Icon Slot: Jarvis Voice Orb / Mic Glyph
+        const iconCx = pillLeft + 22;
+        const iconCy = midY;
+        const pulse = 0.5 + 0.5 * Math.sin(t * 3.5);
+        this.ctx.save();
+        // Glowing ambient halo
+        this.ctx.beginPath();
+        this.ctx.arc(iconCx, iconCy, 12 + pulse * 2.5, 0, Math.PI * 2);
+        const haloColor = this.voiceState === 'SPEAKING'
+            ? `rgba(0, 242, 254, ${0.15 + 0.15 * pulse})`
+            : (this.voiceState === 'THINKING' ? `rgba(255, 170, 0, ${0.15 + 0.15 * pulse})` : `rgba(79, 172, 254, ${0.15 + 0.15 * pulse})`);
+        this.ctx.fillStyle = haloColor;
+        this.ctx.fill();
+        // Central orb
+        this.ctx.beginPath();
+        this.ctx.arc(iconCx, iconCy, 7, 0, Math.PI * 2);
+        const orbGrad = this.ctx.createLinearGradient(iconCx - 7, iconCy - 7, iconCx + 7, iconCy + 7);
+        if (this.voiceState === 'SPEAKING') {
+            orbGrad.addColorStop(0, '#00f2fe');
+            orbGrad.addColorStop(1, '#4facfe');
+        }
+        else if (this.voiceState === 'THINKING') {
+            orbGrad.addColorStop(0, '#ffaa00');
+            orbGrad.addColorStop(1, '#ff5e62');
+        }
+        else {
+            orbGrad.addColorStop(0, '#00f2fe');
+            orbGrad.addColorStop(1, '#818cf8');
+        }
+        this.ctx.fillStyle = orbGrad;
+        this.ctx.shadowColor = '#00f2fe';
+        this.ctx.shadowBlur = 6;
+        this.ctx.fill();
+        // Inner highlight
+        this.ctx.beginPath();
+        this.ctx.arc(iconCx - 2, iconCy - 2, 2.2, 0, Math.PI * 2);
+        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+        this.ctx.fill();
+        this.ctx.restore();
+        // 3. Status Text / Voice Response / Query
+        this.ctx.save();
+        const textLeft = iconCx + 18;
+        const maxTextW = W - 110;
+        let displayTitle = '';
+        let displaySub = '';
+        let titleColor = '#ffffff';
+        if (this.voiceState === 'LISTENING') {
+            displayTitle = 'Jarvis';
+            displaySub = this.voiceQueryText || 'Listening...';
+            titleColor = '#00f2fe';
+        }
+        else if (this.voiceState === 'THINKING') {
+            displayTitle = 'Thinking...';
+            displaySub = 'Processing command';
+            titleColor = '#ffaa00';
+        }
+        else if (this.voiceState === 'SPEAKING') {
+            displayTitle = 'Jarvis';
+            displaySub = this.voiceResponseText || 'Responding...';
+            titleColor = '#00f2fe';
+        }
+        else {
+            displayTitle = 'Voice Mode';
+            displaySub = 'Idle';
+        }
+        // Title text
+        this.ctx.font = '700 11px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+        this.ctx.fillStyle = titleColor;
+        this.ctx.textAlign = 'left';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillText(displayTitle, textLeft, midY - 6);
+        // Subtitle text (truncated smoothly)
+        this.ctx.font = '500 10px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.72)';
+        let subToRender = displaySub;
+        if (this.ctx.measureText(subToRender).width > maxTextW) {
+            while (subToRender.length > 5 && this.ctx.measureText(subToRender + '…').width > maxTextW) {
+                subToRender = subToRender.slice(0, -1);
+            }
+            subToRender += '…';
+        }
+        this.ctx.fillText(subToRender, textLeft, midY + 7);
+        this.ctx.restore();
+        // 4. Right 5-Band Equalizer Frequency Bars
+        const eqRight = pillLeft + W - 16;
+        const barW = 2.4;
+        const gap = 2.0;
+        const bands = this.voiceBands && this.voiceBands.length === 5 ? this.voiceBands : [0.3, 0.5, 0.8, 0.6, 0.4];
+        this.ctx.save();
+        for (let i = 0; i < 5; i++) {
+            const bx = eqRight - (4 - i) * (barW + gap) - barW;
+            const bVal = Math.max(0.15, Math.min(1.0, bands[i]));
+            const bHeight = Math.max(4, Math.round(18 * bVal));
+            const by = midY - bHeight / 2;
+            this.ctx.fillStyle = i === 2 ? '#00f2fe' : (i < 2 ? '#4facfe' : '#ffaa00');
+            this.ctx.shadowColor = '#00f2fe';
+            this.ctx.shadowBlur = 4;
+            this.ctx.beginPath();
+            this.ctx.roundRect(bx, by, barW, bHeight, 1.2);
+            this.ctx.fill();
+        }
+        this.ctx.restore();
         this.ctx.restore();
     }
     // ==========================================================================
@@ -2090,6 +2807,26 @@ class CanvasEngine {
             }
             catch { }
         }
+        // Init Sports Scoreboard State (Cricket, Football, F1)
+        try {
+            if (window.roboIsland?.sports?.getState) {
+                this.sportsState = await window.roboIsland.sports.getState();
+                if (this.sportsState && this.sportsState.activities) {
+                    this.activeSportsActivity = this.sportsState.activities[this.sportsState.activeSport];
+                    this.updateTargetDimensions();
+                    this.renderSportsScorecardDOM();
+                }
+            }
+            else if (window.roboIsland?.getSportsState) {
+                this.sportsState = await window.roboIsland.getSportsState();
+                if (this.sportsState && this.sportsState.activities) {
+                    this.activeSportsActivity = this.sportsState.activities[this.sportsState.activeSport];
+                    this.updateTargetDimensions();
+                    this.renderSportsScorecardDOM();
+                }
+            }
+        }
+        catch { }
         // Init Weather via Open-Meteo (No API key required)
         this.fetchWeather();
         setInterval(() => this.fetchWeather(), 15 * 60 * 1000);
@@ -2630,6 +3367,74 @@ class CanvasEngine {
                     }
                 });
             }
+            // WhatsApp AI Smart Replies & Voice Note Reader IPC Listeners (R4)
+            const waApi = (window.island || window.roboIsland)?.whatsapp || (window.island || window.roboIsland);
+            if (waApi?.onIncomingMessage) {
+                waApi.onIncomingMessage((payload) => {
+                    if (payload) {
+                        this.triggerNotification({
+                            id: payload.id || `wa-${Date.now()}`,
+                            title: payload.sender || 'WhatsApp',
+                            body: payload.body || '',
+                            kind: 'whatsapp',
+                            status: payload.isVoiceNote ? 'voicenote' : 'message',
+                            durationMs: 7000,
+                            isVoiceNote: Boolean(payload.isVoiceNote),
+                            durationSeconds: payload.durationSeconds || 0,
+                            smartReplies: payload.smartReplies || []
+                        });
+                    }
+                });
+            }
+            if (waApi?.onVoiceNoteTranscribed) {
+                waApi.onVoiceNoteTranscribed((data) => {
+                    if (data && data.transcript) {
+                        const transcriptEl = document.getElementById('wa-vn-transcript');
+                        if (transcriptEl) {
+                            transcriptEl.textContent = data.transcript;
+                        }
+                        if (this.activeNotification) {
+                            this.activeNotification.transcript = data.transcript;
+                        }
+                    }
+                });
+            }
+            const sportsUpdateHandler = (data) => {
+                if (!data)
+                    return;
+                this.activeSportsActivity = data;
+                if (!this.sportsState) {
+                    this.sportsState = {
+                        enabled: true,
+                        activeSport: data.sport || 'cricket',
+                        mode: data.isSimulated ? 'simulated' : 'live',
+                        activities: { [data.sport]: data }
+                    };
+                }
+                else {
+                    this.sportsState.activities[data.sport] = data;
+                    this.sportsState.activeSport = data.sport;
+                }
+                if (data.highlightText) {
+                    this.sportsFlashText = data.highlightText;
+                    this.sportsFlashColor = data.highlightColor || '#22e05a';
+                    this.sportsFlashUntil = performance.now() + 3500;
+                    this.kickJelly(0.2, 5.0, 4.0);
+                    try {
+                        audio_synth_1.AudioSynth.getInstance().play('pop');
+                    }
+                    catch { }
+                }
+                this.renderSportsScorecardDOM();
+                this.updateTargetDimensions();
+                this.requestRender();
+            };
+            if (window.roboIsland?.sports?.onSportsUpdate) {
+                window.roboIsland.sports.onSportsUpdate(sportsUpdateHandler);
+            }
+            else if (window.roboIsland?.onSportsUpdate) {
+                window.roboIsland.onSportsUpdate(sportsUpdateHandler);
+            }
             if (window.roboIsland.onDownloadsUpdate) {
                 window.roboIsland.onDownloadsUpdate((data) => {
                     this.activeDownloadsList = data && Array.isArray(data.downloads) ? data.downloads : [];
@@ -2661,6 +3466,50 @@ class CanvasEngine {
             if (window.roboIsland.onTuckedState) {
                 window.roboIsland.onTuckedState((tucked) => {
                     this.setTucked(tucked);
+                });
+            }
+            if (window.roboIsland?.launcher?.onToggleLauncher) {
+                window.roboIsland.launcher.onToggleLauncher((forceState) => {
+                    this.toggleLauncher(forceState);
+                });
+            }
+            else if (window.roboIsland?.onToggleLauncher) {
+                window.roboIsland.onToggleLauncher((forceState) => {
+                    this.toggleLauncher(forceState);
+                });
+            }
+            this.setupSpotlightLauncherDOM();
+            this.setupScreenGlanceDOM();
+            if (window.roboIsland?.screenGlance?.onGlanceError) {
+                window.roboIsland.screenGlance.onGlanceError((errors) => {
+                    if (Array.isArray(errors) && errors.length > 0) {
+                        this.showGlanceErrorPill(errors[0]);
+                    }
+                    else {
+                        this.hideGlanceErrorPill();
+                    }
+                });
+            }
+            else if (window.roboIsland?.onGlanceError) {
+                window.roboIsland.onGlanceError((errors) => {
+                    if (Array.isArray(errors) && errors.length > 0) {
+                        this.showGlanceErrorPill(errors[0]);
+                    }
+                    else {
+                        this.hideGlanceErrorPill();
+                    }
+                });
+            }
+            if (window.roboIsland?.screenGlance?.onGlanceSummary) {
+                window.roboIsland.screenGlance.onGlanceSummary((summary) => {
+                    if (summary)
+                        this.openGlanceSummaryModal(summary);
+                });
+            }
+            else if (window.roboIsland?.onGlanceSummary) {
+                window.roboIsland.onGlanceSummary((summary) => {
+                    if (summary)
+                        this.openGlanceSummaryModal(summary);
                 });
             }
             if (window.roboIsland.onWeatherUpdated) {
@@ -2721,6 +3570,25 @@ class CanvasEngine {
                         this.userName = name.split(' ')[0];
                 }).catch(() => { });
             }
+            // Bluetooth Battery & Device HUD IPC Listeners (R5)
+            const btApi = (window.islandAPI || window.island || window.roboIsland)?.bluetooth || (window.islandAPI || window.island || window.roboIsland);
+            if (btApi?.onHudEvent) {
+                btApi.onHudEvent((event) => {
+                    this.triggerBluetoothHud(event);
+                });
+            }
+            else if ((window.islandAPI || window.island || window.roboIsland)?.onBluetoothHudEvent) {
+                (window.islandAPI || window.island || window.roboIsland).onBluetoothHudEvent((event) => {
+                    this.triggerBluetoothHud(event);
+                });
+            }
+            // Voice Companion Mode IPC Listeners (R6)
+            const voiceApi = (window.islandAPI || window.island || window.roboIsland)?.voice || (window.islandAPI || window.island || window.roboIsland);
+            if (voiceApi?.onVoiceState) {
+                voiceApi.onVoiceState((payload) => {
+                    this.setVoiceState(payload);
+                });
+            }
         }
         if (typeof window !== 'undefined') {
             window.__roboIslandSetMode = (mode) => this.setMode(mode);
@@ -2734,6 +3602,10 @@ class CanvasEngine {
             window.__roboIslandTriggerChargerSurge = (charging, level) => this.triggerChargerSurge(charging, level);
             window.__roboIslandTriggerVolumeHud = (level, muted) => this.triggerVolumeHud(level, Boolean(muted));
             window.__roboIslandTriggerSpeedometerHud = () => this.triggerSpeedometerHud();
+            window.__roboIslandTriggerBluetoothHud = (event) => this.triggerBluetoothHud(event);
+            window.__roboIslandTriggerVoiceCompanion = () => this.triggerVoiceCompanion();
+            window.__roboIslandSetVoiceState = (state) => this.setVoiceState(state);
+            window.__roboIslandInterruptVoice = () => this.interruptVoiceCompanion();
             window.__roboIslandTriggerNotification = (n) => this.triggerNotification(n);
             window.__roboIslandClearNotification = () => this.clearNotification();
             window.__roboIslandTriggerGreeting = (type) => this.triggerGreeting(type);
@@ -2958,6 +3830,13 @@ class CanvasEngine {
         this.updateTargetDimensions();
     }
     updateTargetDimensions() {
+        if (this.isLauncherActive) {
+            this.targetWidth = 620;
+            this.targetHeight = this.launcherExpanded ? 380 : 54;
+            this.targetRadius = 24;
+            this.requestRender();
+            return;
+        }
         if (this.isTucked) {
             // Tuck-away: 56×4 px line docked to top edge (peeks on hover)
             this.targetWidth = this.isHovered ? 72 : 56;
@@ -3001,6 +3880,10 @@ class CanvasEngine {
                     this.targetWidth = 540;
                     this.targetHeight = 280;
                     break;
+                case 'sports':
+                    this.targetWidth = 540;
+                    this.targetHeight = 300;
+                    break;
                 case 'home':
                 default:
                     this.targetHeight = 240;
@@ -3013,7 +3896,18 @@ class CanvasEngine {
             const n = this.activeNotification;
             if (this.isWhatsAppReplying) {
                 this.targetWidth = 400;
-                this.targetHeight = 108;
+                const isVn = this.isWhatsAppVoiceNoteActive();
+                const chipsContainer = typeof document !== 'undefined' ? document.getElementById('whatsapp-smart-reply-chips') : null;
+                const hasChips = Boolean(chipsContainer && chipsContainer.children && chipsContainer.children.length > 0);
+                if (isVn) {
+                    this.targetHeight = 220;
+                }
+                else if (hasChips) {
+                    this.targetHeight = 144;
+                }
+                else {
+                    this.targetHeight = 108;
+                }
                 this.targetRadius = 24;
                 return;
             }
@@ -3075,6 +3969,20 @@ class CanvasEngine {
                 this.targetRadius = 22;
                 return;
             }
+            if (this.isVoiceCompanionActive()) {
+                const w = this.voiceState === 'SPEAKING' ? 340 : (this.voiceState === 'THINKING' ? 300 : 320);
+                this.targetWidth = this.isHovered ? w + 10 : w;
+                this.targetHeight = 44;
+                this.targetRadius = 22;
+                return;
+            }
+            if (performance.now() < this.bluetoothHudUntil) {
+                const hasMb = Boolean(this.activeBluetoothDevice?.multiBattery);
+                this.targetWidth = this.isHovered ? (hasMb ? 368 : 338) : (hasMb ? 360 : 330);
+                this.targetHeight = 44;
+                this.targetRadius = 22;
+                return;
+            }
             if (performance.now() < this.volumeHudUntil) {
                 this.targetWidth = this.isHovered ? 280 : 270;
                 this.targetHeight = 36;
@@ -3111,6 +4019,19 @@ class CanvasEngine {
         else if (this.mode === 'compact' && performance.now() < this.speedometerHudUntil) {
             // Apple-style Hardware Speedometer HUD Pop (CPU, RAM, Storage)
             this.targetWidth = this.isHovered ? 370 : 360;
+            this.targetHeight = 44;
+            this.targetRadius = 22;
+        }
+        else if (this.mode === 'compact' && this.isVoiceCompanionActive()) {
+            const w = this.voiceState === 'SPEAKING' ? 340 : (this.voiceState === 'THINKING' ? 300 : 320);
+            this.targetWidth = this.isHovered ? w + 10 : w;
+            this.targetHeight = 44;
+            this.targetRadius = 22;
+        }
+        else if (this.mode === 'compact' && performance.now() < this.bluetoothHudUntil) {
+            // Apple AirPods / Bluetooth Battery & Device HUD
+            const hasMb = Boolean(this.activeBluetoothDevice?.multiBattery);
+            this.targetWidth = this.isHovered ? (hasMb ? 368 : 338) : (hasMb ? 360 : 330);
             this.targetHeight = 44;
             this.targetRadius = 22;
         }
@@ -3180,6 +4101,12 @@ class CanvasEngine {
                 const baseW = Math.max(260, Math.min(340, Math.round(nameLen * 6.5 + 130)));
                 this.targetWidth = this.isHovered ? baseW + 8 : baseW;
             }
+            this.targetHeight = 36;
+            this.targetRadius = 18;
+        }
+        else if (this.sportsState?.enabled && this.activeSportsActivity) {
+            const baseW = this.calculateSportsPillWidth();
+            this.targetWidth = this.isHovered ? baseW + 8 : baseW;
             this.targetHeight = 36;
             this.targetRadius = 18;
         }
@@ -3848,6 +4775,10 @@ class CanvasEngine {
             }
             return;
         }
+        if (this.isVoiceCompanionActive()) {
+            this.interruptVoiceCompanion();
+            return;
+        }
         if (this.isTucked) {
             if (inBounds) {
                 this.setTucked(false);
@@ -3999,6 +4930,11 @@ class CanvasEngine {
                 this.updateTargetDimensions();
                 return;
             }
+            if (performance.now() < this.bluetoothHudUntil) {
+                this.bluetoothHudUntil = 0;
+                this.updateTargetDimensions();
+                return;
+            }
             if (performance.now() < this.greetingUntil) {
                 this.dismissGreeting();
                 return;
@@ -4027,6 +4963,12 @@ class CanvasEngine {
             if (performance.now() < this.speedometerHudUntil) {
                 // Clicking active Speedometer HUD dismisses it immediately
                 this.speedometerHudUntil = 0;
+                this.updateTargetDimensions();
+                return;
+            }
+            if (performance.now() < this.bluetoothHudUntil) {
+                // Clicking active Bluetooth HUD dismisses it immediately
+                this.bluetoothHudUntil = 0;
                 this.updateTargetDimensions();
                 return;
             }
@@ -4145,7 +5087,11 @@ class CanvasEngine {
                     this.compactClickTimer = null;
                     if (this.mode !== 'compact')
                         return;
-                    if (this.focusState.active && !(this.mediaState.active && this.mediaState.title)) {
+                    if (this.sportsState?.enabled && this.activeSportsActivity) {
+                        this.activeTab = 'sports';
+                        this.showDomTab('sports');
+                    }
+                    else if (this.focusState.active && !(this.mediaState.active && this.mediaState.title)) {
                         this.activeTab = 'focus';
                         this.showDomTab('focus');
                     }
@@ -4401,6 +5347,8 @@ class CanvasEngine {
         const isMediaActive = Boolean(this.mediaState.playing && this.mediaState.active);
         const isHudActive = ((this.volumeHudUntil > 0 && performance.now() < this.volumeHudUntil) ||
             (this.speedometerHudUntil > 0 && performance.now() < this.speedometerHudUntil) ||
+            (this.bluetoothHudUntil > 0 && performance.now() < this.bluetoothHudUntil) ||
+            this.isVoiceCompanionActive() ||
             (this.chargerSurgeUntil > 0 && performance.now() < this.chargerSurgeUntil) ||
             (this.airdropHudUntil > 0 && performance.now() < this.airdropHudUntil) ||
             (this.greetingUntil > 0 && performance.now() < this.greetingUntil) ||
@@ -4424,9 +5372,11 @@ class CanvasEngine {
             !this.isHovered &&
             !this.mediaState.playing &&
             !this.isNotificationActive() &&
+            !this.isVoiceCompanionActive() &&
             performance.now() > this.greetingUntil &&
             performance.now() > this.volumeHudUntil &&
             performance.now() > this.speedometerHudUntil &&
+            performance.now() > this.bluetoothHudUntil &&
             performance.now() > this.chargerSurgeUntil &&
             performance.now() > this.airdropHudUntil &&
             Math.abs(this.currentWidth - this.targetWidth) < 0.3 &&
@@ -4535,6 +5485,18 @@ class CanvasEngine {
                 this.updateTargetDimensions();
             }
         }
+        // Apple-style AirPods / Bluetooth Battery & Device HUD: Auto-relax after duration expires
+        if (this.bluetoothHudUntil > 0 && performance.now() >= this.bluetoothHudUntil) {
+            if (!this.isHovered) {
+                this.bluetoothHudUntil = 0;
+                this.updateTargetDimensions();
+            }
+        }
+        // Hands-Free Voice Companion Mode: Auto-relax when duration expires and not listening/speaking
+        if (this.voiceHudUntil > 0 && performance.now() >= this.voiceHudUntil && !this.isVoiceCompanionActive()) {
+            this.voiceHudUntil = 0;
+            this.updateTargetDimensions();
+        }
         // Apple macOS / iOS Dynamic Time-of-Day Greeting Pill: Auto-relax to rest/compact dimensions when expired
         if (this.greetingUntil > 0 && performance.now() >= this.greetingUntil) {
             this.dismissGreeting();
@@ -4566,7 +5528,20 @@ class CanvasEngine {
                 waBar.style.left = `${Math.round(pillLeft + 12)}px`;
                 waBar.style.top = `${Math.round(topY + 34)}px`;
                 waBar.style.width = `${Math.round(this.currentWidth - 24)}px`;
-                waBar.style.height = `64px`;
+                const isVn = this.isWhatsAppVoiceNoteActive();
+                const chipsContainer = document.getElementById('whatsapp-smart-reply-chips');
+                const hasChips = Boolean(chipsContainer && chipsContainer.children && chipsContainer.children.length > 0);
+                let barHeight = 64;
+                if (isVn) {
+                    barHeight = 172;
+                }
+                else if (hasChips) {
+                    barHeight = 96;
+                }
+                else {
+                    barHeight = 64;
+                }
+                waBar.style.height = `${barHeight}px`;
                 if (waBar.classList.contains('hidden'))
                     waBar.classList.remove('hidden');
             }
@@ -4608,11 +5583,17 @@ class CanvasEngine {
         else if (this.mode === 'rest') {
             if (this.domOverlayEl)
                 this.domOverlayEl.classList.add('hidden');
-            if (performance.now() < this.airdropHudUntil) {
+            if (this.isVoiceCompanionActive()) {
+                this.drawVoiceCompanionWave(cx, topY);
+            }
+            else if (performance.now() < this.airdropHudUntil) {
                 this.drawAirDropHudContent(cx, topY);
             }
             else if (performance.now() < this.speedometerHudUntil) {
                 this.drawSpeedometerHudContent(cx, topY);
+            }
+            else if (performance.now() < this.bluetoothHudUntil) {
+                this.drawBluetoothHudContent(cx, topY);
             }
             else if (performance.now() < this.volumeHudUntil) {
                 this.drawVolumeHudContent(cx, topY);
@@ -4974,10 +5955,456 @@ class CanvasEngine {
         }
         this.ctx.restore();
     }
+    drawNotificationContent(pillLeft, midY, topY) {
+        if (!this.activeNotification)
+            return;
+        this.notificationHits = {};
+        const n = this.activeNotification;
+        const W = this.currentWidth;
+        const cy = midY;
+        const left = pillLeft + 14;
+        const right = pillLeft + W - 14;
+        const color = this.getNotificationColor(n.kind, n.status);
+        // =========================================================================
+        // 1. WhatsApp Dynamic Island Quick Reply Box (Apple iPhone / Mac Style)
+        // =========================================================================
+        if (this.isWhatsAppReplying) {
+            const headCy = topY + 18;
+            const badgeR = 8;
+            const badgeCx = left + 8;
+            this.ctx.save();
+            // WhatsApp Apple Squircle mini icon
+            this.drawAppleAppIcon(badgeCx, headCy, badgeR, 'whatsapp');
+            // Contact / Group Title
+            const wa = this.parseWhatsAppDetails(n.title, n.body);
+            const fallbackTarget = wa.isGroup ? (wa.groupName || wa.senderName) : wa.senderName;
+            const target = this.whatsAppReplyContext?.contact || fallbackTarget;
+            this.ctx.font = '600 12px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
+            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+            this.ctx.textAlign = 'left';
+            this.ctx.textBaseline = 'middle';
+            const maxHeadW = right - (badgeCx + badgeR + 10) - 24;
+            const truncSender = this.truncateText(`Reply to ${target}`, maxHeadW, this.ctx.font);
+            this.ctx.fillText(truncSender, badgeCx + badgeR + 8, headCy);
+            // Close button
+            const closeSize = 18;
+            const closeX = right - closeSize;
+            const closeY = headCy - closeSize / 2;
+            const isCloseHovered = this.isHovered && this.isInsideHit(this.pointerX, this.pointerY, { x: closeX, y: closeY, width: closeSize, height: closeSize });
+            this.ctx.beginPath();
+            this.ctx.arc(closeX + closeSize / 2, headCy, closeSize / 2, 0, Math.PI * 2);
+            this.ctx.fillStyle = isCloseHovered ? 'rgba(255, 255, 255, 0.2)' : 'rgba(255, 255, 255, 0.08)';
+            this.ctx.fill();
+            this.ctx.strokeStyle = isCloseHovered ? '#ffffff' : 'rgba(255, 255, 255, 0.6)';
+            this.ctx.lineWidth = 1.3;
+            this.ctx.lineCap = 'round';
+            const crossR = 3;
+            this.ctx.beginPath();
+            this.ctx.moveTo(closeX + closeSize / 2 - crossR, headCy - crossR);
+            this.ctx.lineTo(closeX + closeSize / 2 + crossR, headCy + crossR);
+            this.ctx.moveTo(closeX + closeSize / 2 + crossR, headCy - crossR);
+            this.ctx.lineTo(closeX + closeSize / 2 - crossR, headCy + crossR);
+            this.ctx.stroke();
+            this.notificationHits['cDismiss'] = { x: closeX, y: closeY, width: closeSize, height: closeSize };
+            // Row 2: Input Box
+            const boxX = left;
+            const boxY = topY + 36;
+            const boxW = W - 28;
+            const boxH = 28;
+            const boxR = 14;
+            this.ctx.beginPath();
+            this.ctx.roundRect(boxX, boxY, boxW, boxH, boxR);
+            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+            this.ctx.fill();
+            this.ctx.strokeStyle = this.whatsAppReplySent ? 'rgba(34, 224, 90, 0.7)' : 'rgba(37, 211, 102, 0.45)';
+            this.ctx.lineWidth = 1.2;
+            this.ctx.stroke();
+            if (this.whatsAppReplySent) {
+                // Sent confirmation
+                this.ctx.font = '600 12px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
+                this.ctx.fillStyle = '#22e05a';
+                this.ctx.textAlign = 'center';
+                this.ctx.textBaseline = 'middle';
+                this.ctx.fillText('Sent', boxX + boxW / 2, boxY + boxH / 2);
+            }
+            else {
+                const textPadX = boxX + 12;
+                const textCy = boxY + boxH / 2;
+                const sendBtnR = 10;
+                const sendBtnX = boxX + boxW - 14;
+                const sendBtnY = textCy;
+                const isSendHovered = this.isHovered && this.isInsideHit(this.pointerX, this.pointerY, { x: sendBtnX - 12, y: sendBtnY - 12, width: 24, height: 24 });
+                const hasText = this.whatsAppReplyText.length > 0;
+                // User typed text or placeholder
+                this.ctx.font = '400 12px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
+                this.ctx.textAlign = 'left';
+                this.ctx.textBaseline = 'middle';
+                if (!hasText) {
+                    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+                    this.ctx.fillText('Type a reply...', textPadX, textCy);
+                }
+                else {
+                    this.ctx.fillStyle = '#ffffff';
+                    const maxInputW = boxW - 48;
+                    const trunc = this.truncateText(this.whatsAppReplyText, maxInputW, this.ctx.font);
+                    this.ctx.fillText(trunc, textPadX, textCy);
+                    // Blinking cursor
+                    const cursorBlink = Math.floor(performance.now() / 500) % 2 === 0;
+                    if (cursorBlink) {
+                        const cursorX = textPadX + this.ctx.measureText(trunc).width + 1;
+                        this.ctx.fillStyle = '#25d366';
+                        this.ctx.fillRect(cursorX, textCy - 7, 1.5, 14);
+                    }
+                }
+                // Send Button circle
+                this.ctx.beginPath();
+                this.ctx.arc(sendBtnX, sendBtnY, sendBtnR, 0, Math.PI * 2);
+                this.ctx.fillStyle = hasText
+                    ? (isSendHovered ? '#1ebe5d' : '#25d366')
+                    : 'rgba(255, 255, 255, 0.12)';
+                this.ctx.fill();
+                // Send arrow in button
+                this.ctx.strokeStyle = hasText ? '#ffffff' : 'rgba(255, 255, 255, 0.3)';
+                this.ctx.lineWidth = 1.4;
+                this.ctx.lineCap = 'round';
+                this.ctx.lineJoin = 'round';
+                this.ctx.beginPath();
+                this.ctx.moveTo(sendBtnX - 3.5, sendBtnY + 3.5);
+                this.ctx.lineTo(sendBtnX + 3.5, sendBtnY - 2.5);
+                this.ctx.moveTo(sendBtnX - 1.5, sendBtnY - 2.5);
+                this.ctx.lineTo(sendBtnX + 3.5, sendBtnY - 2.5);
+                this.ctx.lineTo(sendBtnX + 3.5, sendBtnY + 2.5);
+                this.ctx.stroke();
+                this.notificationHits['cWhatsAppSend'] = { x: sendBtnX - 12, y: sendBtnY - 12, width: 24, height: 24 };
+            }
+            this.ctx.restore();
+            return;
+        }
+        // =========================================================================
+        // 2. Standard Compact Island Notification (WhatsApp, Downloads, Mail, Chrome, AI)
+        // =========================================================================
+        // Authentic Apple Mac / iOS Style Vector App Icon (Zero bitmap lag, crisp 60 FPS)
+        const iconR = 11;
+        const iconCx = left + 9;
+        const iconCy = cy;
+        const hasIcon = this.drawAppleAppIcon(iconCx, iconCy, iconR, n.kind, n.status, n.app);
+        let textLeft = hasIcon ? left + 27 : left + 6;
+        if (this.isWhatsAppVoiceNoteActive()) {
+            // Draw four dynamic oscillating audio wave bars in WhatsApp green (#25d366) next to the WhatsApp icon/badge
+            this.ctx.save();
+            const waveStartX = textLeft;
+            const now = performance.now();
+            const barCount = 4;
+            const barWidth = 2.5;
+            const barGap = 2;
+            const maxH = 14;
+            const minH = 3;
+            for (let i = 0; i < barCount; i++) {
+                const wavePhase = (now / 180) + i * 0.9;
+                const osc = (Math.sin(wavePhase) + 1) / 2;
+                const barH = minH + osc * (maxH - minH);
+                const bx = waveStartX + i * (barWidth + barGap);
+                const by = cy - barH / 2;
+                this.ctx.fillStyle = '#25d366';
+                this.ctx.beginPath();
+                this.ctx.roundRect(bx, by, barWidth, barH, 1.2);
+                this.ctx.fill();
+            }
+            this.ctx.restore();
+            textLeft += barCount * (barWidth + barGap) + 4;
+        }
+        // Interactive Action Buttons (e.g. Deny & Allow for Claude Code tool execution)
+        const actions = n.actions;
+        if (actions && actions.length > 0) {
+            const bh = 24;
+            const by = Math.round(cy - bh / 2);
+            const btnFont = '600 11.5px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
+            let curRight = right;
+            for (let i = actions.length - 1; i >= 0; i--) {
+                const item = actions[i];
+                if (!item)
+                    continue;
+                this.ctx.font = btnFont;
+                const metrics = this.ctx.measureText(item.label);
+                const bw = Math.max(54, Math.round(metrics.width + 22)); // 11px padding on each side
+                const bx = curRight - bw;
+                const isPrimary = item.primary ?? (item.id === 'allow');
+                const isAnswer = item.id === 'wa-answer';
+                const isDecline = item.id === 'wa-decline';
+                const isHovered = this.isHovered && this.isInsideHit(this.pointerX, this.pointerY, { x: bx, y: by, width: bw, height: bh });
+                this.ctx.save();
+                this.ctx.beginPath();
+                this.ctx.roundRect(bx, by, bw, bh, 7);
+                this.ctx.fillStyle = isAnswer
+                    ? (isHovered ? '#34c759' : '#30d158')
+                    : isDecline
+                        ? (isHovered ? '#ff3b30' : '#ff453a')
+                        : isPrimary
+                            ? (isHovered ? '#e5e5ea' : '#ffffff')
+                            : (isHovered ? '#3a3a3c' : '#2c2c2e');
+                this.ctx.fill();
+                this.ctx.clip();
+                this.ctx.font = btnFont;
+                this.ctx.fillStyle = (isAnswer || isDecline) ? '#ffffff' : (isPrimary ? '#000000' : '#ffffff');
+                this.ctx.textAlign = 'center';
+                this.ctx.textBaseline = 'middle';
+                this.ctx.fillText(item.label, bx + bw / 2, cy);
+                this.ctx.restore();
+                const hitKey = item.id === 'allow' ? 'cAllow'
+                    : item.id === 'deny' ? 'cDeny'
+                        : item.id === 'wa-answer' ? 'cWhatsAppAnswer'
+                            : item.id === 'wa-decline' ? 'cWhatsAppDecline'
+                                : `action_${item.id}`;
+                this.notificationHits[hitKey] = { x: bx, y: by, width: bw, height: bh };
+                curRight -= bw + 8;
+            }
+            // Title & Body before the buttons
+            const maxTextW = Math.max(60, curRight - textLeft - 10);
+            const isCall = n.kind === 'whatsapp' && (actions.some(a => a.id === 'wa-answer'));
+            const hasBody = Boolean(n.body && n.body.trim().length > 0);
+            const titleFont = hasBody
+                ? '600 12px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif'
+                : '600 13px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
+            const bodyFont = '400 11px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
+            this.ctx.save();
+            this.ctx.textAlign = 'left';
+            if (isCall) {
+                const wa = this.parseWhatsAppDetails(n.title, n.body);
+                const callHeading = wa.callType === 'video' ? 'Video Call' : 'Incoming Call';
+                this.ctx.font = '600 11px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
+                this.ctx.fillStyle = '#25d366';
+                this.ctx.textBaseline = 'bottom';
+                this.ctx.fillText(callHeading, textLeft, cy - 1);
+                this.ctx.font = '600 12px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
+                this.ctx.fillStyle = '#ffffff';
+                this.ctx.textBaseline = 'top';
+                const truncCaller = this.truncateText(wa.senderName, maxTextW, this.ctx.font);
+                this.ctx.fillText(truncCaller, textLeft, cy + 1);
+            }
+            else if (hasBody && n.body) {
+                const truncTitle = this.truncateText(n.title, maxTextW, titleFont);
+                const truncBody = this.truncateText(n.body, maxTextW, bodyFont);
+                this.ctx.font = titleFont;
+                this.ctx.fillStyle = '#ffffff';
+                this.ctx.textBaseline = 'bottom';
+                this.ctx.fillText(truncTitle, textLeft, cy - 1);
+                this.ctx.font = bodyFont;
+                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.72)';
+                this.ctx.textBaseline = 'top';
+                this.ctx.fillText(truncBody, textLeft, cy + 2);
+            }
+            else {
+                const truncTitle = this.truncateText(n.title, maxTextW, titleFont);
+                this.ctx.font = titleFont;
+                this.ctx.fillStyle = '#ffffff';
+                this.ctx.textBaseline = 'middle';
+                this.ctx.fillText(truncTitle, textLeft, cy);
+            }
+            this.ctx.restore();
+        }
+        else {
+            // Standard notification with optional quick action (WhatsApp Reply chip, Download Open chip, App Open chip, Dismiss)
+            const hasBody = Boolean(n.body && n.body.trim().length > 0);
+            const titleFont = hasBody
+                ? '600 12px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif'
+                : '600 13px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
+            const bodyFont = '400 11px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
+            const closeSize = 20;
+            const closeX = right - closeSize;
+            const closeY = cy - closeSize / 2;
+            const isCloseHovered = this.isHovered && this.isInsideHit(this.pointerX, this.pointerY, { x: closeX, y: closeY, width: closeSize, height: closeSize });
+            let actionRight = closeX - 6;
+            // 1. WhatsApp Quick Reply Chip (Apple iPhone / Mac Style)
+            if (n.kind === 'whatsapp') {
+                const replyW = 52;
+                const replyH = 22;
+                const replyX = actionRight - replyW;
+                const replyY = cy - replyH / 2;
+                const isReplyHovered = this.isHovered && this.isInsideHit(this.pointerX, this.pointerY, { x: replyX, y: replyY, width: replyW, height: replyH });
+                this.ctx.save();
+                this.ctx.beginPath();
+                this.ctx.roundRect(replyX, replyY, replyW, replyH, 11);
+                this.ctx.fillStyle = isReplyHovered ? '#25d366' : 'rgba(37, 211, 102, 0.22)';
+                this.ctx.fill();
+                this.ctx.strokeStyle = '#25d366';
+                this.ctx.lineWidth = 1.0;
+                this.ctx.stroke();
+                this.ctx.font = '600 11px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
+                this.ctx.fillStyle = isReplyHovered ? '#000000' : '#25d366';
+                this.ctx.textAlign = 'center';
+                this.ctx.textBaseline = 'middle';
+                this.ctx.fillText('Reply', replyX + replyW / 2, cy);
+                this.ctx.restore();
+                this.notificationHits['cWhatsAppReply'] = { x: replyX, y: replyY, width: replyW, height: replyH };
+                actionRight -= replyW + 6;
+            }
+            // 2. Download Complete "Open" File Chip
+            else if (n.kind === 'download' && n.status === 'complete' && n.filePath) {
+                const openW = 48;
+                const openH = 22;
+                const openX = actionRight - openW;
+                const openY = cy - openH / 2;
+                const isOpenHovered = this.isHovered && this.isInsideHit(this.pointerX, this.pointerY, { x: openX, y: openY, width: openW, height: openH });
+                this.ctx.save();
+                this.ctx.beginPath();
+                this.ctx.roundRect(openX, openY, openW, openH, 11);
+                this.ctx.fillStyle = isOpenHovered ? '#22e05a' : 'rgba(34, 224, 90, 0.22)';
+                this.ctx.fill();
+                this.ctx.strokeStyle = '#22e05a';
+                this.ctx.lineWidth = 1.0;
+                this.ctx.stroke();
+                this.ctx.font = '600 11px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
+                this.ctx.fillStyle = isOpenHovered ? '#000000' : '#22e05a';
+                this.ctx.textAlign = 'center';
+                this.ctx.textBaseline = 'middle';
+                this.ctx.fillText('Open', openX + openW / 2, cy);
+                this.ctx.restore();
+                this.notificationHits['cOpenFile'] = { x: openX, y: openY, width: openW, height: openH };
+                actionRight -= openW + 6;
+            }
+            // 3. Google Chrome "Open" Action Chip
+            else if (n.kind === 'chrome' || (n.app && n.app.toLowerCase().includes('chrome'))) {
+                const openW = 48;
+                const openH = 22;
+                const openX = actionRight - openW;
+                const openY = cy - openH / 2;
+                const isOpenHovered = this.isHovered && this.isInsideHit(this.pointerX, this.pointerY, { x: openX, y: openY, width: openW, height: openH });
+                this.ctx.save();
+                this.ctx.beginPath();
+                this.ctx.roundRect(openX, openY, openW, openH, 11);
+                this.ctx.fillStyle = isOpenHovered ? '#4285f4' : 'rgba(66, 133, 244, 0.22)';
+                this.ctx.fill();
+                this.ctx.strokeStyle = '#4285f4';
+                this.ctx.lineWidth = 1.0;
+                this.ctx.stroke();
+                this.ctx.font = '600 11px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
+                this.ctx.fillStyle = isOpenHovered ? '#ffffff' : '#4285f4';
+                this.ctx.textAlign = 'center';
+                this.ctx.textBaseline = 'middle';
+                this.ctx.fillText('Open', openX + openW / 2, cy);
+                this.ctx.restore();
+                this.notificationHits['cOpenApp'] = { x: openX, y: openY, width: openW, height: openH };
+                actionRight -= openW + 6;
+            }
+            // 4. Apple Mail / Outlook "Open" Action Chip
+            else if (n.kind === 'mail' || (n.app && (n.app.toLowerCase().includes('mail') || n.app.toLowerCase().includes('outlook')))) {
+                const openW = 48;
+                const openH = 22;
+                const openX = actionRight - openW;
+                const openY = cy - openH / 2;
+                const isOpenHovered = this.isHovered && this.isInsideHit(this.pointerX, this.pointerY, { x: openX, y: openY, width: openW, height: openH });
+                this.ctx.save();
+                this.ctx.beginPath();
+                this.ctx.roundRect(openX, openY, openW, openH, 11);
+                this.ctx.fillStyle = isOpenHovered ? '#0078d4' : 'rgba(0, 120, 212, 0.22)';
+                this.ctx.fill();
+                this.ctx.strokeStyle = '#0078d4';
+                this.ctx.lineWidth = 1.0;
+                this.ctx.stroke();
+                this.ctx.font = '600 11px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
+                this.ctx.fillStyle = isOpenHovered ? '#ffffff' : '#0078d4';
+                this.ctx.textAlign = 'center';
+                this.ctx.textBaseline = 'middle';
+                this.ctx.fillText('Open', openX + openW / 2, cy);
+                this.ctx.restore();
+                this.notificationHits['cOpenApp'] = { x: openX, y: openY, width: openW, height: openH };
+                actionRight -= openW + 6;
+            }
+            // 5. Generic URL "Open" Action Chip
+            else if (n.url) {
+                const openW = 48;
+                const openH = 22;
+                const openX = actionRight - openW;
+                const openY = cy - openH / 2;
+                const isOpenHovered = this.isHovered && this.isInsideHit(this.pointerX, this.pointerY, { x: openX, y: openY, width: openW, height: openH });
+                this.ctx.save();
+                this.ctx.beginPath();
+                this.ctx.roundRect(openX, openY, openW, openH, 11);
+                this.ctx.fillStyle = isOpenHovered ? color : 'rgba(255, 255, 255, 0.15)';
+                this.ctx.fill();
+                this.ctx.strokeStyle = color;
+                this.ctx.lineWidth = 1.0;
+                this.ctx.stroke();
+                this.ctx.font = '600 11px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
+                this.ctx.fillStyle = isOpenHovered ? '#000000' : '#ffffff';
+                this.ctx.textAlign = 'center';
+                this.ctx.textBaseline = 'middle';
+                this.ctx.fillText('Open', openX + openW / 2, cy);
+                this.ctx.restore();
+                this.notificationHits['cOpenApp'] = { x: openX, y: openY, width: openW, height: openH };
+                actionRight -= openW + 6;
+            }
+            let displayTitle = n.title;
+            let displayBody = n.body;
+            if (n.kind === 'whatsapp') {
+                const wa = this.parseWhatsAppDetails(n.title, n.body);
+                if (wa.isGroup) {
+                    displayTitle = `${wa.groupName}`;
+                    displayBody = `${wa.senderName}: ${wa.messageText}`;
+                }
+                else if (wa.isCall) {
+                    displayTitle = wa.callType === 'video' ? 'Video Call' : 'Incoming Call';
+                    displayBody = wa.senderName;
+                }
+                else {
+                    displayTitle = wa.senderName;
+                    displayBody = wa.messageText;
+                }
+            }
+            const maxTextW = Math.max(80, actionRight - textLeft - 6);
+            const truncTitle = this.truncateText(displayTitle, maxTextW, titleFont);
+            this.ctx.save();
+            this.ctx.textAlign = 'left';
+            if (hasBody && displayBody) {
+                const truncBody = this.truncateText(displayBody, maxTextW, bodyFont);
+                this.ctx.font = titleFont;
+                this.ctx.fillStyle = color;
+                this.ctx.textBaseline = 'bottom';
+                this.ctx.fillText(truncTitle, textLeft, cy - 1);
+                this.ctx.font = bodyFont;
+                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.72)';
+                this.ctx.textBaseline = 'top';
+                this.ctx.fillText(truncBody, textLeft, cy + 2);
+            }
+            else {
+                this.ctx.font = titleFont;
+                this.ctx.fillStyle = color;
+                this.ctx.textBaseline = 'middle';
+                this.ctx.fillText(truncTitle, textLeft, cy);
+            }
+            this.ctx.restore();
+            // Dismiss Button
+            this.ctx.save();
+            this.ctx.beginPath();
+            this.ctx.arc(closeX + closeSize / 2, cy, closeSize / 2, 0, Math.PI * 2);
+            this.ctx.fillStyle = isCloseHovered ? 'rgba(255, 255, 255, 0.18)' : 'rgba(255, 255, 255, 0.08)';
+            this.ctx.fill();
+            this.ctx.strokeStyle = isCloseHovered ? '#ffffff' : 'rgba(255, 255, 255, 0.6)';
+            this.ctx.lineWidth = 1.4;
+            this.ctx.lineCap = 'round';
+            const crossR = 3.5;
+            this.ctx.beginPath();
+            this.ctx.moveTo(closeX + closeSize / 2 - crossR, cy - crossR);
+            this.ctx.lineTo(closeX + closeSize / 2 + crossR, cy + crossR);
+            this.ctx.moveTo(closeX + closeSize / 2 + crossR, cy - crossR);
+            this.ctx.lineTo(closeX + closeSize / 2 - crossR, cy + crossR);
+            this.ctx.stroke();
+            this.ctx.restore();
+            this.notificationHits['cDismiss'] = { x: closeX, y: closeY, width: closeSize, height: closeSize };
+        }
+    }
     drawRestContent(cx, topY) {
         const midY = topY + this.currentHeight / 2;
         if (this.isNotificationActive()) {
             this.drawNotificationContent(cx - this.currentWidth / 2, midY, topY);
+            return;
+        }
+        if (this.isVoiceCompanionActive()) {
+            this.drawVoiceCompanionWave(cx, topY);
+            return;
+        }
+        if (performance.now() < this.bluetoothHudUntil) {
+            this.drawBluetoothHudContent(cx, topY);
             return;
         }
         this.mascot.drawFloatingEyes(this.ctx, cx, midY, 0.75);
@@ -4989,6 +6416,10 @@ class CanvasEngine {
             this.drawNotificationContent(pillLeft, midY, topY);
             return;
         }
+        if (this.isVoiceCompanionActive()) {
+            this.drawVoiceCompanionWave(cx, topY);
+            return;
+        }
         if (performance.now() < this.airdropHudUntil) {
             // Apple AirDrop Transfer HUD Pop
             this.drawAirDropHudContent(cx, topY);
@@ -4996,6 +6427,10 @@ class CanvasEngine {
         else if (performance.now() < this.speedometerHudUntil) {
             // Apple-style Hardware Speedometer HUD Pop (CPU, RAM, Storage)
             this.drawSpeedometerHudContent(cx, topY);
+        }
+        else if (performance.now() < this.bluetoothHudUntil) {
+            // Apple AirPods / Bluetooth Battery & Device HUD
+            this.drawBluetoothHudContent(cx, topY);
         }
         else if (performance.now() < this.volumeHudUntil) {
             // Apple-style Hardware Volume Pop HUD
@@ -5125,6 +6560,9 @@ class CanvasEngine {
             this.ctx.textBaseline = 'middle';
             this.ctx.fillText(timeStr, right, cy + 0.5);
             this.ctx.restore();
+        }
+        else if (this.sportsState?.enabled && this.activeSportsActivity) {
+            this.drawCompactSportsScoreboard(pillLeft, midY, topY);
         }
         else if (this.activeDownloadsList.length === 1 && !(this.mediaState.active && this.mediaState.title)) {
             // Single compact download platter
@@ -6042,420 +7480,6 @@ class CanvasEngine {
      * - Right: Interactive Allow / Deny buttons, WhatsApp Reply chip, App Open chip, or circular dismiss button
      * - Expanded Quick Reply: Apple iPhone / Mac style WhatsApp text input & send button
      */
-    drawNotificationContent(pillLeft, midY, topY) {
-        if (!this.activeNotification)
-            return;
-        this.notificationHits = {};
-        const n = this.activeNotification;
-        const W = this.currentWidth;
-        const cy = midY;
-        const left = pillLeft + 14;
-        const right = pillLeft + W - 14;
-        const color = this.getNotificationColor(n.kind, n.status);
-        // =========================================================================
-        // 1. WhatsApp Dynamic Island Quick Reply Box (Apple iPhone / Mac Style)
-        // =========================================================================
-        if (this.isWhatsAppReplying) {
-            const headCy = topY + 18;
-            const badgeR = 8;
-            const badgeCx = left + 8;
-            this.ctx.save();
-            // WhatsApp Apple Squircle mini icon
-            this.drawAppleAppIcon(badgeCx, headCy, badgeR, 'whatsapp');
-            // Contact / Group Title
-            const wa = this.parseWhatsAppDetails(n.title, n.body);
-            const fallbackTarget = wa.isGroup ? (wa.groupName || wa.senderName) : wa.senderName;
-            const target = this.whatsAppReplyContext?.contact || fallbackTarget;
-            this.ctx.font = '600 12px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
-            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-            this.ctx.textAlign = 'left';
-            this.ctx.textBaseline = 'middle';
-            const maxHeadW = right - (badgeCx + badgeR + 10) - 24;
-            const truncSender = this.truncateText(`Reply to ${target}`, maxHeadW, this.ctx.font);
-            this.ctx.fillText(truncSender, badgeCx + badgeR + 8, headCy);
-            // Close button
-            const closeSize = 18;
-            const closeX = right - closeSize;
-            const closeY = headCy - closeSize / 2;
-            const isCloseHovered = this.isHovered && this.isInsideHit(this.pointerX, this.pointerY, { x: closeX, y: closeY, width: closeSize, height: closeSize });
-            this.ctx.beginPath();
-            this.ctx.arc(closeX + closeSize / 2, headCy, closeSize / 2, 0, Math.PI * 2);
-            this.ctx.fillStyle = isCloseHovered ? 'rgba(255, 255, 255, 0.2)' : 'rgba(255, 255, 255, 0.08)';
-            this.ctx.fill();
-            this.ctx.strokeStyle = isCloseHovered ? '#ffffff' : 'rgba(255, 255, 255, 0.6)';
-            this.ctx.lineWidth = 1.3;
-            this.ctx.lineCap = 'round';
-            const crossR = 3;
-            this.ctx.beginPath();
-            this.ctx.moveTo(closeX + closeSize / 2 - crossR, headCy - crossR);
-            this.ctx.lineTo(closeX + closeSize / 2 + crossR, headCy + crossR);
-            this.ctx.moveTo(closeX + closeSize / 2 + crossR, headCy - crossR);
-            this.ctx.lineTo(closeX + closeSize / 2 - crossR, headCy + crossR);
-            this.ctx.stroke();
-            this.notificationHits['cDismiss'] = { x: closeX, y: closeY, width: closeSize, height: closeSize };
-            // Row 2: Input Box
-            const boxX = left;
-            const boxY = topY + 36;
-            const boxW = W - 28;
-            const boxH = 28;
-            const boxR = 14;
-            this.ctx.beginPath();
-            this.ctx.roundRect(boxX, boxY, boxW, boxH, boxR);
-            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
-            this.ctx.fill();
-            this.ctx.strokeStyle = this.whatsAppReplySent ? 'rgba(34, 224, 90, 0.7)' : 'rgba(37, 211, 102, 0.45)';
-            this.ctx.lineWidth = 1.2;
-            this.ctx.stroke();
-            if (this.whatsAppReplySent) {
-                // Sent confirmation
-                this.ctx.font = '600 12px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
-                this.ctx.fillStyle = '#22e05a';
-                this.ctx.textAlign = 'center';
-                this.ctx.textBaseline = 'middle';
-                this.ctx.fillText('Sent', boxX + boxW / 2, boxY + boxH / 2);
-            }
-            else {
-                const textPadX = boxX + 12;
-                const textCy = boxY + boxH / 2;
-                const sendBtnR = 10;
-                const sendBtnX = boxX + boxW - 14;
-                const sendBtnY = textCy;
-                const isSendHovered = this.isHovered && this.isInsideHit(this.pointerX, this.pointerY, { x: sendBtnX - 12, y: sendBtnY - 12, width: 24, height: 24 });
-                const hasText = this.whatsAppReplyText.length > 0;
-                // User typed text or placeholder
-                this.ctx.font = '400 12px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
-                this.ctx.textAlign = 'left';
-                this.ctx.textBaseline = 'middle';
-                if (!hasText) {
-                    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
-                    this.ctx.fillText('Type a reply...', textPadX, textCy);
-                }
-                else {
-                    this.ctx.fillStyle = '#ffffff';
-                    const maxInputW = boxW - 48;
-                    const trunc = this.truncateText(this.whatsAppReplyText, maxInputW, this.ctx.font);
-                    this.ctx.fillText(trunc, textPadX, textCy);
-                    // Blinking cursor
-                    const cursorBlink = Math.floor(performance.now() / 500) % 2 === 0;
-                    if (cursorBlink) {
-                        const cursorX = textPadX + this.ctx.measureText(trunc).width + 1;
-                        this.ctx.fillStyle = '#25d366';
-                        this.ctx.fillRect(cursorX, textCy - 7, 1.5, 14);
-                    }
-                }
-                // Send Button circle
-                this.ctx.beginPath();
-                this.ctx.arc(sendBtnX, sendBtnY, sendBtnR, 0, Math.PI * 2);
-                this.ctx.fillStyle = hasText
-                    ? (isSendHovered ? '#1ebe5d' : '#25d366')
-                    : 'rgba(255, 255, 255, 0.12)';
-                this.ctx.fill();
-                // Send arrow in button
-                this.ctx.strokeStyle = hasText ? '#ffffff' : 'rgba(255, 255, 255, 0.3)';
-                this.ctx.lineWidth = 1.4;
-                this.ctx.lineCap = 'round';
-                this.ctx.lineJoin = 'round';
-                this.ctx.beginPath();
-                this.ctx.moveTo(sendBtnX - 3.5, sendBtnY + 3.5);
-                this.ctx.lineTo(sendBtnX + 3.5, sendBtnY - 2.5);
-                this.ctx.moveTo(sendBtnX - 1.5, sendBtnY - 2.5);
-                this.ctx.lineTo(sendBtnX + 3.5, sendBtnY - 2.5);
-                this.ctx.lineTo(sendBtnX + 3.5, sendBtnY + 2.5);
-                this.ctx.stroke();
-                this.notificationHits['cWhatsAppSend'] = { x: sendBtnX - 12, y: sendBtnY - 12, width: 24, height: 24 };
-            }
-            this.ctx.restore();
-            return;
-        }
-        // =========================================================================
-        // 2. Standard Compact Island Notification (WhatsApp, Downloads, Mail, Chrome, AI)
-        // =========================================================================
-        // Authentic Apple Mac / iOS Style Vector App Icon (Zero bitmap lag, crisp 60 FPS)
-        const iconR = 11;
-        const iconCx = left + 9;
-        const iconCy = cy;
-        const hasIcon = this.drawAppleAppIcon(iconCx, iconCy, iconR, n.kind, n.status, n.app);
-        const textLeft = hasIcon ? left + 27 : left + 6;
-        // Interactive Action Buttons (e.g. Deny & Allow for Claude Code tool execution)
-        const actions = n.actions;
-        if (actions && actions.length > 0) {
-            const bh = 24;
-            const by = Math.round(cy - bh / 2);
-            const btnFont = '600 11.5px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
-            let curRight = right;
-            for (let i = actions.length - 1; i >= 0; i--) {
-                const item = actions[i];
-                if (!item)
-                    continue;
-                this.ctx.font = btnFont;
-                const metrics = this.ctx.measureText(item.label);
-                const bw = Math.max(54, Math.round(metrics.width + 22)); // 11px padding on each side
-                const bx = curRight - bw;
-                const isPrimary = item.primary ?? (item.id === 'allow');
-                const isAnswer = item.id === 'wa-answer';
-                const isDecline = item.id === 'wa-decline';
-                const isHovered = this.isHovered && this.isInsideHit(this.pointerX, this.pointerY, { x: bx, y: by, width: bw, height: bh });
-                this.ctx.save();
-                this.ctx.beginPath();
-                this.ctx.roundRect(bx, by, bw, bh, 7);
-                this.ctx.fillStyle = isAnswer
-                    ? (isHovered ? '#34c759' : '#30d158')
-                    : isDecline
-                        ? (isHovered ? '#ff3b30' : '#ff453a')
-                        : isPrimary
-                            ? (isHovered ? '#e5e5ea' : '#ffffff')
-                            : (isHovered ? '#3a3a3c' : '#2c2c2e');
-                this.ctx.fill();
-                this.ctx.clip();
-                this.ctx.font = btnFont;
-                this.ctx.fillStyle = (isAnswer || isDecline) ? '#ffffff' : (isPrimary ? '#000000' : '#ffffff');
-                this.ctx.textAlign = 'center';
-                this.ctx.textBaseline = 'middle';
-                this.ctx.fillText(item.label, bx + bw / 2, cy);
-                this.ctx.restore();
-                const hitKey = item.id === 'allow' ? 'cAllow'
-                    : item.id === 'deny' ? 'cDeny'
-                        : item.id === 'wa-answer' ? 'cWhatsAppAnswer'
-                            : item.id === 'wa-decline' ? 'cWhatsAppDecline'
-                                : `action_${item.id}`;
-                this.notificationHits[hitKey] = { x: bx, y: by, width: bw, height: bh };
-                curRight -= bw + 8;
-            }
-            // Title & Body before the buttons
-            const maxTextW = Math.max(60, curRight - textLeft - 10);
-            const isCall = n.kind === 'whatsapp' && (actions.some(a => a.id === 'wa-answer'));
-            const hasBody = Boolean(n.body && n.body.trim().length > 0);
-            const titleFont = hasBody
-                ? '600 12px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif'
-                : '600 13px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
-            const bodyFont = '400 11px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
-            this.ctx.save();
-            this.ctx.textAlign = 'left';
-            if (isCall) {
-                const wa = this.parseWhatsAppDetails(n.title, n.body);
-                const callHeading = wa.callType === 'video' ? 'Video Call' : 'Incoming Call';
-                this.ctx.font = '600 11px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
-                this.ctx.fillStyle = '#25d366';
-                this.ctx.textBaseline = 'bottom';
-                this.ctx.fillText(callHeading, textLeft, cy - 1);
-                this.ctx.font = '600 12px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
-                this.ctx.fillStyle = '#ffffff';
-                this.ctx.textBaseline = 'top';
-                const truncCaller = this.truncateText(wa.senderName, maxTextW, this.ctx.font);
-                this.ctx.fillText(truncCaller, textLeft, cy + 1);
-            }
-            else if (hasBody && n.body) {
-                const truncTitle = this.truncateText(n.title, maxTextW, titleFont);
-                const truncBody = this.truncateText(n.body, maxTextW, bodyFont);
-                this.ctx.font = titleFont;
-                this.ctx.fillStyle = '#ffffff';
-                this.ctx.textBaseline = 'bottom';
-                this.ctx.fillText(truncTitle, textLeft, cy - 1);
-                this.ctx.font = bodyFont;
-                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.72)';
-                this.ctx.textBaseline = 'top';
-                this.ctx.fillText(truncBody, textLeft, cy + 2);
-            }
-            else {
-                const truncTitle = this.truncateText(n.title, maxTextW, titleFont);
-                this.ctx.font = titleFont;
-                this.ctx.fillStyle = '#ffffff';
-                this.ctx.textBaseline = 'middle';
-                this.ctx.fillText(truncTitle, textLeft, cy);
-            }
-            this.ctx.restore();
-        }
-        else {
-            // Standard notification with optional quick action (WhatsApp Reply chip, Download Open chip, App Open chip, Dismiss)
-            const hasBody = Boolean(n.body && n.body.trim().length > 0);
-            const titleFont = hasBody
-                ? '600 12px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif'
-                : '600 13px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
-            const bodyFont = '400 11px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
-            const closeSize = 20;
-            const closeX = right - closeSize;
-            const closeY = cy - closeSize / 2;
-            const isCloseHovered = this.isHovered && this.isInsideHit(this.pointerX, this.pointerY, { x: closeX, y: closeY, width: closeSize, height: closeSize });
-            let actionRight = closeX - 6;
-            // 1. WhatsApp Quick Reply Chip (Apple iPhone / Mac Style)
-            if (n.kind === 'whatsapp') {
-                const replyW = 52;
-                const replyH = 22;
-                const replyX = actionRight - replyW;
-                const replyY = cy - replyH / 2;
-                const isReplyHovered = this.isHovered && this.isInsideHit(this.pointerX, this.pointerY, { x: replyX, y: replyY, width: replyW, height: replyH });
-                this.ctx.save();
-                this.ctx.beginPath();
-                this.ctx.roundRect(replyX, replyY, replyW, replyH, 11);
-                this.ctx.fillStyle = isReplyHovered ? '#25d366' : 'rgba(37, 211, 102, 0.22)';
-                this.ctx.fill();
-                this.ctx.strokeStyle = '#25d366';
-                this.ctx.lineWidth = 1.0;
-                this.ctx.stroke();
-                this.ctx.font = '600 11px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
-                this.ctx.fillStyle = isReplyHovered ? '#000000' : '#25d366';
-                this.ctx.textAlign = 'center';
-                this.ctx.textBaseline = 'middle';
-                this.ctx.fillText('Reply', replyX + replyW / 2, cy);
-                this.ctx.restore();
-                this.notificationHits['cWhatsAppReply'] = { x: replyX, y: replyY, width: replyW, height: replyH };
-                actionRight -= replyW + 6;
-            }
-            // 2. Download Complete "Open" File Chip
-            else if (n.kind === 'download' && n.status === 'complete' && n.filePath) {
-                const openW = 48;
-                const openH = 22;
-                const openX = actionRight - openW;
-                const openY = cy - openH / 2;
-                const isOpenHovered = this.isHovered && this.isInsideHit(this.pointerX, this.pointerY, { x: openX, y: openY, width: openW, height: openH });
-                this.ctx.save();
-                this.ctx.beginPath();
-                this.ctx.roundRect(openX, openY, openW, openH, 11);
-                this.ctx.fillStyle = isOpenHovered ? '#22e05a' : 'rgba(34, 224, 90, 0.22)';
-                this.ctx.fill();
-                this.ctx.strokeStyle = '#22e05a';
-                this.ctx.lineWidth = 1.0;
-                this.ctx.stroke();
-                this.ctx.font = '600 11px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
-                this.ctx.fillStyle = isOpenHovered ? '#000000' : '#22e05a';
-                this.ctx.textAlign = 'center';
-                this.ctx.textBaseline = 'middle';
-                this.ctx.fillText('Open', openX + openW / 2, cy);
-                this.ctx.restore();
-                this.notificationHits['cOpenFile'] = { x: openX, y: openY, width: openW, height: openH };
-                actionRight -= openW + 6;
-            }
-            // 3. Google Chrome "Open" Action Chip
-            else if (n.kind === 'chrome' || (n.app && n.app.toLowerCase().includes('chrome'))) {
-                const openW = 48;
-                const openH = 22;
-                const openX = actionRight - openW;
-                const openY = cy - openH / 2;
-                const isOpenHovered = this.isHovered && this.isInsideHit(this.pointerX, this.pointerY, { x: openX, y: openY, width: openW, height: openH });
-                this.ctx.save();
-                this.ctx.beginPath();
-                this.ctx.roundRect(openX, openY, openW, openH, 11);
-                this.ctx.fillStyle = isOpenHovered ? '#4285f4' : 'rgba(66, 133, 244, 0.22)';
-                this.ctx.fill();
-                this.ctx.strokeStyle = '#4285f4';
-                this.ctx.lineWidth = 1.0;
-                this.ctx.stroke();
-                this.ctx.font = '600 11px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
-                this.ctx.fillStyle = isOpenHovered ? '#ffffff' : '#4285f4';
-                this.ctx.textAlign = 'center';
-                this.ctx.textBaseline = 'middle';
-                this.ctx.fillText('Open', openX + openW / 2, cy);
-                this.ctx.restore();
-                this.notificationHits['cOpenApp'] = { x: openX, y: openY, width: openW, height: openH };
-                actionRight -= openW + 6;
-            }
-            // 4. Apple Mail / Outlook "Open" Action Chip
-            else if (n.kind === 'mail' || (n.app && (n.app.toLowerCase().includes('mail') || n.app.toLowerCase().includes('outlook')))) {
-                const openW = 48;
-                const openH = 22;
-                const openX = actionRight - openW;
-                const openY = cy - openH / 2;
-                const isOpenHovered = this.isHovered && this.isInsideHit(this.pointerX, this.pointerY, { x: openX, y: openY, width: openW, height: openH });
-                this.ctx.save();
-                this.ctx.beginPath();
-                this.ctx.roundRect(openX, openY, openW, openH, 11);
-                this.ctx.fillStyle = isOpenHovered ? '#0078d4' : 'rgba(0, 120, 212, 0.22)';
-                this.ctx.fill();
-                this.ctx.strokeStyle = '#0078d4';
-                this.ctx.lineWidth = 1.0;
-                this.ctx.stroke();
-                this.ctx.font = '600 11px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
-                this.ctx.fillStyle = isOpenHovered ? '#ffffff' : '#0078d4';
-                this.ctx.textAlign = 'center';
-                this.ctx.textBaseline = 'middle';
-                this.ctx.fillText('Open', openX + openW / 2, cy);
-                this.ctx.restore();
-                this.notificationHits['cOpenApp'] = { x: openX, y: openY, width: openW, height: openH };
-                actionRight -= openW + 6;
-            }
-            // 5. Generic URL "Open" Action Chip
-            else if (n.url) {
-                const openW = 48;
-                const openH = 22;
-                const openX = actionRight - openW;
-                const openY = cy - openH / 2;
-                const isOpenHovered = this.isHovered && this.isInsideHit(this.pointerX, this.pointerY, { x: openX, y: openY, width: openW, height: openH });
-                this.ctx.save();
-                this.ctx.beginPath();
-                this.ctx.roundRect(openX, openY, openW, openH, 11);
-                this.ctx.fillStyle = isOpenHovered ? color : 'rgba(255, 255, 255, 0.15)';
-                this.ctx.fill();
-                this.ctx.strokeStyle = color;
-                this.ctx.lineWidth = 1.0;
-                this.ctx.stroke();
-                this.ctx.font = '600 11px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
-                this.ctx.fillStyle = isOpenHovered ? '#000000' : '#ffffff';
-                this.ctx.textAlign = 'center';
-                this.ctx.textBaseline = 'middle';
-                this.ctx.fillText('Open', openX + openW / 2, cy);
-                this.ctx.restore();
-                this.notificationHits['cOpenApp'] = { x: openX, y: openY, width: openW, height: openH };
-                actionRight -= openW + 6;
-            }
-            let displayTitle = n.title;
-            let displayBody = n.body;
-            if (n.kind === 'whatsapp') {
-                const wa = this.parseWhatsAppDetails(n.title, n.body);
-                if (wa.isGroup) {
-                    displayTitle = `${wa.groupName}`;
-                    displayBody = `${wa.senderName}: ${wa.messageText}`;
-                }
-                else if (wa.isCall) {
-                    displayTitle = wa.callType === 'video' ? 'Video Call' : 'Incoming Call';
-                    displayBody = wa.senderName;
-                }
-                else {
-                    displayTitle = wa.senderName;
-                    displayBody = wa.messageText;
-                }
-            }
-            const maxTextW = Math.max(80, actionRight - textLeft - 6);
-            const truncTitle = this.truncateText(displayTitle, maxTextW, titleFont);
-            this.ctx.save();
-            this.ctx.textAlign = 'left';
-            if (hasBody && displayBody) {
-                const truncBody = this.truncateText(displayBody, maxTextW, bodyFont);
-                this.ctx.font = titleFont;
-                this.ctx.fillStyle = color;
-                this.ctx.textBaseline = 'bottom';
-                this.ctx.fillText(truncTitle, textLeft, cy - 1);
-                this.ctx.font = bodyFont;
-                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.72)';
-                this.ctx.textBaseline = 'top';
-                this.ctx.fillText(truncBody, textLeft, cy + 2);
-            }
-            else {
-                this.ctx.font = titleFont;
-                this.ctx.fillStyle = color;
-                this.ctx.textBaseline = 'middle';
-                this.ctx.fillText(truncTitle, textLeft, cy);
-            }
-            this.ctx.restore();
-            // Dismiss Button
-            this.ctx.save();
-            this.ctx.beginPath();
-            this.ctx.arc(closeX + closeSize / 2, cy, closeSize / 2, 0, Math.PI * 2);
-            this.ctx.fillStyle = isCloseHovered ? 'rgba(255, 255, 255, 0.18)' : 'rgba(255, 255, 255, 0.08)';
-            this.ctx.fill();
-            this.ctx.strokeStyle = isCloseHovered ? '#ffffff' : 'rgba(255, 255, 255, 0.6)';
-            this.ctx.lineWidth = 1.4;
-            this.ctx.lineCap = 'round';
-            const crossR = 3.5;
-            this.ctx.beginPath();
-            this.ctx.moveTo(closeX + closeSize / 2 - crossR, cy - crossR);
-            this.ctx.lineTo(closeX + closeSize / 2 + crossR, cy + crossR);
-            this.ctx.moveTo(closeX + closeSize / 2 + crossR, cy - crossR);
-            this.ctx.lineTo(closeX + closeSize / 2 - crossR, cy + crossR);
-            this.ctx.stroke();
-            this.ctx.restore();
-            this.notificationHits['cDismiss'] = { x: closeX, y: closeY, width: closeSize, height: closeSize };
-        }
-    }
     /**
      * TwoCode Compact Music Island:
      * Direct parity with TwoCode ai-monitor-ui.js & spotify-ui.js.
@@ -7970,6 +8994,14 @@ class CanvasEngine {
                 this.mascot.sounds.playChirp();
             });
         }
+        // Header Voice Companion Button (Jarvis Voice Mode)
+        const btnVoice = document.getElementById('btn-voice-companion');
+        if (btnVoice) {
+            btnVoice.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.triggerVoiceCompanion();
+            });
+        }
         // Focus Toggle Play Button (Home Dashboard)
         const btnFocus = document.getElementById('btn-focus-toggle');
         if (btnFocus) {
@@ -8021,6 +9053,92 @@ class CanvasEngine {
                 if (e.target.closest('#btn-focus-toggle'))
                     return;
                 this.showDomTab('focus');
+            });
+        }
+        // Sports Switcher Tabs
+        const sportBtns = this.domOverlayEl.querySelectorAll('.sport-tab-btn[data-sport]');
+        sportBtns.forEach((btn) => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const sport = btn.dataset.sport;
+                if (sport) {
+                    if (window.roboIsland?.sports?.toggleSport) {
+                        const updated = await window.roboIsland.sports.toggleSport(sport);
+                        if (updated) {
+                            this.activeSportsActivity = updated;
+                            if (this.sportsState) {
+                                this.sportsState.activeSport = sport;
+                                this.sportsState.activities[sport] = updated;
+                            }
+                        }
+                    }
+                    else if (window.roboIsland?.toggleSport) {
+                        const updated = await window.roboIsland.toggleSport(sport);
+                        if (updated) {
+                            this.activeSportsActivity = updated;
+                            if (this.sportsState) {
+                                this.sportsState.activeSport = sport;
+                                this.sportsState.activities[sport] = updated;
+                            }
+                        }
+                    }
+                    sportBtns.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    this.renderSportsScorecardDOM();
+                    this.updateTargetDimensions();
+                    this.requestRender();
+                }
+            });
+        });
+        // Sports Step Simulation Button
+        const btnSimStep = document.getElementById('sport-sim-step');
+        if (btnSimStep) {
+            btnSimStep.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                if (window.roboIsland?.sports?.stepSimulation) {
+                    const updated = await window.roboIsland.sports.stepSimulation();
+                    if (updated) {
+                        this.activeSportsActivity = updated;
+                        this.renderSportsScorecardDOM();
+                        this.updateTargetDimensions();
+                        this.requestRender();
+                    }
+                }
+                else if (window.roboIsland?.stepSportsSimulation) {
+                    const updated = await window.roboIsland.stepSportsSimulation();
+                    if (updated) {
+                        this.activeSportsActivity = updated;
+                        this.renderSportsScorecardDOM();
+                        this.updateTargetDimensions();
+                        this.requestRender();
+                    }
+                }
+            });
+        }
+        // Sports Mode Toggle (Live vs Simulated)
+        const btnModeToggle = document.getElementById('sport-mode-toggle');
+        if (btnModeToggle) {
+            btnModeToggle.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const curMode = this.sportsState?.mode || 'simulated';
+                const nextMode = curMode === 'live' ? 'simulated' : 'live';
+                if (window.roboIsland?.sports?.setMode) {
+                    const updated = await window.roboIsland.sports.setMode(nextMode);
+                    if (this.sportsState)
+                        this.sportsState.mode = nextMode;
+                    if (updated)
+                        this.activeSportsActivity = updated;
+                }
+                else if (window.roboIsland?.setSportsMode) {
+                    const updated = await window.roboIsland.setSportsMode(nextMode);
+                    if (this.sportsState)
+                        this.sportsState.mode = nextMode;
+                    if (updated)
+                        this.activeSportsActivity = updated;
+                }
+                this.renderSportsScorecardDOM();
+                this.updateTargetDimensions();
+                this.requestRender();
             });
         }
         // TwoCode Volume Scrubber with slide & drag support
@@ -8433,6 +9551,9 @@ class CanvasEngine {
         else if (tab === 'agenda') {
             this.activeTab = 'agenda';
         }
+        else if (tab === 'sports') {
+            this.activeTab = 'sports';
+        }
         this.updateTargetDimensions();
         this.updateAmbientGlow(tab);
         if (!this.domOverlayEl)
@@ -8517,6 +9638,11 @@ class CanvasEngine {
             setTwoToneTitle('Age', 'nda', '#0070f3');
             document.getElementById('panel-agenda')?.classList.add('active');
             this.initAgendaUI();
+        }
+        else if (tab === 'sports') {
+            setTwoToneTitle('Live ', 'Scoreboard', '#22e05a');
+            document.getElementById('panel-sports')?.classList.add('active');
+            this.renderSportsScorecardDOM();
         }
         else if (tab === 'settings') {
             if (titleEl)
@@ -10110,11 +11236,831 @@ class CanvasEngine {
                 : '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>'}</svg></span>`;
         }
     }
+    calculateSportsPillWidth() {
+        if (performance.now() < this.sportsFlashUntil)
+            return 340;
+        const act = this.activeSportsActivity;
+        if (!act || !act.pill)
+            return 290;
+        const text = `${act.pill.leftBadge} ${act.pill.leftScore} ${act.pill.badgeText} ${act.pill.rightScore} ${act.pill.rightBadge}`;
+        return Math.max(290, Math.min(360, Math.round(text.length * 8.2 + 80)));
+    }
+    drawCompactSportsScoreboard(pillLeft, midY, topY) {
+        const act = this.activeSportsActivity;
+        if (!act || !act.pill)
+            return;
+        const w = this.currentWidth;
+        const cx = pillLeft + w / 2;
+        // Check if highlight flash is active
+        if (performance.now() < this.sportsFlashUntil && this.sportsFlashText) {
+            const sportEmoji = act.sport === 'cricket' ? '🏏' : (act.sport === 'football' ? '⚽' : '🏎️');
+            this.ctx.save();
+            this.ctx.font = '700 13px -apple-system, BlinkMacSystemFont, "SF Pro Display", Inter, sans-serif';
+            this.ctx.fillStyle = this.sportsFlashColor || '#22e05a';
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'middle';
+            this.ctx.shadowColor = this.sportsFlashColor || '#22e05a';
+            this.ctx.shadowBlur = 8;
+            this.ctx.fillText(`${sportEmoji} ${this.sportsFlashText}`, cx, midY);
+            this.ctx.restore();
+            return;
+        }
+        const sportEmoji = act.sport === 'cricket' ? '🏏' : (act.sport === 'football' ? '⚽' : '🏎️');
+        const pill = act.pill;
+        this.ctx.save();
+        // 1. Left sport icon
+        this.ctx.font = '12px -apple-system, BlinkMacSystemFont, sans-serif';
+        this.ctx.textAlign = 'left';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillText(sportEmoji, pillLeft + 12, midY);
+        // 2. Left team badge and score
+        this.ctx.font = '700 11px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
+        this.ctx.fillStyle = '#94a3b8';
+        this.ctx.textAlign = 'left';
+        this.ctx.fillText(pill.leftBadge, pillLeft + 30, midY);
+        const badgeW = this.ctx.measureText(pill.leftBadge).width;
+        this.ctx.font = '800 13px -apple-system, BlinkMacSystemFont, "SF Pro Rounded", Inter, sans-serif';
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.fillText(pill.leftScore, pillLeft + 30 + badgeW + 5, midY);
+        // 3. Center Live Indicator & Status Badge
+        const pulse = 0.5 + 0.5 * Math.sin(performance.now() * 0.005);
+        this.ctx.beginPath();
+        this.ctx.arc(cx - 24, midY, 3, 0, Math.PI * 2);
+        this.ctx.fillStyle = `rgba(34, 224, 90, ${0.4 + 0.6 * pulse})`;
+        this.ctx.fill();
+        this.ctx.font = '600 10px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
+        this.ctx.fillStyle = '#22e05a';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText(pill.badgeText, cx + 2, midY);
+        // 4. Right team score and badge
+        this.ctx.font = '700 11px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif';
+        this.ctx.fillStyle = '#94a3b8';
+        this.ctx.textAlign = 'right';
+        this.ctx.fillText(pill.rightBadge, pillLeft + w - 12, midY);
+        const rBadgeW = this.ctx.measureText(pill.rightBadge).width;
+        this.ctx.font = '800 13px -apple-system, BlinkMacSystemFont, "SF Pro Rounded", Inter, sans-serif';
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.textAlign = 'right';
+        this.ctx.fillText(pill.rightScore, pillLeft + w - 12 - rBadgeW - 5, midY);
+        this.ctx.restore();
+    }
+    renderSportsScorecardDOM() {
+        const body = document.getElementById('sports-card-body');
+        if (!body)
+            return;
+        const act = this.activeSportsActivity;
+        if (!act) {
+            body.innerHTML = '<div style="color:rgba(255,255,255,0.4); text-align:center; padding:30px;">Loading sports feed...</div>';
+            return;
+        }
+        // Update Mode indicator button
+        const modeLabel = document.getElementById('sport-mode-label');
+        const modeBtn = document.getElementById('sport-mode-toggle');
+        const isLive = act.isLive && !act.isSimulated;
+        if (modeLabel && modeBtn) {
+            modeLabel.textContent = isLive ? 'LIVE' : 'SIMULATED';
+            if (isLive) {
+                modeBtn.classList.remove('simulated');
+                modeBtn.classList.add('live');
+            }
+            else {
+                modeBtn.classList.remove('live');
+                modeBtn.classList.add('simulated');
+            }
+        }
+        // Update Active tab buttons
+        const tabBtns = document.querySelectorAll('.sport-tab-btn[data-sport]');
+        tabBtns.forEach((btn) => {
+            const s = btn.dataset.sport;
+            if (s === act.sport)
+                btn.classList.add('active');
+            else
+                btn.classList.remove('active');
+        });
+        if (act.sport === 'cricket' && act.scorecard.cricket) {
+            const sc = act.scorecard.cricket;
+            const recentHtml = sc.recentBalls.map((b) => {
+                let cls = '';
+                if (b === '4')
+                    cls = 'b4';
+                else if (b === '6')
+                    cls = 'b6';
+                else if (b === 'W')
+                    cls = 'bW';
+                return `<span class="recent-ball-pill ${cls}">${b}</span>`;
+            }).join('');
+            const battersHtml = sc.currentBatters.map((bat) => `
+        <div class="subbox-row ${bat.isStriker ? 'striker' : ''}">
+          <span>${bat.name} ${bat.isStriker ? '*' : ''}</span>
+          <span><b>${bat.runs}</b> (${bat.balls}) <small style="color:rgba(255,255,255,0.4)">${bat.fours}x4 ${bat.sixes}x6</small></span>
+        </div>
+      `).join('');
+            const latestComment = sc.commentary && sc.commentary.length > 0 ? sc.commentary[0].text : '';
+            body.innerHTML = `
+        <div class="scorecard-hero">
+          <div class="scorecard-team-box">
+            <span class="scorecard-team-code">${sc.homeTeam.code}</span>
+            <span class="scorecard-team-name">${sc.homeTeam.name}</span>
+          </div>
+          <div class="scorecard-score-box">
+            <span class="scorecard-primary-score">${sc.homeTeam.score} <small style="font-size:12px; color:rgba(255,255,255,0.5)">(${sc.homeTeam.overs} ov)</small></span>
+            <span class="scorecard-status-sub">${act.statusText}</span>
+          </div>
+          <div class="scorecard-team-box" style="align-items:flex-end">
+            <span class="scorecard-team-code">${sc.awayTeam.code}</span>
+            <span class="scorecard-team-name">${sc.awayTeam.name} (${sc.awayTeam.score})</span>
+          </div>
+        </div>
+
+        <div class="scorecard-subgrid">
+          <div class="scorecard-subbox">
+            <span class="subbox-title">Batters</span>
+            ${battersHtml}
+          </div>
+          <div class="scorecard-subbox">
+            <span class="subbox-title">Bowler & Recent Balls</span>
+            <div class="subbox-row">
+              <span>${sc.currentBowler.name}</span>
+              <span>${sc.currentBowler.overs}-${sc.currentBowler.maidens}-${sc.currentBowler.runs}-${sc.currentBowler.wickets} (Econ: ${sc.currentBowler.economy})</span>
+            </div>
+            <div class="recent-balls-row">
+              ${recentHtml}
+            </div>
+          </div>
+        </div>
+
+        ${latestComment ? `
+          <div style="font-size:10.5px; color:rgba(255,255,255,0.6); background:rgba(255,255,255,0.03); border-radius:8px; padding:6px 10px; line-height:1.4;">
+            <b style="color:#22e05a;">Live Commentary:</b> ${latestComment}
+          </div>
+        ` : ''}
+      `;
+        }
+        else if (act.sport === 'football' && act.scorecard.football) {
+            const fb = act.scorecard.football;
+            const eventsHtml = fb.events.slice(0, 4).map((ev) => {
+                const icon = ev.type === 'goal' ? '⚽' : (ev.type === 'card_yellow' ? '🟨' : '🟥');
+                return `<div class="subbox-row"><span>${icon} ${ev.minute}'</span><span>${ev.player} (${ev.team})</span></div>`;
+            }).join('');
+            body.innerHTML = `
+        <div class="scorecard-hero">
+          <div class="scorecard-team-box">
+            <span class="scorecard-team-code">${fb.homeTeam.code}</span>
+            <span class="scorecard-team-name">${fb.homeTeam.name}</span>
+          </div>
+          <div class="scorecard-score-box">
+            <span class="scorecard-primary-score">${fb.homeTeam.score} - ${fb.awayTeam.score}</span>
+            <span class="scorecard-status-sub">${fb.matchClock} • ${fb.half}</span>
+          </div>
+          <div class="scorecard-team-box" style="align-items:flex-end">
+            <span class="scorecard-team-code">${fb.awayTeam.code}</span>
+            <span class="scorecard-team-name">${fb.awayTeam.name}</span>
+          </div>
+        </div>
+
+        <div class="scorecard-subgrid">
+          <div class="scorecard-subbox">
+            <span class="subbox-title">Key Match Events</span>
+            ${eventsHtml || '<div style="color:rgba(255,255,255,0.4); font-size:11px;">No goals yet</div>'}
+          </div>
+          <div class="scorecard-subbox">
+            <span class="subbox-title">Match Statistics</span>
+            <div class="subbox-row">
+              <span>Possession</span>
+              <span><b>${fb.stats.possession[0]}%</b> - <b>${fb.stats.possession[1]}%</b></span>
+            </div>
+            <div class="subbox-row">
+              <span>Shots on Target</span>
+              <span>${fb.stats.shotsOnTarget[0]} - ${fb.stats.shotsOnTarget[1]}</span>
+            </div>
+            <div class="subbox-row">
+              <span>Corners / Fouls</span>
+              <span>${fb.stats.corners[0]}-${fb.stats.corners[1]} / ${fb.stats.fouls[0]}-${fb.stats.fouls[1]}</span>
+            </div>
+          </div>
+        </div>
+      `;
+        }
+        else if (act.sport === 'f1' && act.scorecard.f1) {
+            const f1 = act.scorecard.f1;
+            const driversHtml = (f1.leaderboard || []).slice(0, 5).map((d) => `
+        <div class="f1-driver-row">
+          <div class="f1-driver-left">
+            <span class="f1-pos-badge">P${d.pos}</span>
+            <span class="f1-color-stripe" style="background:${d.teamColor}"></span>
+            <span class="f1-driver-name">${d.driverCode}</span>
+            <span class="f1-tyre-badge ${d.tyreCompound}">${d.tyreCompound[0]}</span>
+          </div>
+          <span style="font-size:11px; font-weight:600; color:rgba(255,255,255,0.85);">${d.gapToLeader}</span>
+        </div>
+      `).join('');
+            body.innerHTML = `
+        <div class="scorecard-hero">
+          <div class="scorecard-team-box">
+            <span class="scorecard-team-code">${f1.grandPrix}</span>
+            <span class="scorecard-team-name">${f1.circuit}</span>
+          </div>
+          <div class="scorecard-score-box">
+            <span class="scorecard-primary-score">Lap ${f1.currentLap}/${f1.totalLaps}</span>
+            <span class="scorecard-status-sub">${f1.safetyCar !== 'NONE' ? '⚠️ ' + f1.safetyCar + ' DEPLOYED' : 'GREEN FLAG'}</span>
+          </div>
+          <div class="scorecard-team-box" style="align-items:flex-end">
+            <span class="scorecard-team-code" style="color:#a855f7;">FL: ${f1.fastestLap.driver}</span>
+            <span class="scorecard-team-name">${f1.fastestLap.lapTime}</span>
+          </div>
+        </div>
+
+        <div class="scorecard-subbox" style="gap:2px;">
+          <span class="subbox-title">Driver Standings & Gaps</span>
+          ${driversHtml}
+        </div>
+      `;
+        }
+    }
     formatTime(ms) {
         const totalSec = Math.floor(ms / 1000);
         const m = Math.floor(totalSec / 60);
         const s = totalSec % 60;
         return `${m}:${String(s).padStart(2, '0')}`;
+    }
+    // ==========================================================================
+    // Universal Spotlight / Raycast Launcher Implementation (R2)
+    // ==========================================================================
+    setupSpotlightLauncherDOM() {
+        if (this.isLauncherSetup)
+            return;
+        this.isLauncherSetup = true;
+        const overlay = document.getElementById('spotlight-launcher-overlay');
+        const input = document.getElementById('spotlight-input');
+        const clearBtn = document.getElementById('spotlight-btn-clear');
+        const heroCopyBtn = document.getElementById('spotlight-btn-hero-copy');
+        if (!overlay || !input)
+            return;
+        input.addEventListener('input', () => {
+            const q = input.value;
+            if (clearBtn) {
+                if (q.length > 0)
+                    clearBtn.classList.remove('hidden');
+                else
+                    clearBtn.classList.add('hidden');
+            }
+            this.queryLauncher(q);
+        });
+        clearBtn?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            input.value = '';
+            clearBtn.classList.add('hidden');
+            this.queryLauncher('');
+            input.focus();
+        });
+        heroCopyBtn?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.copyLauncherHeroResult();
+        });
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                if (input.value.length > 0) {
+                    input.value = '';
+                    clearBtn?.classList.add('hidden');
+                    this.queryLauncher('');
+                }
+                else {
+                    this.toggleLauncher(false);
+                }
+                return;
+            }
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (this.launcherItems.length > 0) {
+                    this.selectedLauncherIndex = Math.min(this.selectedLauncherIndex + 1, this.launcherItems.length - 1);
+                    this.updateLauncherSelection();
+                }
+                return;
+            }
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (this.launcherItems.length > 0) {
+                    this.selectedLauncherIndex = Math.max(0, this.selectedLauncherIndex - 1);
+                    this.updateLauncherSelection();
+                }
+                return;
+            }
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                if (this.launcherHeroResult) {
+                    this.copyLauncherHeroResult();
+                }
+                else if (this.launcherItems.length > 0 && this.selectedLauncherIndex < this.launcherItems.length) {
+                    const item = this.launcherItems[this.selectedLauncherIndex];
+                    this.executeLauncherItem(item);
+                }
+                return;
+            }
+        });
+        document.addEventListener('mousedown', (e) => {
+            if (!this.isLauncherActive)
+                return;
+            if (overlay && !overlay.contains(e.target)) {
+                this.toggleLauncher(false);
+            }
+        });
+    }
+    toggleLauncher(forceState) {
+        const nextState = typeof forceState === 'boolean' ? forceState : !this.isLauncherActive;
+        if (this.isLauncherActive === nextState)
+            return;
+        this.isLauncherActive = nextState;
+        const overlay = document.getElementById('spotlight-launcher-overlay');
+        const input = document.getElementById('spotlight-input');
+        const bar = document.getElementById('spotlight-bar');
+        const results = document.getElementById('spotlight-results');
+        if (this.isLauncherActive) {
+            if (this.isTucked) {
+                this.setTucked(false);
+            }
+            try {
+                if (window.roboIsland?.launcher?.setActive) {
+                    window.roboIsland.launcher.setActive(true);
+                }
+                window.roboIsland?.setInteractive(true);
+            }
+            catch { }
+            overlay?.classList.remove('hidden');
+            this.setupSpotlightLauncherDOM();
+            if (input) {
+                input.value = '';
+                input.focus();
+                this.queryLauncher('');
+            }
+            this.updateTargetDimensions();
+            this.requestRender();
+            try {
+                audio_synth_1.AudioSynth.getInstance().play('pop');
+            }
+            catch { }
+        }
+        else {
+            overlay?.classList.add('hidden');
+            bar?.classList.remove('has-results');
+            results?.classList.add('hidden');
+            this.launcherExpanded = false;
+            this.launcherHeroResult = null;
+            this.launcherItems = [];
+            try {
+                if (window.roboIsland?.launcher?.setActive) {
+                    window.roboIsland.launcher.setActive(false);
+                }
+                if (this.mode !== 'expanded') {
+                    window.roboIsland?.setInteractive(false);
+                }
+            }
+            catch { }
+            this.updateTargetDimensions();
+            this.requestRender();
+        }
+    }
+    async queryLauncher(query) {
+        const overlay = document.getElementById('spotlight-launcher-overlay');
+        const bar = document.getElementById('spotlight-bar');
+        const badge = document.getElementById('spotlight-badge');
+        const liveIcon = document.getElementById('spotlight-live-icon');
+        const results = document.getElementById('spotlight-results');
+        const heroCard = document.getElementById('spotlight-hero-card');
+        const heroType = document.getElementById('spotlight-hero-type');
+        const heroVal = document.getElementById('spotlight-hero-val');
+        const heroSub = document.getElementById('spotlight-hero-sub');
+        const list = document.getElementById('spotlight-list');
+        if (!overlay)
+            return;
+        try {
+            const res = await (window.roboIsland?.launcher?.query ? window.roboIsland.launcher.query(query) : (window.roboIsland?.queryLauncher ? window.roboIsland.queryLauncher(query) : null));
+            if (!res)
+                return;
+            if (badge && liveIcon) {
+                badge.className = 'spotlight-mode-badge';
+                if (res.type === 'calc') {
+                    badge.textContent = 'CALC';
+                    badge.classList.add('calc');
+                    badge.classList.remove('hidden');
+                    liveIcon.textContent = '🧮';
+                }
+                else if (res.type === 'convert') {
+                    badge.textContent = 'CONVERT';
+                    badge.classList.add('convert');
+                    badge.classList.remove('hidden');
+                    liveIcon.textContent = '🔄';
+                }
+                else if (res.type === 'ai') {
+                    badge.textContent = 'AI';
+                    badge.classList.add('ai');
+                    badge.classList.remove('hidden');
+                    liveIcon.textContent = '🤖';
+                }
+                else if (res.type === 'app' && query.trim()) {
+                    badge.textContent = 'APP';
+                    badge.classList.add('app');
+                    badge.classList.remove('hidden');
+                    liveIcon.textContent = '🚀';
+                }
+                else {
+                    badge.classList.add('hidden');
+                    liveIcon.textContent = '🔍';
+                }
+            }
+            if (res.type === 'calc' && res.result) {
+                this.launcherHeroResult = res.result.formatted || String(res.result.result);
+                if (heroCard && heroType && heroVal && heroSub) {
+                    heroType.textContent = 'CALCULATION';
+                    heroType.style.color = '#00d2ff';
+                    heroVal.textContent = res.result.formatted;
+                    heroSub.textContent = `${res.result.expression} = ${res.result.formatted} (Press Enter to copy)`;
+                    heroCard.classList.remove('hidden');
+                }
+            }
+            else if (res.type === 'convert' && res.result) {
+                this.launcherHeroResult = res.result.formatted || String(res.result.toValue || res.result.toAmount);
+                if (heroCard && heroType && heroVal && heroSub) {
+                    heroType.textContent = res.result.category ? `CONVERSION (${res.result.category.toUpperCase()})` : 'CURRENCY';
+                    heroType.style.color = '#f5c518';
+                    heroVal.textContent = res.result.formatted ? res.result.formatted.split('=')[1]?.trim() || res.result.formatted : '';
+                    heroSub.textContent = res.result.formatted + ' (Press Enter to copy)';
+                    heroCard.classList.remove('hidden');
+                }
+            }
+            else {
+                this.launcherHeroResult = null;
+                heroCard?.classList.add('hidden');
+            }
+            this.launcherItems = Array.isArray(res.items) ? res.items : [];
+            this.selectedLauncherIndex = 0;
+            if (list) {
+                if (this.launcherItems.length === 0) {
+                    list.innerHTML = '<li style="color:rgba(255,255,255,0.4); text-align:center; padding:16px; font-size:12px;">No matching results found</li>';
+                }
+                else {
+                    list.innerHTML = this.launcherItems.map((item, idx) => `
+            <li class="spotlight-item ${idx === 0 ? 'selected' : ''}" data-idx="${idx}">
+              <span class="spotlight-item-icon">${item.icon || '🚀'}</span>
+              <div class="spotlight-item-text">
+                <span class="spotlight-item-title">${this.escapeHtml(item.title)}</span>
+                <span class="spotlight-item-sub">${this.escapeHtml(item.subtitle)}</span>
+              </div>
+              <span class="spotlight-item-badge">${this.escapeHtml(item.category)}</span>
+            </li>
+          `).join('');
+                    list.querySelectorAll('.spotlight-item').forEach((el) => {
+                        el.addEventListener('click', () => {
+                            const idx = parseInt(el.dataset.idx || '0', 10);
+                            const item = this.launcherItems[idx];
+                            if (item)
+                                this.executeLauncherItem(item);
+                        });
+                    });
+                }
+            }
+            const hasContent = !!this.launcherHeroResult || this.launcherItems.length > 0;
+            if (hasContent) {
+                bar?.classList.add('has-results');
+                results?.classList.remove('hidden');
+                this.launcherExpanded = true;
+            }
+            else {
+                bar?.classList.remove('has-results');
+                results?.classList.add('hidden');
+                this.launcherExpanded = false;
+            }
+            this.updateTargetDimensions();
+            this.requestRender();
+        }
+        catch (err) {
+            console.warn('[CanvasEngine] Launcher query failed:', err);
+        }
+    }
+    updateLauncherSelection() {
+        const list = document.getElementById('spotlight-list');
+        if (!list)
+            return;
+        const items = list.querySelectorAll('.spotlight-item');
+        items.forEach((item, idx) => {
+            if (idx === this.selectedLauncherIndex) {
+                item.classList.add('selected');
+                item.scrollIntoView({ block: 'nearest' });
+            }
+            else {
+                item.classList.remove('selected');
+            }
+        });
+    }
+    copyLauncherHeroResult() {
+        if (!this.launcherHeroResult)
+            return;
+        try {
+            navigator.clipboard.writeText(String(this.launcherHeroResult));
+            try {
+                audio_synth_1.AudioSynth.getInstance().play('pop');
+            }
+            catch { }
+            const copyBtn = document.getElementById('spotlight-btn-hero-copy');
+            if (copyBtn) {
+                copyBtn.textContent = 'Copied!';
+                setTimeout(() => {
+                    this.toggleLauncher(false);
+                    if (copyBtn)
+                        copyBtn.textContent = 'Copy (Enter)';
+                }, 300);
+            }
+            else {
+                this.toggleLauncher(false);
+            }
+        }
+        catch {
+            this.toggleLauncher(false);
+        }
+    }
+    executeLauncherItem(item) {
+        if (!item)
+            return;
+        try {
+            audio_synth_1.AudioSynth.getInstance().play('pop');
+        }
+        catch { }
+        if (item.category === 'ai') {
+            this.toggleLauncher(false);
+            this.showDomTab('chat');
+            const chatInput = document.getElementById('chat-input');
+            if (chatInput) {
+                chatInput.value = item.actionPayload || item.title;
+                chatInput.focus();
+            }
+            return;
+        }
+        const launchFn = window.roboIsland?.launcher?.launch || window.roboIsland?.launchLauncherItem;
+        if (launchFn) {
+            launchFn(item.actionPayload, item.category === 'file' ? 'file' : 'app');
+        }
+        this.toggleLauncher(false);
+    }
+    // ==========================================================================
+    // Ambient Screen Glance & Error Fixer Implementation (R3)
+    // ==========================================================================
+    setupScreenGlanceDOM() {
+        if (this.isGlanceSetup)
+            return;
+        this.isGlanceSetup = true;
+        // Pill click & actions
+        const pill = document.getElementById('glance-error-pill');
+        const btnQuickFix = document.getElementById('glance-pill-btn-quickfix');
+        const btnDismiss = document.getElementById('glance-pill-btn-dismiss');
+        pill?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (this.activeGlanceError) {
+                this.openGlanceErrorModal(this.activeGlanceError);
+            }
+        });
+        btnQuickFix?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (this.activeGlanceError) {
+                this.applyGlanceFix(this.activeGlanceError.id);
+            }
+        });
+        btnDismiss?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.hideGlanceErrorPill();
+        });
+        // Error Modal
+        const errorModal = document.getElementById('glance-error-modal');
+        const btnModalClose = document.getElementById('glance-modal-close');
+        const btnModalCopy = document.getElementById('glance-modal-btn-copy');
+        const btnModalRun = document.getElementById('glance-modal-btn-run');
+        btnModalClose?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.closeGlanceErrorModal();
+        });
+        btnModalCopy?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (this.activeGlanceError) {
+                const cmd = this.activeGlanceError.command || this.activeGlanceError.suggestedFix;
+                try {
+                    navigator.clipboard.writeText(cmd);
+                }
+                catch { }
+                this.showGlanceToast('Copied to clipboard');
+                try {
+                    audio_synth_1.AudioSynth.getInstance().play('pop');
+                }
+                catch { }
+            }
+        });
+        btnModalRun?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (this.activeGlanceError) {
+                this.applyGlanceFix(this.activeGlanceError.id);
+            }
+        });
+        errorModal?.addEventListener('click', (e) => {
+            if (e.target === errorModal) {
+                this.closeGlanceErrorModal();
+            }
+        });
+        // Summarizer Trigger & Modal
+        const btnSummarize = document.getElementById('btn-glance-summarize');
+        const summaryModal = document.getElementById('glance-summary-modal');
+        const btnSummaryClose = document.getElementById('glance-summary-close');
+        const btnSummaryCopy = document.getElementById('glance-summary-btn-copy');
+        const btnSummaryAction = document.getElementById('glance-summary-btn-action');
+        btnSummarize?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.triggerScreenSummarizer();
+        });
+        btnSummaryClose?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.closeGlanceSummaryModal();
+        });
+        btnSummaryCopy?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (this.activeGlanceSummary) {
+                const fullText = `${this.activeGlanceSummary.title}\n\nKey Takeaways:\n${(this.activeGlanceSummary.takeaways || []).map((t) => `• ${t}`).join('\n')}`;
+                try {
+                    navigator.clipboard.writeText(fullText);
+                }
+                catch { }
+                if (btnSummaryCopy) {
+                    btnSummaryCopy.textContent = 'Copied!';
+                    setTimeout(() => { if (btnSummaryCopy)
+                        btnSummaryCopy.textContent = 'Copy Summary'; }, 1500);
+                }
+                try {
+                    audio_synth_1.AudioSynth.getInstance().play('pop');
+                }
+                catch { }
+            }
+        });
+        btnSummaryAction?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.closeGlanceSummaryModal();
+            this.showDomTab('notes');
+            try {
+                audio_synth_1.AudioSynth.getInstance().play('done');
+            }
+            catch { }
+        });
+        summaryModal?.addEventListener('click', (e) => {
+            if (e.target === summaryModal) {
+                this.closeGlanceSummaryModal();
+            }
+        });
+        // Global Alt+S shortcut inside island window to summarize
+        window.addEventListener('keydown', (e) => {
+            if (e.altKey && (e.key === 's' || e.key === 'S')) {
+                e.preventDefault();
+                this.triggerScreenSummarizer();
+            }
+        });
+    }
+    showGlanceErrorPill(error) {
+        this.activeGlanceError = error;
+        const pill = document.getElementById('glance-error-pill');
+        const badge = document.getElementById('glance-pill-badge');
+        const fixText = document.getElementById('glance-pill-fix-text');
+        if (pill && error) {
+            if (badge)
+                badge.textContent = (error.ruleId || error.title || 'ERROR').slice(0, 16);
+            if (fixText)
+                fixText.textContent = error.suggestedFix || error.command || '1-Tap Fix Available';
+            pill.classList.remove('hidden');
+            try {
+                audio_synth_1.AudioSynth.getInstance().play('pop');
+            }
+            catch { }
+        }
+    }
+    hideGlanceErrorPill() {
+        const pill = document.getElementById('glance-error-pill');
+        if (pill)
+            pill.classList.add('hidden');
+    }
+    openGlanceErrorModal(error) {
+        const err = error || this.activeGlanceError;
+        if (!err)
+            return;
+        this.activeGlanceError = err;
+        const modal = document.getElementById('glance-error-modal');
+        const cat = document.getElementById('glance-modal-category');
+        const title = document.getElementById('glance-modal-title');
+        const cause = document.getElementById('glance-modal-cause');
+        const cmd = document.getElementById('glance-modal-command');
+        const actionType = document.getElementById('glance-code-action-type');
+        const expl = document.getElementById('glance-modal-explanation');
+        if (cat)
+            cat.textContent = (err.category || 'ERROR').toUpperCase();
+        if (title)
+            title.textContent = err.title || 'Error Detected';
+        if (cause)
+            cause.textContent = err.rootCause || 'Root cause analyzed';
+        if (cmd)
+            cmd.textContent = err.command || err.suggestedFix || '';
+        if (actionType)
+            actionType.textContent = (err.actionType || 'COMMAND').toUpperCase();
+        if (expl)
+            expl.textContent = err.explanation || '';
+        modal?.classList.remove('hidden');
+        try {
+            audio_synth_1.AudioSynth.getInstance().play('pop');
+        }
+        catch { }
+    }
+    closeGlanceErrorModal() {
+        const modal = document.getElementById('glance-error-modal');
+        modal?.classList.add('hidden');
+        const toast = document.getElementById('glance-modal-toast');
+        if (toast)
+            toast.classList.add('hidden');
+    }
+    async applyGlanceFix(fixId) {
+        const fn = window.roboIsland?.screenGlance?.applyFix || window.roboIsland?.applyScreenFix;
+        try {
+            const res = fn ? await fn(fixId) : { success: true, message: 'Executed fix' };
+            this.showGlanceToast(res?.message || 'Fix executed');
+            try {
+                audio_synth_1.AudioSynth.getInstance().play('done');
+            }
+            catch { }
+            this.mascot.setMood('happy', 3500);
+            setTimeout(() => {
+                this.closeGlanceErrorModal();
+                this.hideGlanceErrorPill();
+            }, 1200);
+        }
+        catch (err) {
+            this.showGlanceToast(`Fix error: ${err.message || 'failed'}`);
+        }
+    }
+    showGlanceToast(msg) {
+        const toast = document.getElementById('glance-modal-toast');
+        if (toast) {
+            toast.textContent = `✓ ${msg}`;
+            toast.classList.remove('hidden');
+            setTimeout(() => { if (toast)
+                toast.classList.add('hidden'); }, 3000);
+        }
+    }
+    openGlanceSummaryModal(summary) {
+        if (!summary)
+            return;
+        this.activeGlanceSummary = summary;
+        const modal = document.getElementById('glance-summary-modal');
+        const typeIcon = document.getElementById('glance-summary-type-icon');
+        const typeBadge = document.getElementById('glance-summary-type-badge');
+        const readtime = document.getElementById('glance-summary-readtime');
+        const title = document.getElementById('glance-summary-title');
+        const takeawaysList = document.getElementById('glance-summary-takeaways');
+        const sourceHint = document.getElementById('glance-summary-source');
+        if (typeBadge)
+            typeBadge.textContent = (summary.type || 'DOCUMENT').toUpperCase();
+        if (typeIcon) {
+            typeIcon.textContent = summary.type === 'video' ? '🎬' : (summary.type === 'pdf' ? '📄' : (summary.type === 'code' ? '💻' : '📰'));
+        }
+        if (readtime)
+            readtime.textContent = summary.readingTime || '2 min read';
+        if (title)
+            title.textContent = summary.title || 'Summary';
+        if (sourceHint) {
+            sourceHint.textContent = summary.source === 'ai' ? '✨ Apple Intelligence Vision Summary' : '⚡ Offline Apple Intelligence Heuristic';
+        }
+        if (takeawaysList) {
+            takeawaysList.innerHTML = '';
+            const items = Array.isArray(summary.takeaways) ? summary.takeaways : [summary.rawSummary || 'Summary ready'];
+            items.forEach((item) => {
+                const li = document.createElement('li');
+                li.textContent = item;
+                takeawaysList.appendChild(li);
+            });
+        }
+        modal?.classList.remove('hidden');
+        try {
+            audio_synth_1.AudioSynth.getInstance().play('pop');
+        }
+        catch { }
+    }
+    closeGlanceSummaryModal() {
+        const modal = document.getElementById('glance-summary-modal');
+        modal?.classList.add('hidden');
+    }
+    async triggerScreenSummarizer() {
+        const fn = window.roboIsland?.screenGlance?.summarizeActive || window.roboIsland?.summarizeActiveScreen;
+        if (!fn)
+            return;
+        try {
+            this.mascot.setMood('focused');
+            const res = await fn();
+            if (res) {
+                this.openGlanceSummaryModal(res);
+            }
+        }
+        catch (err) {
+            console.warn('[CanvasEngine] Summarizer failed:', err);
+        }
     }
 }
 exports.CanvasEngine = CanvasEngine;

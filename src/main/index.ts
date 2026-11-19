@@ -18,6 +18,12 @@ import { systemMetricsEngine } from './system-metrics';
 import { gameModeManager } from './game-mode';
 import { LicenseManager } from './license-manager';
 import { DownloadMonitor } from './download-monitor';
+import { sportsService } from './sports-service';
+import { launcherEngine } from './launcher-engine';
+import { screenGlanceEngine } from './screen-glance-engine';
+import { whatsappSmartService } from './whatsapp-smart-service';
+import { bluetoothMonitorService } from './bluetooth-monitor';
+import { voiceCompanionService } from './voice-companion-service';
 
 // Enforce single instance lock
 const gotTheLock = app.requestSingleInstanceLock();
@@ -90,6 +96,14 @@ app.whenReady().then(() => {
   islandWindow = new IslandWindow();
   gameModeManager.setIslandWindow(islandWindow);
   weatherService.startPolling();
+  sportsService.setBroadcastCallback((data) => {
+    islandWindow?.getWindow()?.webContents.send('island:sports-update', data);
+  });
+  sportsService.startPolling(4000);
+
+  screenGlanceEngine.onErrorsChanged((errors) => {
+    islandWindow?.getWindow()?.webContents.send('island:glance-error', errors);
+  });
 
   // Initialize Engines
   mediaEngine = new MediaEngine();
@@ -101,6 +115,24 @@ app.whenReady().then(() => {
   diagnosticsManager = new SystemDiagnosticsManager(aiProviderManager);
   actionAgent = new AutonomousActionAgent(aiProviderManager, diagnosticsManager);
   registerAIProviderIPC(aiProviderManager, actionAgent);
+  whatsappSmartService.setAIProviderManager(aiProviderManager);
+  whatsappSmartService.setBroadcastCallback((channel, data) => {
+    islandWindow?.getWindow()?.webContents.send(channel, data);
+  });
+  bluetoothMonitorService.setBroadcastCallback((channel, data) => {
+    islandWindow?.getWindow()?.webContents.send(channel, data);
+  });
+  bluetoothMonitorService.startPolling(8000);
+
+  voiceCompanionService.setDependencies({
+    sportsService,
+    launcherEngine,
+    screenGlanceEngine,
+    bluetoothMonitorService
+  });
+  voiceCompanionService.setBroadcastCallback((channel, data) => {
+    islandWindow?.getWindow()?.webContents.send(channel, data);
+  });
 
   // Create System Tray
   trayManager = new TrayManager(islandWindow, () => {
@@ -375,12 +407,133 @@ function setupAppIPC(): void {
     return true;
   });
 
+  // WhatsApp Smart Replies & Voice Note Reader IPC (R4)
+  ipcMain.handle('whatsapp:get-smart-replies', async (_event, payload: { message: string; sender?: string }) => {
+    return whatsappSmartService.getSmartReplies(payload?.message || '', payload?.sender);
+  });
+
+  ipcMain.handle('whatsapp:transcribe-voice-note', async (_event, payload: { voiceNoteId?: string; durationSeconds?: number; context?: string }) => {
+    return whatsappSmartService.transcribeVoiceNote(payload?.voiceNoteId, payload?.durationSeconds, payload?.context);
+  });
+
+  ipcMain.handle('whatsapp:simulate-incoming', async (_event, payload: { sender: string; body: string; isVoiceNote?: boolean; durationSeconds?: number }) => {
+    return whatsappSmartService.simulateIncomingMessage(payload?.sender, payload?.body, payload?.isVoiceNote, payload?.durationSeconds);
+  });
+
   ipcMain.handle('system:open-external', (_event, url: string) => {
     if (typeof url === 'string' && (url.startsWith('https://') || url.startsWith('http://') || url.startsWith('ms-settings:'))) {
       shell.openExternal(url).catch(() => {});
       return true;
     }
     return false;
+  });
+
+  ipcMain.handle('sports:get-state', () => {
+    return sportsService.getState();
+  });
+
+  ipcMain.handle('sports:toggle-match', (_event, sport?: any) => {
+    return sportsService.toggleSport(sport);
+  });
+
+  ipcMain.handle('sports:toggle-sport', (_event, sport?: any) => {
+    return sportsService.toggleSport(sport);
+  });
+
+  ipcMain.handle('sports:switch-sport', (_event, sport?: any) => {
+    return sportsService.toggleSport(sport);
+  });
+
+  ipcMain.handle('sports:set-mode', (_event, mode: any) => {
+    return sportsService.setMode(mode);
+  });
+
+  ipcMain.handle('sports:step-simulation', () => {
+    return sportsService.stepSimulation();
+  });
+
+  // Spotlight / Raycast Launcher IPC (R2)
+  ipcMain.handle('launcher:query', async (_event, payload: { query: string }) => {
+    return launcherEngine.query(payload?.query || '');
+  });
+
+  ipcMain.handle('launcher:launch', async (_event, payload: { target: string; type?: 'app' | 'file' | 'url' }) => {
+    return launcherEngine.launch(payload?.target, payload?.type || 'app');
+  });
+
+  ipcMain.on('launcher:hide', () => {
+    islandWindow?.getWindow()?.webContents.send('island:toggle-launcher', false);
+  });
+
+  ipcMain.on('island:toggle-launcher', () => {
+    islandWindow?.getWindow()?.webContents.send('island:toggle-launcher');
+  });
+
+  // Ambient Screen Glance & Error Fixer IPC (R3)
+  ipcMain.handle('screen-glance:check-errors', async (_event, customText?: string) => {
+    return screenGlanceEngine.checkErrors(customText);
+  });
+
+  ipcMain.handle('screen-glance:apply-fix', async (_event, payload: { fixId: string }) => {
+    return screenGlanceEngine.applyFix(payload?.fixId);
+  });
+
+  ipcMain.handle('screen-glance:summarize-active', async (event, context?: { text?: string; title?: string }) => {
+    const summary = await screenGlanceEngine.summarizeActive({
+      ...context,
+      senderWebContents: event.sender
+    });
+    islandWindow?.getWindow()?.webContents.send('island:glance-summary', summary);
+    return summary;
+  });
+
+  ipcMain.handle('screen-glance:get-state', async () => {
+    return screenGlanceEngine.getState();
+  });
+
+  ipcMain.handle('screen-glance:clear-errors', async () => {
+    screenGlanceEngine.clearErrors();
+    return true;
+  });
+
+  // Bluetooth Battery & Device HUD IPC (R5)
+  ipcMain.handle('bluetooth:get-devices', async () => {
+    return bluetoothMonitorService.getConnectedDevices();
+  });
+
+  ipcMain.handle('bluetooth:simulate-event', async (_event, payload: any) => {
+    return bluetoothMonitorService.simulateEvent(payload);
+  });
+
+  // Voice Companion Mode IPC (R6)
+  ipcMain.handle('voice:start-listening', async () => {
+    return voiceCompanionService.startListening();
+  });
+
+  ipcMain.handle('voice:stop-listening', async () => {
+    return voiceCompanionService.stopListening();
+  });
+
+  ipcMain.handle('voice:toggle', async () => {
+    return voiceCompanionService.toggleListening();
+  });
+
+  ipcMain.handle('voice:process-command', async (_event, payload: { text?: string } | string) => {
+    const text = typeof payload === 'string' ? payload : (payload?.text || '');
+    return voiceCompanionService.handleVoiceInput(text);
+  });
+
+  ipcMain.handle('voice:speak', async (_event, payload: { text?: string } | string) => {
+    const text = typeof payload === 'string' ? payload : (payload?.text || '');
+    return voiceCompanionService.speak(text);
+  });
+
+  ipcMain.handle('voice:stop-speaking', async () => {
+    return voiceCompanionService.stopSpeaking();
+  });
+
+  ipcMain.handle('voice:get-state', async () => {
+    return voiceCompanionService.getState();
   });
 
   ipcMain.on('app:quit', () => {
@@ -390,6 +543,9 @@ function setupAppIPC(): void {
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
+  sportsService.dispose();
+  bluetoothMonitorService.dispose();
+  voiceCompanionService.dispose();
   mediaEngine?.dispose();
   aiMonitorHub?.dispose();
   productivityEngine?.dispose();
