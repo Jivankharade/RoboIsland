@@ -44,6 +44,7 @@ class IslandWindow {
     isDragging = false;
     isTucked = false;
     isLauncherActive = false;
+    isModalActive = false;
     currentMode = 'compact';
     capsuleBounds = {
         width: 98,
@@ -142,7 +143,7 @@ class IslandWindow {
             const insideWindow = cursor.x >= bounds.x && cursor.x < bounds.x + bounds.width &&
                 cursor.y >= bounds.y && cursor.y < bounds.y + bounds.height;
             // Low-CPU optimization: When outside the window and already reported outside with stationary cursor, avoid redundant IPC spam and back off poll frequency
-            if (!insideWindow && !this.wasInsideWindow && Math.abs(cursor.x - this.lastSentScreenX) < 3 && Math.abs(cursor.y - this.lastSentScreenY) < 3 && this.currentMode !== 'expanded' && !this.isInteractive && !this.isLauncherActive) {
+            if (!insideWindow && !this.wasInsideWindow && Math.abs(cursor.x - this.lastSentScreenX) < 3 && Math.abs(cursor.y - this.lastSentScreenY) < 3 && this.currentMode !== 'expanded' && !this.isInteractive && !this.isLauncherActive && !this.isModalActive) {
                 this.cursorTimer = setTimeout(tick, 75);
                 return;
             }
@@ -159,8 +160,8 @@ class IslandWindow {
             const relX = (cursor.x - bounds.x) / scale;
             const relY = (cursor.y - bounds.y) / scale;
             const cx = (bounds.width / scale) / 2;
-            // In expanded or launcher mode, maintain interactive = true
-            if (this.currentMode === 'expanded' || this.isLauncherActive || this.isDragging) {
+            // In expanded, launcher, dragging, or modal mode, maintain interactive = true
+            if (this.currentMode === 'expanded' || this.isLauncherActive || this.isDragging || this.isModalActive) {
                 this.setInteractive(true);
             }
             else if (this.isTucked) {
@@ -203,8 +204,8 @@ class IslandWindow {
     setInteractive(interactive) {
         if (!this.window || this.window.isDestroyed())
             return;
-        // When the island is in expanded mode or launcher is active, maintain setInteractive(true)
-        const effectiveInteractive = (this.currentMode === 'expanded' || this.isLauncherActive) ? true : interactive;
+        // When the island is in expanded mode, launcher is active, or modal is active, maintain setInteractive(true)
+        const effectiveInteractive = (this.currentMode === 'expanded' || this.isLauncherActive || this.isModalActive) ? true : interactive;
         if (this.isInteractive === effectiveInteractive)
             return;
         this.isInteractive = effectiveInteractive;
@@ -217,8 +218,8 @@ class IslandWindow {
             }
             catch { }
         }
-        // Only focus the window in expanded or launcher mode. Never steal OS focus simply on hover in rest/compact mode.
-        if (effectiveInteractive && (this.currentMode === 'expanded' || this.isLauncherActive)) {
+        // Only focus the window in expanded, launcher, or modal mode. Never steal OS focus simply on hover in rest/compact mode.
+        if (effectiveInteractive && (this.currentMode === 'expanded' || this.isLauncherActive || this.isModalActive)) {
             try {
                 this.window.focus();
             }
@@ -400,7 +401,22 @@ class IslandWindow {
                 }
                 catch { }
             }
-            else if (this.currentMode !== 'expanded') {
+            else if (this.currentMode !== 'expanded' && !this.isModalActive) {
+                this.setInteractive(false);
+            }
+        });
+        electron_1.ipcMain.on('island:set-modal-active', (_event, active) => {
+            this.isModalActive = Boolean(active);
+            if (this.isModalActive) {
+                this.setInteractive(true);
+                try {
+                    if (this.window && !this.window.isDestroyed()) {
+                        this.window.focus();
+                    }
+                }
+                catch { }
+            }
+            else if (this.currentMode !== 'expanded' && !this.isLauncherActive) {
                 this.setInteractive(false);
             }
         });
@@ -476,7 +492,7 @@ class IslandWindow {
         });
         electron_1.ipcMain.on('island:mode-changed', (_event, mode) => {
             this.currentMode = mode;
-            if (mode === 'expanded') {
+            if (mode === 'expanded' || this.isLauncherActive || this.isModalActive) {
                 this.setInteractive(true);
             }
             else {

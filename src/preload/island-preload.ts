@@ -5,6 +5,9 @@ const api = {
   setInteractive: (interactive: boolean) => {
     ipcRenderer.send('island:set-interactive', interactive);
   },
+  setModalActive: (active: boolean) => {
+    ipcRenderer.send('island:set-modal-active', Boolean(active));
+  },
   updateCapsuleBounds: (bounds: { width: number; height: number; topY: number; isSplit?: boolean; splitSpan?: number }) => {
     ipcRenderer.send('island:capsule-bounds', bounds);
   },
@@ -333,6 +336,7 @@ const api = {
     summarizeActive: (context?: { text?: string; title?: string }) => ipcRenderer.invoke('screen-glance:summarize-active', context),
     getState: () => ipcRenderer.invoke('screen-glance:get-state'),
     clearErrors: () => ipcRenderer.invoke('screen-glance:clear-errors'),
+    setModalActive: (active: boolean) => ipcRenderer.send('island:set-modal-active', Boolean(active)),
     onGlanceError: (callback: (errors: any[]) => void) => {
       const handler = (_event: any, errors: any) => callback(errors);
       ipcRenderer.on('island:glance-error', handler);

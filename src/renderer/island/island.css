@@ -5549,6 +5549,36 @@ html, body {
   gap: 6px;
 }
 
+.sport-island-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 3px 9px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sport-island-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+}
+
+.sport-island-toggle-btn.active {
+  background: rgba(34, 224, 90, 0.18);
+  border-color: rgba(34, 224, 90, 0.45);
+  color: #22e05a;
+}
+
+.sport-island-toggle-btn.active:hover {
+  background: rgba(34, 224, 90, 0.28);
+}
+
 .sport-sim-step-btn {
   display: inline-flex;
   align-items: center;
@@ -6174,7 +6204,7 @@ html, body {
   justify-content: center;
   background: rgba(0, 0, 0, 0.65);
   backdrop-filter: blur(14px);
-  z-index: 1001;
+  z-index: 10005;
   pointer-events: auto;
 }
 
@@ -6370,7 +6400,7 @@ html, body {
   justify-content: center;
   background: rgba(0, 0, 0, 0.65);
   backdrop-filter: blur(14px);
-  z-index: 1001;
+  z-index: 10005;
   pointer-events: auto;
 }
 

@@ -6,6 +6,9 @@ const api = {
     setInteractive: (interactive) => {
         electron_1.ipcRenderer.send('island:set-interactive', interactive);
     },
+    setModalActive: (active) => {
+        electron_1.ipcRenderer.send('island:set-modal-active', Boolean(active));
+    },
     updateCapsuleBounds: (bounds) => {
         electron_1.ipcRenderer.send('island:capsule-bounds', bounds);
     },
@@ -313,6 +316,7 @@ const api = {
         summarizeActive: (context) => electron_1.ipcRenderer.invoke('screen-glance:summarize-active', context),
         getState: () => electron_1.ipcRenderer.invoke('screen-glance:get-state'),
         clearErrors: () => electron_1.ipcRenderer.invoke('screen-glance:clear-errors'),
+        setModalActive: (active) => electron_1.ipcRenderer.send('island:set-modal-active', Boolean(active)),
         onGlanceError: (callback) => {
             const handler = (_event, errors) => callback(errors);
             electron_1.ipcRenderer.on('island:glance-error', handler);

@@ -350,6 +350,7 @@ class CanvasEngine {
     // Sports Live Activity State (Cricket, Football, F1)
     sportsState = null;
     activeSportsActivity = null;
+    isSportsPillEnabled = false;
     sportsFlashUntil = 0;
     sportsFlashText = '';
     sportsFlashColor = '#22e05a';
@@ -691,13 +692,13 @@ class CanvasEngine {
         }
     }
     triggerNotification(n) {
-        // CRITICAL GUARD: If user is actively replying in WhatsApp, ignore unrelated background toasts (battery, snipping tool)
-        if (this.isWhatsAppReplying && n.kind !== 'whatsapp') {
-            return;
-        }
         const resolved = this.resolveNotificationKind(n.kind, n.status, n.app, n.title);
         if (resolved && resolved !== 'info') {
             n.kind = resolved;
+        }
+        // CRITICAL GUARD: If user is actively replying in WhatsApp, ignore unrelated background toasts (battery, snipping tool)
+        if (this.isWhatsAppReplying && n.kind !== 'whatsapp') {
+            return;
         }
         // Special WhatsApp Call Handling: Auto-attach call actions & extend duration
         if (n.kind === 'whatsapp') {
@@ -796,6 +797,9 @@ class CanvasEngine {
     }
     openWhatsAppReply() {
         if (!this.activeNotification)
+            return;
+        const resolvedKind = this.resolveNotificationKind(this.activeNotification?.kind, this.activeNotification?.status, this.activeNotification?.app, this.activeNotification?.title);
+        if (resolvedKind !== 'whatsapp')
             return;
         const wa = this.parseWhatsAppDetails(this.activeNotification?.title, this.activeNotification?.body);
         const target = wa.isGroup ? (wa.groupName || wa.senderName) : wa.senderName;
@@ -2679,6 +2683,12 @@ class CanvasEngine {
         this.mascot = new robo_mascot_1.RoboMascot();
         this.initCanvasSize();
         this.initDomOverlay();
+        try {
+            this.isSportsPillEnabled = localStorage.getItem('roboisland_sports_pill_enabled') === 'true';
+        }
+        catch {
+            this.isSportsPillEnabled = false;
+        }
         this.setupEvents();
         this.loadInitialData();
         this.reportCapsuleBounds();
@@ -4104,7 +4114,7 @@ class CanvasEngine {
             this.targetHeight = 36;
             this.targetRadius = 18;
         }
-        else if (this.sportsState?.enabled && this.activeSportsActivity) {
+        else if (this.sportsState?.enabled && this.activeSportsActivity && this.isSportsPillEnabled) {
             const baseW = this.calculateSportsPillWidth();
             this.targetWidth = this.isHovered ? baseW + 8 : baseW;
             this.targetHeight = 36;
@@ -5087,7 +5097,7 @@ class CanvasEngine {
                     this.compactClickTimer = null;
                     if (this.mode !== 'compact')
                         return;
-                    if (this.sportsState?.enabled && this.activeSportsActivity) {
+                    if (this.sportsState?.enabled && this.activeSportsActivity && this.isSportsPillEnabled) {
                         this.activeTab = 'sports';
                         this.showDomTab('sports');
                     }
@@ -6561,7 +6571,7 @@ class CanvasEngine {
             this.ctx.fillText(timeStr, right, cy + 0.5);
             this.ctx.restore();
         }
-        else if (this.sportsState?.enabled && this.activeSportsActivity) {
+        else if (this.sportsState?.enabled && this.activeSportsActivity && this.isSportsPillEnabled) {
             this.drawCompactSportsScoreboard(pillLeft, midY, topY);
         }
         else if (this.activeDownloadsList.length === 1 && !(this.mediaState.active && this.mediaState.title)) {
@@ -9141,6 +9151,25 @@ class CanvasEngine {
                 this.requestRender();
             });
         }
+        // Sports Island Pill Visibility Opt-In Toggle
+        const btnIslandToggle = document.getElementById('sport-island-toggle');
+        if (btnIslandToggle) {
+            btnIslandToggle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.isSportsPillEnabled = !this.isSportsPillEnabled;
+                try {
+                    localStorage.setItem('roboisland_sports_pill_enabled', String(this.isSportsPillEnabled));
+                }
+                catch { }
+                this.renderSportsScorecardDOM();
+                this.updateTargetDimensions();
+                this.requestRender();
+                try {
+                    audio_synth_1.AudioSynth.getInstance().play(this.isSportsPillEnabled ? 'pop' : 'done');
+                }
+                catch { }
+            });
+        }
         // TwoCode Volume Scrubber with slide & drag support
         const navVolContainer = document.getElementById('nav-vol-container');
         const navVolTrack = document.getElementById('nav-vol-track');
@@ -11328,6 +11357,19 @@ class CanvasEngine {
                 modeBtn.classList.add('simulated');
             }
         }
+        // Update Island Pill Opt-In Toggle button
+        const islandToggleBtn = document.getElementById('sport-island-toggle');
+        const islandToggleText = document.getElementById('sport-island-toggle-text');
+        if (islandToggleBtn && islandToggleText) {
+            if (this.isSportsPillEnabled) {
+                islandToggleBtn.classList.add('active');
+                islandToggleText.textContent = 'Showing on Island: ON';
+            }
+            else {
+                islandToggleBtn.classList.remove('active');
+                islandToggleText.textContent = 'Show on Island: OFF';
+            }
+        }
         // Update Active tab buttons
         const tabBtns = document.querySelectorAll('.sport-tab-btn[data-sport]');
         tabBtns.forEach((btn) => {
@@ -11874,6 +11916,12 @@ class CanvasEngine {
             this.triggerScreenSummarizer();
         });
         btnSummaryClose?.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.closeGlanceSummaryModal();
+        });
+        btnSummaryClose?.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
             e.stopPropagation();
             this.closeGlanceSummaryModal();
         });
@@ -11907,12 +11955,31 @@ class CanvasEngine {
         });
         summaryModal?.addEventListener('click', (e) => {
             if (e.target === summaryModal) {
+                e.preventDefault();
+                e.stopPropagation();
                 this.closeGlanceSummaryModal();
             }
         });
-        // Global Alt+S shortcut inside island window to summarize
+        // Global Escape and Alt+S shortcuts inside island window
         window.addEventListener('keydown', (e) => {
-            if (e.altKey && (e.key === 's' || e.key === 'S')) {
+            if (e.key === 'Escape') {
+                const summaryModal = document.getElementById('glance-summary-modal');
+                const errorModal = document.getElementById('glance-error-modal');
+                let handled = false;
+                if (summaryModal && !summaryModal.classList.contains('hidden')) {
+                    this.closeGlanceSummaryModal();
+                    handled = true;
+                }
+                if (errorModal && !errorModal.classList.contains('hidden')) {
+                    this.closeGlanceErrorModal();
+                    handled = true;
+                }
+                if (handled) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+            }
+            else if (e.altKey && (e.key === 's' || e.key === 'S')) {
                 e.preventDefault();
                 this.triggerScreenSummarizer();
             }
@@ -11965,6 +12032,8 @@ class CanvasEngine {
         if (expl)
             expl.textContent = err.explanation || '';
         modal?.classList.remove('hidden');
+        window.roboIsland?.setModalActive?.(true);
+        window.roboIsland?.setInteractive?.(true);
         try {
             audio_synth_1.AudioSynth.getInstance().play('pop');
         }
@@ -11976,6 +12045,13 @@ class CanvasEngine {
         const toast = document.getElementById('glance-modal-toast');
         if (toast)
             toast.classList.add('hidden');
+        const isSummaryOpen = !document.getElementById('glance-summary-modal')?.classList.contains('hidden');
+        if (!isSummaryOpen) {
+            window.roboIsland?.setModalActive?.(false);
+            if (this.mode !== 'expanded') {
+                window.roboIsland?.setInteractive?.(false);
+            }
+        }
     }
     async applyGlanceFix(fixId) {
         const fn = window.roboIsland?.screenGlance?.applyFix || window.roboIsland?.applyScreenFix;
@@ -12038,6 +12114,8 @@ class CanvasEngine {
             });
         }
         modal?.classList.remove('hidden');
+        window.roboIsland?.setModalActive?.(true);
+        window.roboIsland?.setInteractive?.(true);
         try {
             audio_synth_1.AudioSynth.getInstance().play('pop');
         }
@@ -12046,6 +12124,14 @@ class CanvasEngine {
     closeGlanceSummaryModal() {
         const modal = document.getElementById('glance-summary-modal');
         modal?.classList.add('hidden');
+        this.activeGlanceSummary = null;
+        const isErrorOpen = !document.getElementById('glance-error-modal')?.classList.contains('hidden');
+        if (!isErrorOpen) {
+            window.roboIsland?.setModalActive?.(false);
+            if (this.mode !== 'expanded') {
+                window.roboIsland?.setInteractive?.(false);
+            }
+        }
     }
     async triggerScreenSummarizer() {
         const fn = window.roboIsland?.screenGlance?.summarizeActive || window.roboIsland?.summarizeActiveScreen;

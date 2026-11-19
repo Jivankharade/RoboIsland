@@ -1887,6 +1887,7 @@
     // Sports Live Activity State (Cricket, Football, F1)
     sportsState = null;
     activeSportsActivity = null;
+    isSportsPillEnabled = false;
     sportsFlashUntil = 0;
     sportsFlashText = "";
     sportsFlashColor = "#22e05a";
@@ -2207,12 +2208,12 @@
       }
     }
     triggerNotification(n) {
-      if (this.isWhatsAppReplying && n.kind !== "whatsapp") {
-        return;
-      }
       const resolved = this.resolveNotificationKind(n.kind, n.status, n.app, n.title);
       if (resolved && resolved !== "info") {
         n.kind = resolved;
+      }
+      if (this.isWhatsAppReplying && n.kind !== "whatsapp") {
+        return;
       }
       if (n.kind === "whatsapp") {
         const wa = this.parseWhatsAppDetails(n.title, n.body);
@@ -2301,6 +2302,8 @@
     }
     openWhatsAppReply() {
       if (!this.activeNotification) return;
+      const resolvedKind = this.resolveNotificationKind(this.activeNotification?.kind, this.activeNotification?.status, this.activeNotification?.app, this.activeNotification?.title);
+      if (resolvedKind !== "whatsapp") return;
       const wa = this.parseWhatsAppDetails(this.activeNotification?.title, this.activeNotification?.body);
       const target = wa.isGroup ? wa.groupName || wa.senderName : wa.senderName;
       const bar = document.getElementById("whatsapp-quick-reply-bar");
@@ -3899,6 +3902,11 @@
       this.mascot = new RoboMascot();
       this.initCanvasSize();
       this.initDomOverlay();
+      try {
+        this.isSportsPillEnabled = localStorage.getItem("roboisland_sports_pill_enabled") === "true";
+      } catch {
+        this.isSportsPillEnabled = false;
+      }
       this.setupEvents();
       this.loadInitialData();
       this.reportCapsuleBounds();
@@ -5188,7 +5196,7 @@
         }
         this.targetHeight = 36;
         this.targetRadius = 18;
-      } else if (this.sportsState?.enabled && this.activeSportsActivity) {
+      } else if (this.sportsState?.enabled && this.activeSportsActivity && this.isSportsPillEnabled) {
         const baseW = this.calculateSportsPillWidth();
         this.targetWidth = this.isHovered ? baseW + 8 : baseW;
         this.targetHeight = 36;
@@ -6076,7 +6084,7 @@
           this.compactClickTimer = setTimeout(() => {
             this.compactClickTimer = null;
             if (this.mode !== "compact") return;
-            if (this.sportsState?.enabled && this.activeSportsActivity) {
+            if (this.sportsState?.enabled && this.activeSportsActivity && this.isSportsPillEnabled) {
               this.activeTab = "sports";
               this.showDomTab("sports");
             } else if (this.focusState.active && !(this.mediaState.active && this.mediaState.title)) {
@@ -7306,7 +7314,7 @@
         this.ctx.textBaseline = "middle";
         this.ctx.fillText(timeStr, right, cy + 0.5);
         this.ctx.restore();
-      } else if (this.sportsState?.enabled && this.activeSportsActivity) {
+      } else if (this.sportsState?.enabled && this.activeSportsActivity && this.isSportsPillEnabled) {
         this.drawCompactSportsScoreboard(pillLeft, midY, topY);
       } else if (this.activeDownloadsList.length === 1 && !(this.mediaState.active && this.mediaState.title)) {
         this.drawCompactDownloadContent(pillLeft, midY, topY, this.activeDownloadsList[0]);
@@ -9658,6 +9666,24 @@
           this.requestRender();
         });
       }
+      const btnIslandToggle = document.getElementById("sport-island-toggle");
+      if (btnIslandToggle) {
+        btnIslandToggle.addEventListener("click", (e) => {
+          e.stopPropagation();
+          this.isSportsPillEnabled = !this.isSportsPillEnabled;
+          try {
+            localStorage.setItem("roboisland_sports_pill_enabled", String(this.isSportsPillEnabled));
+          } catch {
+          }
+          this.renderSportsScorecardDOM();
+          this.updateTargetDimensions();
+          this.requestRender();
+          try {
+            AudioSynth.getInstance().play(this.isSportsPillEnabled ? "pop" : "done");
+          } catch {
+          }
+        });
+      }
       const navVolContainer = document.getElementById("nav-vol-container");
       const navVolTrack = document.getElementById("nav-vol-track");
       if (navVolTrack && navVolContainer) {
@@ -11587,6 +11613,17 @@
           modeBtn.classList.add("simulated");
         }
       }
+      const islandToggleBtn = document.getElementById("sport-island-toggle");
+      const islandToggleText = document.getElementById("sport-island-toggle-text");
+      if (islandToggleBtn && islandToggleText) {
+        if (this.isSportsPillEnabled) {
+          islandToggleBtn.classList.add("active");
+          islandToggleText.textContent = "Showing on Island: ON";
+        } else {
+          islandToggleBtn.classList.remove("active");
+          islandToggleText.textContent = "Show on Island: OFF";
+        }
+      }
       const tabBtns = document.querySelectorAll(".sport-tab-btn[data-sport]");
       tabBtns.forEach((btn) => {
         const s = btn.dataset.sport;
@@ -12093,6 +12130,12 @@
         this.triggerScreenSummarizer();
       });
       btnSummaryClose?.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.closeGlanceSummaryModal();
+      });
+      btnSummaryClose?.addEventListener("pointerdown", (e) => {
+        e.preventDefault();
         e.stopPropagation();
         this.closeGlanceSummaryModal();
       });
@@ -12130,11 +12173,29 @@ ${(this.activeGlanceSummary.takeaways || []).map((t) => `\u2022 ${t}`).join("\n"
       });
       summaryModal?.addEventListener("click", (e) => {
         if (e.target === summaryModal) {
+          e.preventDefault();
+          e.stopPropagation();
           this.closeGlanceSummaryModal();
         }
       });
       window.addEventListener("keydown", (e) => {
-        if (e.altKey && (e.key === "s" || e.key === "S")) {
+        if (e.key === "Escape") {
+          const summaryModal2 = document.getElementById("glance-summary-modal");
+          const errorModal2 = document.getElementById("glance-error-modal");
+          let handled = false;
+          if (summaryModal2 && !summaryModal2.classList.contains("hidden")) {
+            this.closeGlanceSummaryModal();
+            handled = true;
+          }
+          if (errorModal2 && !errorModal2.classList.contains("hidden")) {
+            this.closeGlanceErrorModal();
+            handled = true;
+          }
+          if (handled) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        } else if (e.altKey && (e.key === "s" || e.key === "S")) {
           e.preventDefault();
           this.triggerScreenSummarizer();
         }
@@ -12177,6 +12238,8 @@ ${(this.activeGlanceSummary.takeaways || []).map((t) => `\u2022 ${t}`).join("\n"
       if (actionType) actionType.textContent = (err.actionType || "COMMAND").toUpperCase();
       if (expl) expl.textContent = err.explanation || "";
       modal?.classList.remove("hidden");
+      window.roboIsland?.setModalActive?.(true);
+      window.roboIsland?.setInteractive?.(true);
       try {
         AudioSynth.getInstance().play("pop");
       } catch {
@@ -12187,6 +12250,13 @@ ${(this.activeGlanceSummary.takeaways || []).map((t) => `\u2022 ${t}`).join("\n"
       modal?.classList.add("hidden");
       const toast = document.getElementById("glance-modal-toast");
       if (toast) toast.classList.add("hidden");
+      const isSummaryOpen = !document.getElementById("glance-summary-modal")?.classList.contains("hidden");
+      if (!isSummaryOpen) {
+        window.roboIsland?.setModalActive?.(false);
+        if (this.mode !== "expanded") {
+          window.roboIsland?.setInteractive?.(false);
+        }
+      }
     }
     async applyGlanceFix(fixId) {
       const fn = window.roboIsland?.screenGlance?.applyFix || window.roboIsland?.applyScreenFix;
@@ -12245,6 +12315,8 @@ ${(this.activeGlanceSummary.takeaways || []).map((t) => `\u2022 ${t}`).join("\n"
         });
       }
       modal?.classList.remove("hidden");
+      window.roboIsland?.setModalActive?.(true);
+      window.roboIsland?.setInteractive?.(true);
       try {
         AudioSynth.getInstance().play("pop");
       } catch {
@@ -12253,6 +12325,14 @@ ${(this.activeGlanceSummary.takeaways || []).map((t) => `\u2022 ${t}`).join("\n"
     closeGlanceSummaryModal() {
       const modal = document.getElementById("glance-summary-modal");
       modal?.classList.add("hidden");
+      this.activeGlanceSummary = null;
+      const isErrorOpen = !document.getElementById("glance-error-modal")?.classList.contains("hidden");
+      if (!isErrorOpen) {
+        window.roboIsland?.setModalActive?.(false);
+        if (this.mode !== "expanded") {
+          window.roboIsland?.setInteractive?.(false);
+        }
+      }
     }
     async triggerScreenSummarizer() {
       const fn = window.roboIsland?.screenGlance?.summarizeActive || window.roboIsland?.summarizeActiveScreen;

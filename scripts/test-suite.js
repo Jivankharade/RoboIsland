@@ -1935,6 +1935,37 @@ async function runTests() {
     islandCss.includes('.voice-companion-card') &&
     islandCss.includes('voiceHudPop'));
 
+  // --- 36. Testing Modal Interactivity Lock & Sports Scoreboard Opt-In Controls ---
+  console.log('\n--- 36. Testing Modal Interactivity Lock & Sports Scoreboard Opt-In Controls ---');
+  const islandWindowTsUpdated = fs.readFileSync(path.join(__dirname, '../src/main/island-window.ts'), 'utf-8');
+  assert('island-window.ts defines isModalActive flag and island:set-modal-active IPC listener',
+    islandWindowTsUpdated.includes('isModalActive') &&
+    islandWindowTsUpdated.includes("'island:set-modal-active'") &&
+    islandWindowTsUpdated.includes('effectiveInteractive'));
+
+  const islandPreloadTsUpdated = fs.readFileSync(path.join(__dirname, '../src/preload/island-preload.ts'), 'utf-8');
+  assert('island-preload.ts exposes setModalActive IPC bridge to renderer',
+    islandPreloadTsUpdated.includes('setModalActive:'));
+
+  const canvasEngineUpdated = fs.readFileSync(path.join(__dirname, '../src/renderer/island/canvas-engine.ts'), 'utf-8');
+  assert('canvas-engine.ts gates sports scoreboard pill with isSportsPillEnabled opt-in flag',
+    canvasEngineUpdated.includes('isSportsPillEnabled') &&
+    canvasEngineUpdated.includes('this.sportsState?.enabled && this.activeSportsActivity && this.isSportsPillEnabled'));
+
+  assert('canvas-engine.ts manages modal interactivity lifecycle on open/close',
+    canvasEngineUpdated.includes('setModalActive?.(true)') &&
+    canvasEngineUpdated.includes('setModalActive?.(false)'));
+
+  const indexHtmlUpdated = fs.readFileSync(path.join(__dirname, '../src/renderer/island/index.html'), 'utf-8');
+  assert('index.html provides #sport-island-toggle button in sports scorecard header',
+    indexHtmlUpdated.includes('id="sport-island-toggle"') &&
+    indexHtmlUpdated.includes('sport-island-toggle-btn'));
+
+  const islandCssUpdated = fs.readFileSync(path.join(__dirname, '../src/renderer/island/island.css'), 'utf-8');
+  assert('island.css styles .sport-island-toggle-btn and elevates summary modal z-index',
+    islandCssUpdated.includes('.sport-island-toggle-btn') &&
+    islandCssUpdated.includes('10005'));
+
   // Summary
   console.log('\n====================================================');
   console.log(`TEST SUMMARY: ${passed} PASSED, ${failed} FAILED`);
