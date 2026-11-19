@@ -12064,10 +12064,40 @@ export class CanvasEngine {
 
       const latestComment = sc.commentary && sc.commentary.length > 0 ? sc.commentary[0].text : '';
 
+      const homeFlag = sc.homeTeam.code === 'NZ' ? '🇳🇿' : (sc.homeTeam.code === 'IND' ? '🇮🇳' : (sc.homeTeam.code === 'AUS' ? '🇦🇺' : (sc.homeTeam.code === 'ENG' ? '🏴󠁧󠁢󠁥󠁮󠁧󠁿' : (sc.homeTeam.code === 'PAK' ? '🇵🇰' : (sc.homeTeam.code === 'SA' ? '🇿🇦' : '🏏')))));
+      const awayFlag = sc.awayTeam.code === 'IND' ? '🇮🇳' : (sc.awayTeam.code === 'NZ' ? '🇳🇿' : (sc.awayTeam.code === 'AUS' ? '🇦🇺' : (sc.awayTeam.code === 'ENG' ? '🏴󠁧󠁢󠁥󠁮󠁧󠁿' : (sc.awayTeam.code === 'PAK' ? '🇵🇰' : (sc.awayTeam.code === 'SA' ? '🇿🇦' : '🏏')))));
+
+      const matchDay = act.matchDay || 'Thursday';
+      const matchDate = act.matchDate || '19 Nov 2026';
+      const matchTime = act.matchTime || '11:00 AM NZDT (3:30 AM IST)';
+      const venue = act.venue || 'Basin Reserve, Wellington';
+      const league = act.league || 'India tour of New Zealand 2026/27';
+
       body.innerHTML = `
+        <div class="scorecard-tour-header">
+          <div class="tour-header-left">
+            <span class="tour-title">${league}</span>
+            <span class="tour-subtitle">${act.title || '1st Test • Basin Reserve, Wellington'}</span>
+          </div>
+          <div class="tour-header-right">
+            <span class="tour-status-tag">${act.statusText}</span>
+          </div>
+        </div>
+
+        <div class="scorecard-schedule-pill">
+          <span class="sched-item">📅 <b>${matchDay}</b>, ${matchDate}</span>
+          <span class="sched-divider">•</span>
+          <span class="sched-item">⏰ <b>${matchTime}</b></span>
+          <span class="sched-divider">•</span>
+          <span class="sched-item">📍 ${venue}</span>
+        </div>
+
         <div class="scorecard-hero">
           <div class="scorecard-team-box">
-            <span class="scorecard-team-code">${sc.homeTeam.code}</span>
+            <div class="team-identity-row">
+              <span class="team-flag-icon">${homeFlag}</span>
+              <span class="scorecard-team-code">${sc.homeTeam.code}</span>
+            </div>
             <span class="scorecard-team-name">${sc.homeTeam.name}</span>
           </div>
           <div class="scorecard-score-box">
@@ -12075,7 +12105,10 @@ export class CanvasEngine {
             <span class="scorecard-status-sub">${act.statusText}</span>
           </div>
           <div class="scorecard-team-box" style="align-items:flex-end">
-            <span class="scorecard-team-code">${sc.awayTeam.code}</span>
+            <div class="team-identity-row" style="flex-direction:row-reverse">
+              <span class="team-flag-icon">${awayFlag}</span>
+              <span class="scorecard-team-code">${sc.awayTeam.code}</span>
+            </div>
             <span class="scorecard-team-name">${sc.awayTeam.name} (${sc.awayTeam.score})</span>
           </div>
         </div>

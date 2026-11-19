@@ -11646,10 +11646,38 @@
         </div>
       `).join("");
         const latestComment = sc.commentary && sc.commentary.length > 0 ? sc.commentary[0].text : "";
+        const homeFlag = sc.homeTeam.code === "NZ" ? "\u{1F1F3}\u{1F1FF}" : sc.homeTeam.code === "IND" ? "\u{1F1EE}\u{1F1F3}" : sc.homeTeam.code === "AUS" ? "\u{1F1E6}\u{1F1FA}" : sc.homeTeam.code === "ENG" ? "\u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}" : sc.homeTeam.code === "PAK" ? "\u{1F1F5}\u{1F1F0}" : sc.homeTeam.code === "SA" ? "\u{1F1FF}\u{1F1E6}" : "\u{1F3CF}";
+        const awayFlag = sc.awayTeam.code === "IND" ? "\u{1F1EE}\u{1F1F3}" : sc.awayTeam.code === "NZ" ? "\u{1F1F3}\u{1F1FF}" : sc.awayTeam.code === "AUS" ? "\u{1F1E6}\u{1F1FA}" : sc.awayTeam.code === "ENG" ? "\u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}" : sc.awayTeam.code === "PAK" ? "\u{1F1F5}\u{1F1F0}" : sc.awayTeam.code === "SA" ? "\u{1F1FF}\u{1F1E6}" : "\u{1F3CF}";
+        const matchDay = act.matchDay || "Thursday";
+        const matchDate = act.matchDate || "19 Nov 2026";
+        const matchTime = act.matchTime || "11:00 AM NZDT (3:30 AM IST)";
+        const venue = act.venue || "Basin Reserve, Wellington";
+        const league = act.league || "India tour of New Zealand 2026/27";
         body.innerHTML = `
+        <div class="scorecard-tour-header">
+          <div class="tour-header-left">
+            <span class="tour-title">${league}</span>
+            <span class="tour-subtitle">${act.title || "1st Test \u2022 Basin Reserve, Wellington"}</span>
+          </div>
+          <div class="tour-header-right">
+            <span class="tour-status-tag">${act.statusText}</span>
+          </div>
+        </div>
+
+        <div class="scorecard-schedule-pill">
+          <span class="sched-item">\u{1F4C5} <b>${matchDay}</b>, ${matchDate}</span>
+          <span class="sched-divider">\u2022</span>
+          <span class="sched-item">\u23F0 <b>${matchTime}</b></span>
+          <span class="sched-divider">\u2022</span>
+          <span class="sched-item">\u{1F4CD} ${venue}</span>
+        </div>
+
         <div class="scorecard-hero">
           <div class="scorecard-team-box">
-            <span class="scorecard-team-code">${sc.homeTeam.code}</span>
+            <div class="team-identity-row">
+              <span class="team-flag-icon">${homeFlag}</span>
+              <span class="scorecard-team-code">${sc.homeTeam.code}</span>
+            </div>
             <span class="scorecard-team-name">${sc.homeTeam.name}</span>
           </div>
           <div class="scorecard-score-box">
@@ -11657,7 +11685,10 @@
             <span class="scorecard-status-sub">${act.statusText}</span>
           </div>
           <div class="scorecard-team-box" style="align-items:flex-end">
-            <span class="scorecard-team-code">${sc.awayTeam.code}</span>
+            <div class="team-identity-row" style="flex-direction:row-reverse">
+              <span class="team-flag-icon">${awayFlag}</span>
+              <span class="scorecard-team-code">${sc.awayTeam.code}</span>
+            </div>
             <span class="scorecard-team-name">${sc.awayTeam.name} (${sc.awayTeam.score})</span>
           </div>
         </div>

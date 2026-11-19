@@ -5647,6 +5647,75 @@ html, body {
   gap: 8px;
 }
 
+.scorecard-tour-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 6px 2px 6px;
+}
+
+.tour-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.tour-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #38bdf8;
+}
+
+.tour-subtitle {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.tour-status-tag {
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 8px;
+  background: rgba(34, 224, 90, 0.15);
+  border: 1px solid rgba(34, 224, 90, 0.35);
+  color: #22e05a;
+}
+
+.scorecard-schedule-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 10px;
+  padding: 4px 10px;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.sched-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sched-divider {
+  color: rgba(255, 255, 255, 0.25);
+  font-size: 8px;
+}
+
+.team-identity-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.team-flag-icon {
+  font-size: 14px;
+}
+
 .scorecard-hero {
   display: flex;
   align-items: center;

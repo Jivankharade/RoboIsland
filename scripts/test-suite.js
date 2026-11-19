@@ -1966,6 +1966,30 @@ async function runTests() {
     islandCssUpdated.includes('.sport-island-toggle-btn') &&
     islandCssUpdated.includes('10005'));
 
+  // --- 37. Testing Live Cricket Feed Date, Day, Time & Tour Metadata ---
+  console.log('\n--- 37. Testing Live Cricket Feed Date, Day, Time & Tour Metadata ---');
+  const sportsServiceTs = fs.readFileSync(path.join(__dirname, '../src/main/sports-service.ts'), 'utf-8');
+  assert('sports-service.ts implements parseLiveCricketEvent with Date, Day, Time, and Venue extraction',
+    sportsServiceTs.includes('parseLiveCricketEvent') &&
+    sportsServiceTs.includes('matchDate') &&
+    sportsServiceTs.includes('matchDay') &&
+    sportsServiceTs.includes('matchTime') &&
+    sportsServiceTs.includes('venue'));
+
+  assert('sports-service.ts polls ESPN live cricket scoreboard header API',
+    sportsServiceTs.includes('https://site.api.espn.com/apis/personalized/v2/scoreboard/header?sport=cricket'));
+
+  assert('canvas-engine.ts renders .scorecard-tour-header and .scorecard-schedule-pill with date and time',
+    canvasEngineUpdated.includes('scorecard-tour-header') &&
+    canvasEngineUpdated.includes('scorecard-schedule-pill') &&
+    canvasEngineUpdated.includes('matchDay') &&
+    canvasEngineUpdated.includes('matchTime'));
+
+  assert('island.css styles .scorecard-tour-header and .scorecard-schedule-pill',
+    islandCssUpdated.includes('.scorecard-tour-header') &&
+    islandCssUpdated.includes('.scorecard-schedule-pill') &&
+    islandCssUpdated.includes('.tour-status-tag'));
+
   // Summary
   console.log('\n====================================================');
   console.log(`TEST SUMMARY: ${passed} PASSED, ${failed} FAILED`);
