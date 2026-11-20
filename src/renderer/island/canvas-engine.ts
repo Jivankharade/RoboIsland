@@ -616,15 +616,24 @@ export class CanvasEngine {
 
     // Pattern B: Body is "Alice: Hey there"
     const colonMatch = body.match(/^([^:\n]{1,35}):\s*(.*)$/s);
-    if (colonMatch && title && !title.toLowerCase().includes('whatsapp')) {
-      const cleanGroup = title.replace(/\s*\(\d+\s*messages?\)/i, '').trim();
-      return {
-        isCall: false,
-        isGroup: true,
-        groupName: cleanGroup,
-        senderName: colonMatch[1].trim(),
-        messageText: colonMatch[2].trim()
-      };
+    if (colonMatch) {
+      if (title && !title.toLowerCase().includes('whatsapp')) {
+        const cleanGroup = title.replace(/\s*\(\d+\s*messages?\)/i, '').trim();
+        return {
+          isCall: false,
+          isGroup: true,
+          groupName: cleanGroup,
+          senderName: colonMatch[1].trim(),
+          messageText: colonMatch[2].trim()
+        };
+      } else {
+        return {
+          isCall: false,
+          isGroup: false,
+          senderName: colonMatch[1].trim(),
+          messageText: colonMatch[2].trim()
+        };
+      }
     }
 
     // Pattern C: Title contains "(X messages)"
@@ -998,7 +1007,8 @@ export class CanvasEngine {
 
     const wa = this.parseWhatsAppDetails(this.activeNotification?.title, this.activeNotification?.body);
     const fallbackContact = wa.isGroup ? (wa.groupName || wa.senderName) : wa.senderName;
-    const contact = this.whatsAppReplyContext?.contact || fallbackContact;
+    const rawContact = this.whatsAppReplyContext?.contact || fallbackContact || '';
+    const contact = (rawContact && rawContact.toLowerCase() !== 'whatsapp') ? rawContact : (fallbackContact && fallbackContact.toLowerCase() !== 'whatsapp' ? fallbackContact : '');
     const phone = this.whatsAppReplyContext?.phone || this.activeNotification?.phone || '';
     const tag = this.whatsAppReplyContext?.tag || this.activeNotification?.tag || '';
     if (window.roboIsland?.replyWhatsApp) {

@@ -92,7 +92,8 @@ class IslandWindow {
                 backgroundThrottling: false
             }
         });
-        this.window.setAlwaysOnTop(true, 'floating');
+        // Set highest priority screen-saver topmost level so island overlays WhatsApp and all apps seamlessly
+        this.window.setAlwaysOnTop(true, 'screen-saver', 1);
         this.window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
         // Initial click-through mode
         this.setInteractive(false);
@@ -105,10 +106,13 @@ class IslandWindow {
         this.window.loadFile(htmlPath);
         this.window.once('ready-to-show', () => {
             this.window?.show();
+            this.ensureTopmost();
             this.startCursorTracking();
             this.setupGlobalShortcuts();
         });
         this.window.on('blur', () => {
+            // Re-assert topmost overlay so background focus shifts (e.g. clicking WhatsApp) never bury the island
+            this.ensureTopmost();
             if (this.currentMode === 'expanded') {
                 this.window?.webContents.send('island:request-collapse');
             }
@@ -126,6 +130,7 @@ class IslandWindow {
     lastCursorAt = 0;
     wasInsideWindow = false;
     cachedBounds = null;
+    lastTopmostCheckAt = 0;
     lastSentRelX = -9999;
     lastSentRelY = -9999;
     lastSentScreenX = -9999;
@@ -149,6 +154,11 @@ class IslandWindow {
             }
             const key = `${cursor.x},${cursor.y},${bounds.x},${bounds.y}`;
             const now = Date.now();
+            // Periodic topmost enforcement (every 2.5s) to guarantee overlay above WhatsApp and focused apps
+            if (now - this.lastTopmostCheckAt > 2500) {
+                this.lastTopmostCheckAt = now;
+                this.ensureTopmost();
+            }
             if (key === this.lastCursorKey && now - this.lastCursorAt < 1000) {
                 this.cursorTimer = setTimeout(tick, insideWindow ? 32 : 75);
                 return;
@@ -226,6 +236,19 @@ class IslandWindow {
             catch { }
         }
     }
+    /**
+     * Enforces highest Z-level topmost overlay so Island remains visible
+     * even over foreground WinUI / UWP desktop apps like WhatsApp, Chrome, or Settings.
+     */
+    ensureTopmost() {
+        if (!this.window || this.window.isDestroyed())
+            return;
+        try {
+            this.window.setAlwaysOnTop(true, 'screen-saver', 1);
+            this.window.moveTop();
+        }
+        catch { }
+    }
     reposition() {
         if (!this.window || this.window.isDestroyed())
             return;
@@ -241,6 +264,7 @@ class IslandWindow {
             height: pos.height
         };
         this.window.setBounds(this.cachedBounds);
+        this.ensureTopmost();
     }
     setTucked(tucked) {
         if (this.isTucked === tucked)
@@ -428,6 +452,7 @@ class IslandWindow {
         electron_1.ipcMain.on('island:focus', () => {
             try {
                 if (this.window && !this.window.isDestroyed()) {
+                    this.ensureTopmost();
                     this.window.focus();
                 }
             }
@@ -444,6 +469,7 @@ class IslandWindow {
         });
         electron_1.ipcMain.on('island:show-compact', () => {
             if (this.window && !this.window.isDestroyed()) {
+                this.ensureTopmost();
                 this.window.show();
                 this.window.webContents.send('island:collapse');
             }

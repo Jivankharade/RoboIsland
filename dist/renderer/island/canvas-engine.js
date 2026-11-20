@@ -530,15 +530,25 @@ class CanvasEngine {
         }
         // Pattern B: Body is "Alice: Hey there"
         const colonMatch = body.match(/^([^:\n]{1,35}):\s*(.*)$/s);
-        if (colonMatch && title && !title.toLowerCase().includes('whatsapp')) {
-            const cleanGroup = title.replace(/\s*\(\d+\s*messages?\)/i, '').trim();
-            return {
-                isCall: false,
-                isGroup: true,
-                groupName: cleanGroup,
-                senderName: colonMatch[1].trim(),
-                messageText: colonMatch[2].trim()
-            };
+        if (colonMatch) {
+            if (title && !title.toLowerCase().includes('whatsapp')) {
+                const cleanGroup = title.replace(/\s*\(\d+\s*messages?\)/i, '').trim();
+                return {
+                    isCall: false,
+                    isGroup: true,
+                    groupName: cleanGroup,
+                    senderName: colonMatch[1].trim(),
+                    messageText: colonMatch[2].trim()
+                };
+            }
+            else {
+                return {
+                    isCall: false,
+                    isGroup: false,
+                    senderName: colonMatch[1].trim(),
+                    messageText: colonMatch[2].trim()
+                };
+            }
         }
         // Pattern C: Title contains "(X messages)"
         if (/\(\d+\s*messages?\)/i.test(title)) {
@@ -926,7 +936,8 @@ class CanvasEngine {
         this.mascot.setMood('happy', 4000);
         const wa = this.parseWhatsAppDetails(this.activeNotification?.title, this.activeNotification?.body);
         const fallbackContact = wa.isGroup ? (wa.groupName || wa.senderName) : wa.senderName;
-        const contact = this.whatsAppReplyContext?.contact || fallbackContact;
+        const rawContact = this.whatsAppReplyContext?.contact || fallbackContact || '';
+        const contact = (rawContact && rawContact.toLowerCase() !== 'whatsapp') ? rawContact : (fallbackContact && fallbackContact.toLowerCase() !== 'whatsapp' ? fallbackContact : '');
         const phone = this.whatsAppReplyContext?.phone || this.activeNotification?.phone || '';
         const tag = this.whatsAppReplyContext?.tag || this.activeNotification?.tag || '';
         if (window.roboIsland?.replyWhatsApp) {
@@ -990,7 +1001,15 @@ class CanvasEngine {
         this.chargerSurgeCharging = charging;
         this.chargerSurgeLevel = typeof level === 'number' ? level : (this.batteryState.level || 100);
         this.chargerSurgeStartTime = performance.now();
-        this.chargerSurgeUntil = performance.now() + 2600;
+        this.chargerSurgeUntil = performance.now() + 3600;
+        if (charging) {
+            try {
+                audio_synth_1.AudioSynth.getInstance().play('charging');
+            }
+            catch { }
+            this.mascot?.setMood('happy');
+        }
+        this.kickJelly(0.12);
         this.updateTargetDimensions();
     }
     /**
@@ -4000,9 +4019,10 @@ class CanvasEngine {
                 return;
             }
             if (performance.now() < this.chargerSurgeUntil) {
-                this.targetWidth = this.isHovered ? 190 : 180;
-                this.targetHeight = 36;
-                this.targetRadius = 18;
+                // iOS / Mac Fluid Premium Charging Dynamic Island Capsule (310x44, radius 22)
+                this.targetWidth = this.isHovered ? 320 : 310;
+                this.targetHeight = 44;
+                this.targetRadius = 22;
                 return;
             }
             if (performance.now() < this.greetingUntil) {
@@ -4056,10 +4076,10 @@ class CanvasEngine {
             this.targetRadius = 18;
         }
         else if (this.mode === 'compact' && performance.now() < this.chargerSurgeUntil) {
-            // Feature B: Charger Plug-in Surge Pop (Zero Clutter)
-            this.targetWidth = this.isHovered ? 190 : 180;
-            this.targetHeight = 36;
-            this.targetRadius = 18;
+            // iOS / Mac Fluid Premium Charging Dynamic Island Capsule (310x44, radius 22)
+            this.targetWidth = this.isHovered ? 320 : 310;
+            this.targetHeight = 44;
+            this.targetRadius = 22;
         }
         else if (this.aiState.status === 'running') {
             this.targetWidth = this.isHovered ? 300 : 280;
@@ -5834,8 +5854,9 @@ class CanvasEngine {
             this.ctx.shadowBlur = 16;
         }
         else if (isSurgeActive && this.chargerSurgeCharging) {
-            this.ctx.shadowColor = 'rgba(52, 199, 89, 0.50)';
-            this.ctx.shadowBlur = 14;
+            this.ctx.shadowColor = 'rgba(52, 199, 89, 0.75)';
+            this.ctx.shadowBlur = 22;
+            this.ctx.shadowOffsetY = 1;
         }
         else if (isMusicActive) {
             // In TwoCode, music maintains an obsidian dark drop shadow, not a harsh neon cloud
@@ -5867,6 +5888,19 @@ class CanvasEngine {
             tintGrad.addColorStop(0, `rgba(${nr}, ${ng}, ${nb}, ${fold ? 0.08 : 0})`);
             tintGrad.addColorStop(0.5, `rgba(${nr}, ${ng}, ${nb}, ${fold ? 0.18 : 0.12})`);
             tintGrad.addColorStop(1, `rgba(${nr}, ${ng}, ${nb}, 0.36)`);
+            this.ctx.fillStyle = tintGrad;
+            this.ctx.fillRect(left - 20, topY, w + 40, h);
+            this.ctx.restore();
+        }
+        else if (isSurgeActive && this.chargerSurgeCharging) {
+            // iOS Fluid MagSafe Emerald Ambient Glow inside Dynamic Island
+            this.ctx.save();
+            this.islandPath(this.ctx, left, topY, w, h, r);
+            this.ctx.clip();
+            const tintGrad = this.ctx.createLinearGradient(0, topY, 0, topY + h);
+            tintGrad.addColorStop(0, 'rgba(52, 199, 89, 0.06)');
+            tintGrad.addColorStop(0.5, 'rgba(48, 209, 88, 0.18)');
+            tintGrad.addColorStop(1, 'rgba(52, 199, 89, 0.36)');
             this.ctx.fillStyle = tintGrad;
             this.ctx.fillRect(left - 20, topY, w + 40, h);
             this.ctx.restore();
@@ -5929,7 +5963,12 @@ class CanvasEngine {
             this.ctx.lineWidth = 1.2;
         }
         else if (isSurgeActive && this.chargerSurgeCharging) {
-            this.ctx.strokeStyle = 'rgba(52, 199, 89, 0.55)';
+            const rimGrad = this.ctx.createLinearGradient(left, topY, left + w, topY + h);
+            rimGrad.addColorStop(0, 'rgba(52, 199, 89, 0.90)');
+            rimGrad.addColorStop(0.5, 'rgba(48, 209, 88, 0.40)');
+            rimGrad.addColorStop(1, 'rgba(52, 199, 89, 0.90)');
+            this.ctx.strokeStyle = rimGrad;
+            this.ctx.lineWidth = 1.8;
         }
         else if (isMusicActive) {
             const tr = Math.round(this.currentTintR);
@@ -8277,64 +8316,139 @@ class CanvasEngine {
         this.ctx.restore();
     }
     /**
-     * Feature B: Charger Plug-in Surge Pop Content (Zero Clutter)
+     * iOS / Mac Fluid Premium Charging Dynamic Island HUD
+     * - Crisp Mascot bounce with energetic eye expression
+     * - Elegant "Charging" / "On Battery" SF Pro Text typography
+     * - Glowing green Apple battery percentage (SF Pro Rounded bold)
+     * - Apple Battery Capsule with rounded cap & fluid liquid energy gradient
+     * - Pure white glowing Apple Lightning Bolt centered inside the battery
+     * - Animated energy wave pulse
      */
     drawChargerSurgeContent(cx, topY) {
         const pillLeft = cx - this.currentWidth / 2;
+        const pillRight = cx + this.currentWidth / 2;
         const midY = topY + this.currentHeight / 2;
         const isCharging = this.chargerSurgeCharging;
-        const level = this.chargerSurgeLevel;
-        // Left: Floating Eyes
-        this.mascot.drawFloatingEyes(this.ctx, pillLeft + 32, midY, 0.90);
-        // Center divider dot
+        const level = Math.max(0, Math.min(100, Math.round(this.chargerSurgeLevel)));
+        const now = performance.now();
+        const elapsed = now - (this.chargerSurgeStartTime || (now - 400));
+        // 1. Left: Energized Mascot + Subtitle
         this.ctx.save();
-        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
-        this.ctx.beginPath();
-        this.ctx.arc(cx - 10, midY, 1.8, 0, Math.PI * 2);
-        this.ctx.fill();
-        this.ctx.restore();
-        // Right: Battery % and Lightning Bolt / Battery Glyph
-        this.ctx.save();
-        const rightAreaX = cx + 8;
-        this.ctx.font = '700 12.5px -apple-system, BlinkMacSystemFont, "SF Pro Rounded", "Segoe UI", sans-serif';
+        const eyeBob = isCharging ? Math.sin(elapsed * 0.007) * 1.5 : 0;
+        this.mascot.drawFloatingEyes(this.ctx, pillLeft + 30, midY + eyeBob, 0.95);
+        // Dynamic Status label
+        const statusText = isCharging ? 'Charging' : 'On Battery';
+        this.ctx.font = '600 13px -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif';
         this.ctx.textAlign = 'left';
         this.ctx.textBaseline = 'middle';
+        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+        this.ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+        this.ctx.shadowBlur = 4;
+        this.ctx.fillText(statusText, pillLeft + 54, midY);
+        // Subtle divider dot
+        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.16)';
+        this.ctx.beginPath();
+        this.ctx.arc(cx - 10, midY, 2, 0, Math.PI * 2);
+        this.ctx.fill();
+        // 2. Right: Apple SF Pro Rounded Percentage + Fluid Battery Capsule
+        const capW = 34;
+        const capH = 17;
+        const capR = 4.5;
+        const notchW = 2.5;
+        const notchH = 6;
+        const notchR = 1.2;
+        const bX = pillRight - 46;
+        const bY = midY - capH / 2;
+        // Percentage Text (Right aligned to the left of the battery capsule)
+        this.ctx.font = '700 14px -apple-system, BlinkMacSystemFont, "SF Pro Rounded", "SF Pro Text", "Segoe UI", sans-serif';
+        this.ctx.textAlign = 'right';
+        this.ctx.textBaseline = 'middle';
         if (isCharging) {
-            // Glowing green text & lightning bolt
             this.ctx.fillStyle = '#34c759';
-            this.ctx.shadowColor = 'rgba(52, 199, 89, 0.65)';
-            this.ctx.shadowBlur = 6;
-            this.ctx.fillText(`${level}%`, rightAreaX + 18, midY);
-            // Canvas Lightning Bolt path
-            const boltX = rightAreaX;
-            const boltY = midY;
-            this.ctx.fillStyle = '#34c759';
-            this.ctx.beginPath();
-            this.ctx.moveTo(boltX + 7, boltY - 7);
-            this.ctx.lineTo(boltX + 2, boltY);
-            this.ctx.lineTo(boltX + 6, boltY);
-            this.ctx.lineTo(boltX + 4, boltY + 7);
-            this.ctx.lineTo(boltX + 10, boltY - 1);
-            this.ctx.lineTo(boltX + 6, boltY - 1);
-            this.ctx.closePath();
-            this.ctx.fill();
+            this.ctx.shadowColor = 'rgba(52, 199, 89, 0.75)';
+            this.ctx.shadowBlur = 8;
         }
         else {
-            // Clean white text & battery icon outline
-            this.ctx.fillStyle = '#ffffff';
-            this.ctx.fillText(`${level}%`, rightAreaX + 22, midY);
-            const bX = rightAreaX;
-            const bY = midY - 6;
-            const bW = 15;
-            const bH = 11;
-            this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
-            this.ctx.lineWidth = 1.2;
-            this.ctx.strokeRect(bX, bY, bW, bH);
-            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
-            this.ctx.fillRect(bX + bW + 1, bY + 3.5, 1.5, 4);
-            const fillW = Math.max(1, (bW - 3) * (level / 100));
+            this.ctx.fillStyle = level <= 20 ? '#ff453a' : 'rgba(255, 255, 255, 0.95)';
+            this.ctx.shadowColor = level <= 20 ? 'rgba(255, 69, 58, 0.6)' : 'rgba(0, 0, 0, 0.3)';
+            this.ctx.shadowBlur = 4;
+        }
+        this.ctx.fillText(`${level}%`, bX - 8, midY);
+        this.ctx.shadowBlur = 0;
+        // Helper to draw rounded rectangle safely on any canvas
+        const drawPillRect = (x, y, w, h, r) => {
+            this.ctx.beginPath();
+            if (typeof this.ctx.roundRect === 'function') {
+                this.ctx.roundRect(x, y, w, h, r);
+            }
+            else {
+                const rad = Math.min(r, w / 2, h / 2);
+                this.ctx.moveTo(x + rad, y);
+                this.ctx.arcTo(x + w, y, x + w, y + h, rad);
+                this.ctx.arcTo(x + w, y + h, x, y + h, rad);
+                this.ctx.arcTo(x, y + h, x, y, rad);
+                this.ctx.arcTo(x, y, x + w, y, rad);
+                this.ctx.closePath();
+            }
+        };
+        // Outer Battery Outline
+        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+        this.ctx.lineWidth = 1.6;
+        drawPillRect(bX, bY, capW, capH, capR);
+        this.ctx.stroke();
+        // Terminal Notch on right
+        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+        drawPillRect(bX + capW + 1.2, midY - notchH / 2, notchW, notchH, notchR);
+        this.ctx.fill();
+        // Inner Liquid Energy Fill
+        const innerPad = 2.2;
+        const maxFillW = capW - innerPad * 2;
+        const fillH = capH - innerPad * 2;
+        const fillW = Math.max(3, maxFillW * (level / 100));
+        this.ctx.save();
+        drawPillRect(bX + innerPad, bY + innerPad, fillW, fillH, 2.5);
+        this.ctx.clip();
+        if (isCharging) {
+            // Flowing fluid neon green energy gradient
+            const fillGrad = this.ctx.createLinearGradient(bX + innerPad, 0, bX + innerPad + maxFillW, 0);
+            fillGrad.addColorStop(0, '#30d158');
+            fillGrad.addColorStop(0.5, '#34c759');
+            fillGrad.addColorStop(1, '#63e6be');
+            this.ctx.fillStyle = fillGrad;
+            this.ctx.fillRect(bX + innerPad, bY + innerPad, fillW, fillH);
+            // Subtle traveling shine highlight wave across the fluid energy
+            const shinePhase = (elapsed * 0.0025) % 1;
+            const shineX = bX + innerPad + (fillW + 16) * shinePhase - 8;
+            const shineGrad = this.ctx.createLinearGradient(shineX - 8, 0, shineX + 8, 0);
+            shineGrad.addColorStop(0, 'rgba(255, 255, 255, 0)');
+            shineGrad.addColorStop(0.5, 'rgba(255, 255, 255, 0.45)');
+            shineGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            this.ctx.fillStyle = shineGrad;
+            this.ctx.fillRect(bX + innerPad, bY + innerPad, fillW, fillH);
+        }
+        else {
             this.ctx.fillStyle = level <= 20 ? '#ff453a' : '#ffffff';
-            this.ctx.fillRect(bX + 1.5, bY + 1.5, fillW, bH - 3);
+            this.ctx.fillRect(bX + innerPad, bY + innerPad, fillW, fillH);
+        }
+        this.ctx.restore();
+        // Iconic Apple Lightning Bolt (Rendered centered in the battery capsule when charging)
+        if (isCharging) {
+            const boltX = bX + capW / 2;
+            const boltY = midY;
+            this.ctx.save();
+            this.ctx.fillStyle = '#ffffff';
+            this.ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+            this.ctx.shadowBlur = 3;
+            this.ctx.beginPath();
+            this.ctx.moveTo(boltX + 2.4, boltY - 5.5);
+            this.ctx.lineTo(boltX - 2.8, boltY - 0.4);
+            this.ctx.lineTo(boltX + 0.5, boltY - 0.4);
+            this.ctx.lineTo(boltX - 1.6, boltY + 5.5);
+            this.ctx.lineTo(boltX + 3.2, boltY + 0.4);
+            this.ctx.lineTo(boltX + 0.4, boltY + 0.4);
+            this.ctx.closePath();
+            this.ctx.fill();
+            this.ctx.restore();
         }
         this.ctx.restore();
     }

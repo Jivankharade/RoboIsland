@@ -19,18 +19,20 @@ var UserNotificationState;
     UserNotificationState[UserNotificationState["QUNS_APP"] = 7] = "QUNS_APP";
 })(UserNotificationState || (exports.UserNotificationState = UserNotificationState = {}));
 /**
- * Checks if a Win32 user notification state code indicates a fullscreen game.
- * States 2 (QUNS_BUSY) and 3 (QUNS_RUNNING_D3D_FULL_SCREEN) represent fullscreen game environments.
+ * Checks if a Win32 user notification state code indicates an exclusive fullscreen game.
+ * State 3 (QUNS_RUNNING_D3D_FULL_SCREEN) represents exclusive 3D fullscreen games.
+ * State 2 (QUNS_BUSY) represents busy desktop applications (such as WhatsApp, PowerPoint,
+ * video calls, or focus assist) and must NEVER auto-hide the Dynamic Island.
  */
 function isFullScreenNotificationState(stateCode) {
-    return stateCode === 2 || stateCode === 3;
+    return stateCode === 3;
 }
 /**
  * Maps state code to game mode boolean.
- * Unknown codes (e.g. 999 or 1) default to false.
+ * Only exclusive 3D games (code 3) trigger game mode.
  */
 function isGameMode(code) {
-    return [2, 3].includes(code);
+    return code === 3;
 }
 /**
  * Multi-display boundary check:

@@ -2024,6 +2024,39 @@ async function runTests() {
     systemDiagTs.includes("'battery:state-changed'") &&
     systemDiagTs.includes('vitals.isCharging'));
 
+  // --- 39. Testing WhatsApp Direct Compose Focus, Reaction Delivery & Contact Sanitization ---
+  console.log('\n--- 39. Testing WhatsApp Direct Compose Focus, Reaction Delivery & Contact Sanitization ---');
+  const waSenderUpdated = fs.readFileSync(path.join(__dirname, '../src/native/whatsapp-sender.ps1'), 'utf-8');
+  assert('whatsapp-sender.ps1 implements UI Automation compose box finder and direct sender',
+    waSenderUpdated.includes('FindComposeEdit') &&
+    waSenderUpdated.includes('FindSearchEdit') &&
+    waSenderUpdated.includes('TryClickContact') &&
+    waSenderUpdated.includes('SendWhatsAppDirect') &&
+    waSenderUpdated.includes('Type a message'));
+
+  const parsedDirect = mockEngine.parseWhatsAppDetails('WhatsApp', 'Alice: Hey there!');
+  assert('parseWhatsAppDetails extracts direct sender when title is WhatsApp and body has colon format',
+    parsedDirect.isGroup === false &&
+    parsedDirect.senderName === 'Alice' &&
+    parsedDirect.messageText === 'Hey there!');
+
+  const parsedGroup = mockEngine.parseWhatsAppDetails('Tech Team', 'Bob: Meeting at 3');
+  assert('parseWhatsAppDetails extracts group and sender for multi-user chat notifications',
+    parsedGroup.isGroup === true &&
+    parsedGroup.groupName === 'Tech Team' &&
+    parsedGroup.senderName === 'Bob' &&
+    parsedGroup.messageText === 'Meeting at 3');
+
+  const canvasEngineWa = fs.readFileSync(path.join(__dirname, '../src/renderer/island/canvas-engine.ts'), 'utf-8');
+  assert('canvas-engine.ts sanitizes literal "whatsapp" contact names so search never loops on app title',
+    canvasEngineWa.includes("rawContact.toLowerCase() !== 'whatsapp'") &&
+    canvasEngineWa.includes("fallbackContact.toLowerCase() !== 'whatsapp'"));
+
+  const indexTsWa = fs.readFileSync(path.join(__dirname, '../src/main/index.ts'), 'utf-8');
+  assert('index.ts dispatches emoji reactions without requiring pre-existing contact string',
+    indexTsWa.includes("ipcMain.handle('whatsapp:react'") &&
+    indexTsWa.includes("cleanContact = contact.toLowerCase() === 'whatsapp' ? '' : contact;"));
+
   // Summary
   console.log('\n====================================================');
   console.log(`TEST SUMMARY: ${passed} PASSED, ${failed} FAILED`);

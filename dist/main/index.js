@@ -378,9 +378,8 @@ function setupAppIPC() {
     });
     electron_1.ipcMain.handle('whatsapp:react', async (_event, payload) => {
         const emoji = payload?.emoji || '👍';
-        const contact = payload?.contact || '';
-        if (!contact)
-            return false;
+        const contact = (payload?.contact || '').trim();
+        const cleanContact = contact.toLowerCase() === 'whatsapp' ? '' : contact;
         // Send emoji reaction directly
         const scriptPath = path.join(__dirname, '../native/whatsapp-sender.ps1');
         if (fs.existsSync(scriptPath)) {
@@ -395,7 +394,7 @@ function setupAppIPC() {
                     '-Text',
                     emoji,
                     '-Contact',
-                    contact,
+                    cleanContact,
                     '-Autonomous'
                 ], {
                     windowsHide: true,
