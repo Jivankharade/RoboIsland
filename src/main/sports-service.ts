@@ -685,21 +685,54 @@ export class SportsService {
       this.state.activities.f1 = this.simulator.getF1Activity();
     }
 
-    // 3. Cricket: Real live ESPN scoreboard feed
+    // 3. Cricket: Real live feed from Cricbuzz with ESPN fallback
     try {
-      const ckData = await this.fetchJson('https://site.api.espn.com/apis/personalized/v2/scoreboard/header?sport=cricket');
-      const leagues = ckData?.sports?.[0]?.leagues || [];
-      let selectedEvent: any = null;
-      let selectedLeague: any = null;
+      const cricbuzzAct = await this.fetchCricbuzzLiveScores();
+      if (cricbuzzAct) {
+        this.state.activities.cricket = cricbuzzAct;
+        this.failureCounts.cricket = 0;
+      } else {
+        await this.pollEspnCricket();
+      }
+    } catch {
+      await this.pollEspnCricket().catch(() => {
+        this.failureCounts.cricket++;
+        this.state.activities.cricket = this.simulator.getCricketActivity();
+      });
+    }
 
-      // Priority 1: Match involving India (e.g. India tour of New Zealand 2026/27)
+    if (this.broadcastCallback) {
+      this.broadcastCallback(this.getActiveActivity());
+    }
+  }
+
+  public async pollEspnCricket(): Promise<void> {
+    const ckData = await this.fetchJson('https://site.api.espn.com/apis/personalized/v2/scoreboard/header?sport=cricket');
+    const leagues = ckData?.sports?.[0]?.leagues || [];
+    let selectedEvent: any = null;
+    let selectedLeague: any = null;
+
+    // Priority 1: Match involving India (e.g. India tour of New Zealand 2026/27)
+    for (const l of leagues) {
+      for (const ev of (l.events || [])) {
+        const name = (ev.name || '').toLowerCase();
+        const lName = (l.name || '').toLowerCase();
+        const hasIndia = name.includes('india') || lName.includes('india') ||
+          (ev.competitors || []).some((c: any) => c.name === 'IND' || (c.displayName || '').toLowerCase().includes('india'));
+        if (hasIndia) {
+          selectedEvent = ev;
+          selectedLeague = l;
+          break;
+        }
+      }
+      if (selectedEvent) break;
+    }
+
+    // Priority 2: Any currently live match ('in')
+    if (!selectedEvent) {
       for (const l of leagues) {
         for (const ev of (l.events || [])) {
-          const name = (ev.name || '').toLowerCase();
-          const lName = (l.name || '').toLowerCase();
-          const hasIndia = name.includes('india') || lName.includes('india') ||
-            (ev.competitors || []).some((c: any) => c.name === 'IND' || (c.displayName || '').toLowerCase().includes('india'));
-          if (hasIndia) {
+          if (ev.status === 'in') {
             selectedEvent = ev;
             selectedLeague = l;
             break;
@@ -707,41 +740,195 @@ export class SportsService {
         }
         if (selectedEvent) break;
       }
+    }
 
-      // Priority 2: Any currently live match ('in')
-      if (!selectedEvent) {
-        for (const l of leagues) {
-          for (const ev of (l.events || [])) {
-            if (ev.status === 'in') {
-              selectedEvent = ev;
-              selectedLeague = l;
-              break;
-            }
-          }
-          if (selectedEvent) break;
-        }
-      }
+    // Priority 3: First available match
+    if (!selectedEvent && leagues.length > 0 && leagues[0].events?.length > 0) {
+      selectedEvent = leagues[0].events[0];
+      selectedLeague = leagues[0];
+    }
 
-      // Priority 3: First available match
-      if (!selectedEvent && leagues.length > 0 && leagues[0].events?.length > 0) {
-        selectedEvent = leagues[0].events[0];
-        selectedLeague = leagues[0];
-      }
-
-      if (selectedEvent) {
-        this.state.activities.cricket = this.parseLiveCricketEvent(selectedEvent, selectedLeague);
-        this.failureCounts.cricket = 0;
-      } else {
-        this.state.activities.cricket = this.simulator.getCricketActivity();
-      }
-    } catch {
-      this.failureCounts.cricket++;
+    if (selectedEvent) {
+      this.state.activities.cricket = this.parseLiveCricketEvent(selectedEvent, selectedLeague);
+      this.failureCounts.cricket = 0;
+    } else {
       this.state.activities.cricket = this.simulator.getCricketActivity();
     }
+  }
 
-    if (this.broadcastCallback) {
-      this.broadcastCallback(this.getActiveActivity());
-    }
+  public async fetchCricbuzzLiveScores(): Promise<SportsLiveActivity | null> {
+    return new Promise((resolve) => {
+      const req = https.get('https://www.cricbuzz.com/cricket-match/live-scores', {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.5'
+        },
+        timeout: 7000
+      }, (res) => {
+        let data = '';
+        res.on('data', c => { data += c; });
+        res.on('end', () => {
+          try {
+            const regex = /self\.__next_f\.push\(\[1,"([\s\S]*?)"\]\)/g;
+            let m: RegExpExecArray | null;
+            let combined = '';
+            while ((m = regex.exec(data)) !== null) {
+              combined += m[1];
+            }
+            const unescaped = combined.replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+
+            const matches: any[] = [];
+            const matchInfoRegex = /\{"matchInfo":\{[\s\S]*?\}\}(?=,\{"matchInfo"|\])/g;
+            let infoMatch: RegExpExecArray | null;
+            while ((infoMatch = matchInfoRegex.exec(unescaped)) !== null) {
+              try {
+                const parsed = JSON.parse(infoMatch[0]);
+                if (parsed && parsed.matchInfo) {
+                  matches.push(parsed);
+                }
+              } catch {}
+            }
+
+            if (matches.length === 0) return resolve(null);
+
+            // Priority 1: Match involving India (team1 / team2 / seriesName)
+            let sel = matches.find(item => {
+              const mi = item.matchInfo;
+              const text = `${mi.seriesName || ''} ${mi.team1?.teamName || ''} ${mi.team2?.teamName || ''} ${mi.team1?.teamSName || ''} ${mi.team2?.teamSName || ''}`.toLowerCase();
+              return text.includes('india') || text.includes('ind');
+            });
+
+            // Priority 2: Match currently live / in progress / stumps
+            if (!sel) {
+              sel = matches.find(item => {
+                const st = (item.matchInfo?.state || '').toLowerCase();
+                const status = (item.matchInfo?.status || '').toLowerCase();
+                return st.includes('progress') || st.includes('stumps') || st.includes('innings') || st.includes('live') || status.includes('trail') || status.includes('lead') || status.includes('need');
+              });
+            }
+
+            if (!sel) sel = matches[0];
+
+            const mi = sel.matchInfo;
+            const ms = sel.matchScore;
+
+            const team1Name = mi.team1?.teamName || 'Team 1';
+            const team1Code = mi.team1?.teamSName || team1Name.slice(0, 3).toUpperCase();
+            const team2Name = mi.team2?.teamName || 'Team 2';
+            const team2Code = mi.team2?.teamSName || team2Name.slice(0, 3).toUpperCase();
+
+            // Extract scores
+            const inng1 = ms?.team1Score?.inngs1;
+            const inng2 = ms?.team2Score?.inngs1;
+
+            const score1 = inng1 ? `${inng1.runs}${inng1.wickets !== undefined ? '/' + inng1.wickets : ''}` : '';
+            const ov1 = inng1?.overs !== undefined ? `${inng1.overs} ov` : '';
+            const score2 = inng2 ? `${inng2.runs}${inng2.wickets !== undefined ? '/' + inng2.wickets : ''}` : '';
+            const ov2 = inng2?.overs !== undefined ? `${inng2.overs} ov` : '';
+
+            // Date / schedule formatting
+            const startMs = Number(mi.startDate) || Date.now();
+            const dObj = new Date(startMs);
+            const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+            let tzOffsetHours = 5.5; // Default IST
+            if (mi.venueInfo?.timezone) {
+              const tzM = mi.venueInfo.timezone.match(/([+-])(\d+):?(\d*)/);
+              if (tzM) {
+                const sign = tzM[1] === '-' ? -1 : 1;
+                const h = parseInt(tzM[2], 10);
+                const min = parseInt(tzM[3] || '0', 10);
+                tzOffsetHours = sign * (h + min / 60);
+              }
+            }
+            const matchLocalDate = new Date(dObj.getTime() + tzOffsetHours * 3600 * 1000);
+            const matchDay = dayNames[matchLocalDate.getUTCDay()];
+            const matchDate = `${matchLocalDate.getUTCDate()} ${monthNames[matchLocalDate.getUTCMonth()]} ${matchLocalDate.getUTCFullYear()}`;
+            const hours = matchLocalDate.getUTCHours();
+            const mins = String(matchLocalDate.getUTCMinutes()).padStart(2, '0');
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            const h12 = hours % 12 || 12;
+            const tzCode = mi.venueInfo?.timezone ? `GMT${mi.venueInfo.timezone}` : 'IST';
+            const matchTime = `${h12}:${mins} ${ampm} ${tzCode}`;
+            const formattedSchedule = `${matchDay}, ${matchDate} • ${matchTime}`;
+
+            const venue = [mi.venueInfo?.ground, mi.venueInfo?.city].filter(Boolean).join(', ') || 'Cricket Ground';
+
+            let badgeText = 'Live';
+            const statusLower = (mi.status || '').toLowerCase();
+            const stumpsMatch = statusLower.match(/day\s*(\d+)[:\s]*stumps/i);
+            if (stumpsMatch) {
+              badgeText = `D${stumpsMatch[1]} Stumps`;
+            } else if (ov2) {
+              badgeText = ov2;
+            } else if (ov1) {
+              badgeText = ov1;
+            } else if (mi.state) {
+              badgeText = mi.state;
+            }
+
+            const isFinished = statusLower.includes('won by') || statusLower.includes('abandoned') || statusLower.includes('tied');
+
+            const activity: SportsLiveActivity = {
+              id: `cricbuzz-${mi.matchId}`,
+              sport: 'cricket',
+              title: `${team1Code} vs ${team2Code}`,
+              league: mi.seriesName || 'International Cricket',
+              status: isFinished ? 'finished' : 'live',
+              statusText: mi.status || (isFinished ? 'Finished' : 'Live In Progress'),
+              isLive: !isFinished,
+              isSimulated: false,
+              lastUpdated: Date.now(),
+              matchDate,
+              matchDay,
+              matchTime,
+              venue,
+              formattedSchedule,
+              pill: {
+                leftBadge: team1Code,
+                leftScore: score1 || '0',
+                badgeText,
+                rightScore: score2 || 'Yet to bat',
+                rightBadge: team2Code
+              },
+              scorecard: {
+                cricket: {
+                  homeTeam: {
+                    name: team1Name,
+                    code: team1Code,
+                    score: score1 ? `${score1}${ov1 ? ' (' + ov1 + ')' : ''}` : '0',
+                    overs: String(inng1?.overs || '0.0'),
+                    runRate: inng1 && inng1.overs ? Number((inng1.runs / Math.max(1, inng1.overs)).toFixed(2)) : 0
+                  },
+                  awayTeam: {
+                    name: team2Name,
+                    code: team2Code,
+                    score: score2 ? `${score2}${ov2 ? ' (' + ov2 + ')' : ''}` : 'Yet to bat',
+                    overs: String(inng2?.overs || '0.0'),
+                    runRate: inng2 && inng2.overs ? Number((inng2.runs / Math.max(1, inng2.overs)).toFixed(2)) : 0
+                  },
+                  currentBatters: [],
+                  currentBowler: { name: 'Bowler', overs: '0.0', maidens: 0, runs: 0, wickets: 0, economy: 0 },
+                  recentBalls: [],
+                  commentary: [
+                    { over: mi.matchDesc || 'Live Match', text: mi.status || 'Match in progress' },
+                    { over: 'Venue', text: venue }
+                  ]
+                }
+              }
+            };
+
+            resolve(activity);
+          } catch {
+            resolve(null);
+          }
+        });
+      });
+      req.on('error', () => resolve(null));
+      req.on('timeout', () => { req.destroy(); resolve(null); });
+    });
   }
 
   public parseLiveCricketEvent(ev: any, league: any): SportsLiveActivity {

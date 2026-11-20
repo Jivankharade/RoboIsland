@@ -2057,6 +2057,23 @@ async function runTests() {
     indexTsWa.includes("ipcMain.handle('whatsapp:react'") &&
     indexTsWa.includes("cleanContact = contact.toLowerCase() === 'whatsapp' ? '' : contact;"));
 
+  // --- 40. Testing Cricbuzz Live Cricket Integration & Drag-Outside Non-Sticking Collapse ---
+  console.log('\n--- 40. Testing Cricbuzz Live Cricket Integration & Drag-Outside Non-Sticking Collapse ---');
+  const sportsServiceCricbuzz = fs.readFileSync(path.join(__dirname, '../src/main/sports-service.ts'), 'utf-8');
+  assert('sports-service.ts implements fetchCricbuzzLiveScores for real live match data',
+    sportsServiceCricbuzz.includes('fetchCricbuzzLiveScores') &&
+    sportsServiceCricbuzz.includes('https://www.cricbuzz.com/cricket-match/live-scores') &&
+    sportsServiceCricbuzz.includes('pollEspnCricket'));
+
+  const canvasEngineDragFix = fs.readFileSync(path.join(__dirname, '../src/renderer/island/canvas-engine.ts'), 'utf-8');
+  assert('canvas-engine.ts implements window blur and mouseleave pointer reset to prevent getting stuck',
+    canvasEngineDragFix.includes("window.addEventListener('blur'") &&
+    canvasEngineDragFix.includes("this.pointerX = -1;\n      this.pointerY = -1;"));
+
+  assert('canvas-engine.ts resets isDraggingOver on mouseup and outside click',
+    canvasEngineDragFix.includes('this.isDraggingOver = false;') &&
+    canvasEngineDragFix.includes('(window as any).isDraggingFiles = false;'));
+
   // Summary
   console.log('\n====================================================');
   console.log(`TEST SUMMARY: ${passed} PASSED, ${failed} FAILED`);

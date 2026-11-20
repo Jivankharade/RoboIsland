@@ -4203,6 +4203,10 @@
         }
       });
       window.addEventListener("mouseup", (e) => {
+        this.isDraggingOver = false;
+        window.isDraggingFiles = false;
+        const dropOverlay = document.getElementById("drag-drop-overlay");
+        if (dropOverlay) dropOverlay.classList.add("hidden");
         if (this.isScrubbingVolumeHud) {
           this.isScrubbingVolumeHud = false;
           swallowClick = true;
@@ -4262,8 +4266,32 @@
         this.mascot.resetInactivity();
       });
       window.addEventListener("mouseleave", () => {
+        this.pointerX = -1;
+        this.pointerY = -1;
         this.isHovered = false;
+        dragStart = null;
+        this.isScrubbingVolumeHud = false;
+        this.isDraggingOver = false;
+        window.isDraggingFiles = false;
+        const dropOverlay = document.getElementById("drag-drop-overlay");
+        if (dropOverlay) dropOverlay.classList.add("hidden");
         this.checkHitTest();
+      });
+      window.addEventListener("blur", () => {
+        this.pointerX = -1;
+        this.pointerY = -1;
+        this.isHovered = false;
+        dragStart = null;
+        this.isScrubbingVolumeHud = false;
+        this.isDraggingOver = false;
+        window.isDraggingFiles = false;
+        const dropOverlay = document.getElementById("drag-drop-overlay");
+        if (dropOverlay) dropOverlay.classList.add("hidden");
+        const summaryModal = document.getElementById("screen-summary-modal");
+        const isModalOpen = summaryModal && !summaryModal.classList.contains("hidden") && summaryModal.style.display !== "none";
+        if (this.mode === "expanded" && !isModalOpen) {
+          this.collapse();
+        }
       });
       window.addEventListener("click", (e) => {
         SystemAudioVisualizer.getInstance().resumeAudioContext();
@@ -4434,7 +4462,11 @@
         window.roboIsland.onToggleExpand(() => this.toggleExpand());
         if (window.roboIsland.onCollapseRequested) {
           window.roboIsland.onCollapseRequested(() => {
-            if (this.mode === "expanded" && this.canAutoCollapse()) {
+            this.isDraggingOver = false;
+            window.isDraggingFiles = false;
+            const summaryModal = document.getElementById("screen-summary-modal");
+            const isModalOpen = summaryModal && !summaryModal.classList.contains("hidden") && summaryModal.style.display !== "none";
+            if (this.mode === "expanded" && !isModalOpen) {
               this.collapse();
             }
           });
@@ -5805,7 +5837,11 @@
       const inBounds = x >= cx - halfW && x <= cx + halfW && y >= topY && y <= topY + effectiveH;
       if (!inBounds) {
         if (this.mode === "expanded") {
-          if (this.canAutoCollapse()) {
+          this.isDraggingOver = false;
+          window.isDraggingFiles = false;
+          const summaryModal = document.getElementById("screen-summary-modal");
+          const isModalOpen = summaryModal && !summaryModal.classList.contains("hidden") && summaryModal.style.display !== "none";
+          if (!isModalOpen) {
             if (this.config && this.config.restModeEnabled && !this.mediaState.active && !this.focusState.active) {
               this.enterRest();
             } else {

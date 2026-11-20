@@ -3011,6 +3011,11 @@ class CanvasEngine {
         });
         // Pointer up: evaluate swipe gestures
         window.addEventListener('mouseup', (e) => {
+            this.isDraggingOver = false;
+            window.isDraggingFiles = false;
+            const dropOverlay = document.getElementById('drag-drop-overlay');
+            if (dropOverlay)
+                dropOverlay.classList.add('hidden');
             if (this.isScrubbingVolumeHud) {
                 this.isScrubbingVolumeHud = false;
                 swallowClick = true;
@@ -3076,8 +3081,34 @@ class CanvasEngine {
             this.mascot.resetInactivity();
         });
         window.addEventListener('mouseleave', () => {
+            this.pointerX = -1;
+            this.pointerY = -1;
             this.isHovered = false;
+            dragStart = null;
+            this.isScrubbingVolumeHud = false;
+            this.isDraggingOver = false;
+            window.isDraggingFiles = false;
+            const dropOverlay = document.getElementById('drag-drop-overlay');
+            if (dropOverlay)
+                dropOverlay.classList.add('hidden');
             this.checkHitTest();
+        });
+        window.addEventListener('blur', () => {
+            this.pointerX = -1;
+            this.pointerY = -1;
+            this.isHovered = false;
+            dragStart = null;
+            this.isScrubbingVolumeHud = false;
+            this.isDraggingOver = false;
+            window.isDraggingFiles = false;
+            const dropOverlay = document.getElementById('drag-drop-overlay');
+            if (dropOverlay)
+                dropOverlay.classList.add('hidden');
+            const summaryModal = document.getElementById('screen-summary-modal');
+            const isModalOpen = summaryModal && !summaryModal.classList.contains('hidden') && summaryModal.style.display !== 'none';
+            if (this.mode === 'expanded' && !isModalOpen) {
+                this.collapse();
+            }
         });
         // Clicks
         window.addEventListener('click', (e) => {
@@ -3270,7 +3301,11 @@ class CanvasEngine {
             window.roboIsland.onToggleExpand(() => this.toggleExpand());
             if (window.roboIsland.onCollapseRequested) {
                 window.roboIsland.onCollapseRequested(() => {
-                    if (this.mode === 'expanded' && this.canAutoCollapse()) {
+                    this.isDraggingOver = false;
+                    window.isDraggingFiles = false;
+                    const summaryModal = document.getElementById('screen-summary-modal');
+                    const isModalOpen = summaryModal && !summaryModal.classList.contains('hidden') && summaryModal.style.display !== 'none';
+                    if (this.mode === 'expanded' && !isModalOpen) {
                         this.collapse();
                     }
                 });
@@ -4789,7 +4824,11 @@ class CanvasEngine {
         // Outside-click handling: collapses expanded island or immediately releases interactivity
         if (!inBounds) {
             if (this.mode === 'expanded') {
-                if (this.canAutoCollapse()) {
+                this.isDraggingOver = false;
+                window.isDraggingFiles = false;
+                const summaryModal = document.getElementById('screen-summary-modal');
+                const isModalOpen = summaryModal && !summaryModal.classList.contains('hidden') && summaryModal.style.display !== 'none';
+                if (!isModalOpen) {
                     if (this.config && this.config.restModeEnabled && !this.mediaState.active && !this.focusState.active) {
                         this.enterRest();
                     }
