@@ -444,6 +444,19 @@ Respond with ONLY a raw JSON object (no markdown backticks, no text outside JSON
 
         // 2. Charger State Transitions
         if (this.lastChargingState !== null && this.lastChargingState !== vitals.isCharging) {
+          // Broadcast fluid battery event to Island renderer
+          try {
+            const windows = BrowserWindow.getAllWindows();
+            for (const win of windows) {
+              if (!win.isDestroyed()) {
+                win.webContents.send('battery:state-changed', {
+                  charging: vitals.isCharging,
+                  level: vitals.batteryPercent
+                });
+              }
+            }
+          } catch {}
+
           if (vitals.isCharging) {
             this.broadcastNotification({
               id: 'diag-charge-on-' + Date.now(),

@@ -1990,6 +1990,40 @@ async function runTests() {
     islandCssUpdated.includes('.scorecard-schedule-pill') &&
     islandCssUpdated.includes('.tour-status-tag'));
 
+  // --- 38. Testing Desktop App Overlay Retention & iOS/Mac Fluid Charging Animation ---
+  console.log('\n--- 38. Testing Desktop App Overlay Retention & iOS/Mac Fluid Charging Animation ---');
+  const { isGameMode } = require('../dist/main/game-mode');
+  assert('isGameMode(2) returns false so WhatsApp/busy apps never auto-hide the island', isGameMode(2) === false);
+  assert('isGameMode(3) returns true for exclusive 3D games', isGameMode(3) === true);
+
+  assert('island-window.ts configures screen-saver topmost level and ensureTopmost overlay',
+    islandWindowTsUpdated.includes("'screen-saver'") &&
+    islandWindowTsUpdated.includes('ensureTopmost()') &&
+    islandWindowTsUpdated.includes('this.ensureTopmost()'));
+
+  const audioSynthTs = fs.readFileSync(path.join(__dirname, '../src/renderer/island/audio-synth.ts'), 'utf-8');
+  assert('audio-synth.ts defines Apple charging harmonic chord melody',
+    audioSynthTs.includes("'charging'") &&
+    audioSynthTs.includes('523.25') &&
+    audioSynthTs.includes('783.99'));
+
+  assert('canvas-engine.ts configures Apple iOS fluid charging dimensions (310x44, r:22, 3600ms)',
+    canvasEngineUpdated.includes('310') &&
+    canvasEngineUpdated.includes('3600') &&
+    canvasEngineUpdated.includes('iOS / Mac Fluid Premium Charging Dynamic Island HUD'));
+
+  assert('canvas-engine.ts renders Apple battery capsule and glowing lightning bolt',
+    canvasEngineUpdated.includes('drawChargerSurgeContent') &&
+    canvasEngineUpdated.includes('#34c759') &&
+    canvasEngineUpdated.includes('#30d158') &&
+    canvasEngineUpdated.includes('boltX') &&
+    canvasEngineUpdated.includes('capW'));
+
+  const systemDiagTs = fs.readFileSync(path.join(__dirname, '../src/main/system-diagnostics.ts'), 'utf-8');
+  assert('system-diagnostics.ts broadcasts battery:state-changed on charger transitions',
+    systemDiagTs.includes("'battery:state-changed'") &&
+    systemDiagTs.includes('vitals.isCharging'));
+
   // Summary
   console.log('\n====================================================');
   console.log(`TEST SUMMARY: ${passed} PASSED, ${failed} FAILED`);

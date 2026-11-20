@@ -23,7 +23,8 @@ export type SoundMelody =
   | 'send'
   | 'reply'
   | 'fix'
-  | 'airdrop';
+  | 'airdrop'
+  | 'charging';
 
 export type SoundPack = 'klassiek' | 'zacht' | 'belletjes';
 
@@ -265,6 +266,11 @@ export class AudioSynth {
         [740, 880, 0.10, 0.015, 0],
         [932, 1109, 0.14, 0.014, 0.08],
         [1109, 1480, 0.22, 0.012, 0.18]
+      ],
+      charging: [
+        [523.25, 523.25, 0.12, 0.018, 0],
+        [659.25, 659.25, 0.14, 0.016, 0.08],
+        [783.99, 783.99, 0.24, 0.016, 0.16]
       ]
     };
 

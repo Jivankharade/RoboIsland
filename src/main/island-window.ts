@@ -62,7 +62,8 @@ export class IslandWindow {
       }
     });
 
-    this.window.setAlwaysOnTop(true, 'floating');
+    // Set highest priority screen-saver topmost level so island overlays WhatsApp and all apps seamlessly
+    this.window.setAlwaysOnTop(true, 'screen-saver', 1);
     this.window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 
     // Initial click-through mode
@@ -79,11 +80,14 @@ export class IslandWindow {
 
     this.window.once('ready-to-show', () => {
       this.window?.show();
+      this.ensureTopmost();
       this.startCursorTracking();
       this.setupGlobalShortcuts();
     });
 
     this.window.on('blur', () => {
+      // Re-assert topmost overlay so background focus shifts (e.g. clicking WhatsApp) never bury the island
+      this.ensureTopmost();
       if (this.currentMode === 'expanded') {
         this.window?.webContents.send('island:request-collapse');
       }
@@ -103,6 +107,7 @@ export class IslandWindow {
   private lastCursorAt = 0;
   private wasInsideWindow = false;
   private cachedBounds: Electron.Rectangle | null = null;
+  private lastTopmostCheckAt = 0;
   private lastSentRelX = -9999;
   private lastSentRelY = -9999;
   private lastSentScreenX = -9999;
@@ -128,6 +133,13 @@ export class IslandWindow {
 
       const key = `${cursor.x},${cursor.y},${bounds.x},${bounds.y}`;
       const now = Date.now();
+
+      // Periodic topmost enforcement (every 2.5s) to guarantee overlay above WhatsApp and focused apps
+      if (now - this.lastTopmostCheckAt > 2500) {
+        this.lastTopmostCheckAt = now;
+        this.ensureTopmost();
+      }
+
       if (key === this.lastCursorKey && now - this.lastCursorAt < 1000) {
         this.cursorTimer = setTimeout(tick, insideWindow ? 32 : 75);
         return;
@@ -205,6 +217,18 @@ export class IslandWindow {
     }
   }
 
+  /**
+   * Enforces highest Z-level topmost overlay so Island remains visible
+   * even over foreground WinUI / UWP desktop apps like WhatsApp, Chrome, or Settings.
+   */
+  public ensureTopmost(): void {
+    if (!this.window || this.window.isDestroyed()) return;
+    try {
+      this.window.setAlwaysOnTop(true, 'screen-saver', 1);
+      this.window.moveTop();
+    } catch {}
+  }
+
   public reposition(): void {
     if (!this.window || this.window.isDestroyed()) return;
     const config = configStore.get();
@@ -220,6 +244,7 @@ export class IslandWindow {
       height: pos.height
     };
     this.window.setBounds(this.cachedBounds);
+    this.ensureTopmost();
   }
 
   public setTucked(tucked: boolean): void {
@@ -403,6 +428,7 @@ export class IslandWindow {
     ipcMain.on('island:focus', () => {
       try {
         if (this.window && !this.window.isDestroyed()) {
+          this.ensureTopmost();
           this.window.focus();
         }
       } catch {}
@@ -421,6 +447,7 @@ export class IslandWindow {
 
     ipcMain.on('island:show-compact', () => {
       if (this.window && !this.window.isDestroyed()) {
+        this.ensureTopmost();
         this.window.show();
         this.window.webContents.send('island:collapse');
       }
