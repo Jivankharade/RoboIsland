@@ -320,11 +320,6 @@ class IslandWindow {
             electron_1.globalShortcut.register('CommandOrControl+Alt+T', () => {
                 if (!this.window || this.window.isDestroyed())
                     return;
-                try {
-                    const { gameModeManager } = require('./game-mode');
-                    gameModeManager?.setOverride(true);
-                }
-                catch { }
                 if (this.isTucked) {
                     this.setTucked(false);
                     return;

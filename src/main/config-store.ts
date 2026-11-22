@@ -73,7 +73,7 @@ export const DEFAULT_CONFIG: RoboIslandConfig = {
   restingDisplay: 'eyes',
   soundEnabled: true,
   autoStart: true,
-  gameModeEnabled: true,
+  gameModeEnabled: false,
   tuckEnabled: true,
   restModeEnabled: false,
   restCapsuleWidth: 32,
@@ -151,7 +151,8 @@ class ConfigStore {
         if (parsed.mascotOutfit === 'best') {
           parsed.mascotOutfit = 'none';
         }
-        return { ...DEFAULT_CONFIG, ...parsed };
+        parsed.gameModeEnabled = false;
+        return { ...DEFAULT_CONFIG, ...parsed, gameModeEnabled: false };
       }
     } catch (err) {
       console.error('[ConfigStore] Failed to load config, using defaults:', err);

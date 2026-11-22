@@ -3593,8 +3593,8 @@ class CanvasEngine {
                 });
             }
             if (window.roboIsland.onGameModeChanged) {
-                window.roboIsland.onGameModeChanged((state) => {
-                    this.isGameModeThrottled = Boolean(state && state.inGame && !state.override);
+                window.roboIsland.onGameModeChanged((_state) => {
+                    this.isGameModeThrottled = false;
                 });
             }
             if (window.roboIsland.onBatteryStateChanged) {
@@ -5397,10 +5397,7 @@ class CanvasEngine {
         }
     }
     renderLoop(time) {
-        if (this.isGameModeThrottled) {
-            this._isRenderingActive = false;
-            return;
-        }
+        this.isGameModeThrottled = false;
         // Lock max render rate to 60 FPS to prevent 120Hz/144Hz/240Hz monitors from wasting GPU/CPU
         if (this._lastRenderTimestamp && time - this._lastRenderTimestamp < 15.5) {
             if (typeof requestAnimationFrame !== 'undefined') {

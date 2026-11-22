@@ -44,7 +44,7 @@ exports.DEFAULT_CONFIG = {
     restingDisplay: 'eyes',
     soundEnabled: true,
     autoStart: true,
-    gameModeEnabled: true,
+    gameModeEnabled: false,
     tuckEnabled: true,
     restModeEnabled: false,
     restCapsuleWidth: 32,
@@ -119,7 +119,8 @@ class ConfigStore {
                 if (parsed.mascotOutfit === 'best') {
                     parsed.mascotOutfit = 'none';
                 }
-                return { ...exports.DEFAULT_CONFIG, ...parsed };
+                parsed.gameModeEnabled = false;
+                return { ...exports.DEFAULT_CONFIG, ...parsed, gameModeEnabled: false };
             }
         }
         catch (err) {

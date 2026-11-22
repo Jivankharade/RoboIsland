@@ -6,7 +6,6 @@ exports.isGameMode = isGameMode;
 exports.shouldHideForGame = shouldHideForGame;
 exports.checkForegroundBoundsMatch = checkForegroundBoundsMatch;
 const electron_1 = require("electron");
-const child_process_1 = require("child_process");
 const config_store_1 = require("./config-store");
 var UserNotificationState;
 (function (UserNotificationState) {
@@ -64,136 +63,45 @@ class GameModeManager {
     constructor(islandWindowInstance) {
         this.targetIslandWindow = islandWindowInstance;
         this.setupIPC();
-        this.start();
+        // Game mode removed: do not run any polling timers or background detection
     }
-    handleFullscreenEvent(inGame, stateCode = inGame ? 3 : 1) {
-        const changed = inGame !== this.inGame || stateCode !== this.lastStateCode;
-        this.inGame = inGame;
-        this.lastStateCode = stateCode;
-        if (changed) {
-            this.applyVisibility();
-            this.broadcastState();
-        }
+    handleFullscreenEvent(_inGame, _stateCode = 1) {
+        // Game mode removed: island remains permanently visible as overlay
+        this.inGame = false;
+        this.lastStateCode = 1;
     }
     setIslandWindow(win) {
         this.targetIslandWindow = win;
     }
     getState() {
-        const config = config_store_1.configStore.get();
         return {
-            enabled: Boolean(config.gameModeEnabled),
-            inGame: this.inGame,
-            stateCode: this.lastStateCode,
-            throttledFps: this.inGame && !this.override ? 0 : 60,
-            override: this.override,
-            islandDisplayId: config.selectedDisplayId || 'primary'
+            enabled: false,
+            inGame: false,
+            stateCode: 1,
+            throttledFps: 60,
+            override: true,
+            islandDisplayId: 'primary'
         };
     }
     setOverride(override) {
         this.override = override;
-        this.applyVisibility();
-        this.broadcastState();
     }
     toggleOverride() {
         this.setOverride(!this.override);
     }
     /**
-     * Queries Windows SHQueryUserNotificationState or foreground window bounds.
+     * Game mode removed: always resolves inGame: false with zero process spawning.
      */
     async detectFullscreenGame() {
-        if (process.platform !== 'win32') {
-            return { inGame: false, stateCode: 1 };
-        }
-        return new Promise((resolve) => {
-            // Execute fast Win32 P/Invoke query via powershell
-            const psCommand = `
-        Add-Type -TypeDefinition @"
-        using System;
-        using System.Runtime.InteropServices;
-        public class Win32Shell {
-          [DllImport("shell32.dll")]
-          public static extern int SHQueryUserNotificationState(out int pquns);
-        }
-"@ -ErrorAction SilentlyContinue
-        $state = 0
-        [Win32Shell]::SHQueryUserNotificationState([ref]$state) | Out-Null
-        Write-Output $state
-      `;
-            try {
-                const child = (0, child_process_1.spawn)('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', psCommand], {
-                    windowsHide: true,
-                    timeout: 2000
-                });
-                let output = '';
-                child.stdout?.on('data', (data) => { output += data.toString(); });
-                child.on('close', (code) => {
-                    if (code === 0) {
-                        const parsed = parseInt(output.trim(), 10);
-                        if (!isNaN(parsed)) {
-                            resolve({ inGame: isGameMode(parsed), stateCode: parsed });
-                            return;
-                        }
-                    }
-                    // Fallback if P/Invoke failed
-                    resolve({ inGame: false, stateCode: 1 });
-                });
-                child.on('error', () => {
-                    resolve({ inGame: false, stateCode: 1 });
-                });
-            }
-            catch {
-                resolve({ inGame: false, stateCode: 1 });
-            }
-        });
+        return { inGame: false, stateCode: 1 };
     }
     async poll() {
-        if (this.isChecking)
-            return;
-        this.isChecking = true;
-        try {
-            const config = config_store_1.configStore.get();
-            if (!config.gameModeEnabled) {
-                if (this.inGame) {
-                    this.inGame = false;
-                    this.applyVisibility();
-                    this.broadcastState();
-                }
-                return;
-            }
-            const result = await this.detectFullscreenGame();
-            const changed = result.inGame !== this.inGame || result.stateCode !== this.lastStateCode;
-            this.lastStateCode = result.stateCode;
-            this.inGame = result.inGame;
-            if (changed) {
-                this.applyVisibility();
-                this.broadcastState();
-            }
-        }
-        finally {
-            this.isChecking = false;
-        }
+        // Game mode removed: zero polling
+        this.inGame = false;
+        this.lastStateCode = 1;
     }
     applyVisibility() {
-        const config = config_store_1.configStore.get();
-        if (!config.gameModeEnabled)
-            return;
-        const win = this.targetIslandWindow?.getWindow
-            ? this.targetIslandWindow.getWindow()
-            : this.targetIslandWindow;
-        if (!win || win.isDestroyed())
-            return;
-        if (this.inGame && !this.override) {
-            // Fullscreen active: Auto-hide island
-            if (win.isVisible()) {
-                win.hide();
-            }
-        }
-        else {
-            // Game exited or override enabled: Restore island
-            if (!win.isVisible()) {
-                win.show();
-            }
-        }
+        // Game mode removed: never hide the island window
     }
     broadcastState() {
         const state = this.getState();
@@ -209,14 +117,9 @@ class GameModeManager {
         }
         catch { }
     }
-    start(intervalMs = 2500) {
-        if (this.timer)
-            clearInterval(this.timer);
-        this.pollIntervalMs = Math.max(1000, intervalMs);
-        this.timer = setInterval(() => this.poll(), this.pollIntervalMs);
-        if (this.timer && typeof this.timer.unref === 'function') {
-            this.timer.unref();
-        }
+    start(_intervalMs = 30000) {
+        // Game mode removed: no timer created
+        this.stop();
     }
     stop() {
         if (this.timer) {
