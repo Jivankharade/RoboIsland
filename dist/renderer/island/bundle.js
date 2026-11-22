@@ -5060,8 +5060,8 @@
             this.targetHeight = 280;
             break;
           case "sports":
-            this.targetWidth = 540;
-            this.targetHeight = 300;
+            this.targetWidth = 560;
+            this.targetHeight = 320;
             break;
           case "home":
           default:
@@ -10348,6 +10348,27 @@
           secondary = "rgba(0, 100, 220, 0.22)";
           accent = "#0a84ff";
           break;
+        case "sports": {
+          const sport = this.activeSportsActivity?.sport || "cricket";
+          if (sport === "cricket") {
+            primary = "rgba(16, 185, 129, 0.55)";
+            secondary = "rgba(245, 158, 11, 0.28)";
+            accent = "#10b981";
+          } else if (sport === "football") {
+            primary = "rgba(59, 130, 246, 0.55)";
+            secondary = "rgba(6, 182, 212, 0.28)";
+            accent = "#3b82f6";
+          } else if (sport === "f1") {
+            primary = "rgba(239, 68, 68, 0.55)";
+            secondary = "rgba(249, 115, 22, 0.28)";
+            accent = "#ef4444";
+          } else {
+            primary = "rgba(16, 185, 129, 0.50)";
+            secondary = "rgba(59, 130, 246, 0.22)";
+            accent = "#10b981";
+          }
+          break;
+        }
         case "home":
         case "settings":
         default:
@@ -11742,6 +11763,44 @@
       this.ctx.fillText(pill.rightScore, pillLeft + w - 12 - rBadgeW - 5, midY);
       this.ctx.restore();
     }
+    getTeamCrest(code) {
+      const c = (code || "").toUpperCase().trim();
+      switch (c) {
+        case "IND":
+          return { bg: "linear-gradient(135deg, #003366 0%, #00529b 60%, #ff9933 100%)", text: "#ffffff", border: "#ff9933", glow: "rgba(255, 153, 51, 0.4)" };
+        case "NZ":
+          return { bg: "linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #0284c7 100%)", text: "#ffffff", border: "#38bdf8", glow: "rgba(56, 189, 248, 0.35)" };
+        case "AUS":
+          return { bg: "linear-gradient(135deg, #064e3b 0%, #047857 60%, #fbbf24 100%)", text: "#ffffff", border: "#fbbf24", glow: "rgba(251, 191, 36, 0.4)" };
+        case "ENG":
+          return { bg: "linear-gradient(135deg, #1e3a8a 0%, #2563eb 60%, #dc2626 100%)", text: "#ffffff", border: "#ef4444", glow: "rgba(239, 68, 68, 0.4)" };
+        case "SA":
+          return { bg: "linear-gradient(135deg, #065f46 0%, #059669 60%, #f59e0b 100%)", text: "#ffffff", border: "#10b981", glow: "rgba(16, 185, 129, 0.4)" };
+        case "PAK":
+          return { bg: "linear-gradient(135deg, #022c22 0%, #065f46 60%, #10b981 100%)", text: "#ffffff", border: "#34d399", glow: "rgba(52, 211, 153, 0.4)" };
+        case "WI":
+          return { bg: "linear-gradient(135deg, #7f1d1d 0%, #991b1b 60%, #d97706 100%)", text: "#ffffff", border: "#f59e0b", glow: "rgba(245, 158, 11, 0.4)" };
+        case "SL":
+          return { bg: "linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 60%, #eab308 100%)", text: "#ffffff", border: "#facc15", glow: "rgba(250, 204, 21, 0.4)" };
+        case "BAN":
+          return { bg: "linear-gradient(135deg, #064e3b 0%, #047857 60%, #dc2626 100%)", text: "#ffffff", border: "#ef4444", glow: "rgba(239, 68, 68, 0.4)" };
+        case "AFG":
+          return { bg: "linear-gradient(135deg, #1e40af 0%, #2563eb 60%, #dc2626 100%)", text: "#ffffff", border: "#3b82f6", glow: "rgba(59, 130, 246, 0.4)" };
+        case "MCI":
+          return { bg: "linear-gradient(135deg, #0284c7 0%, #38bdf8 100%)", text: "#000000", border: "#38bdf8", glow: "rgba(56, 189, 248, 0.4)" };
+        case "ARS":
+          return { bg: "linear-gradient(135deg, #991b1b 0%, #dc2626 100%)", text: "#ffffff", border: "#ef4444", glow: "rgba(239, 68, 68, 0.4)" };
+        case "LIV":
+          return { bg: "linear-gradient(135deg, #831843 0%, #be123c 100%)", text: "#ffffff", border: "#f43f5e", glow: "rgba(244, 63, 94, 0.4)" };
+        case "RMA":
+          return { bg: "linear-gradient(135deg, #1f2937 0%, #374151 60%, #fbbf24 100%)", text: "#ffffff", border: "#fbbf24", glow: "rgba(251, 191, 36, 0.4)" };
+        case "BAR":
+        case "FCB":
+          return { bg: "linear-gradient(135deg, #1e3a8a 0%, #831843 100%)", text: "#ffffff", border: "#fbbf24", glow: "rgba(251, 191, 36, 0.4)" };
+        default:
+          return { bg: "linear-gradient(135deg, #18181b 0%, #27272a 100%)", text: "#ffffff", border: "rgba(255,255,255,0.22)", glow: "rgba(255,255,255,0.1)" };
+      }
+    }
     renderSportsScorecardDOM() {
       const body = document.getElementById("sports-card-body");
       if (!body) return;
@@ -11749,6 +11808,14 @@
       if (!act) {
         body.innerHTML = '<div style="color:rgba(255,255,255,0.4); text-align:center; padding:30px;">Loading sports feed...</div>';
         return;
+      }
+      const modal = document.getElementById("sports-scorecard-modal");
+      if (modal) {
+        modal.setAttribute("data-sport", act.sport);
+      }
+      body.className = `sports-card-body sports-${act.sport}-theme`;
+      if (this.currentDomTab === "sports") {
+        this.updateAmbientGlow("sports");
       }
       const modeLabel = document.getElementById("sport-mode-label");
       const modeBtn = document.getElementById("sport-mode-toggle");
@@ -11791,80 +11858,109 @@
         }).join("");
         const battersHtml = sc.currentBatters.map((bat) => `
         <div class="subbox-row ${bat.isStriker ? "striker" : ""}">
-          <span>${bat.name} ${bat.isStriker ? "*" : ""}</span>
-          <span><b>${bat.runs}</b> (${bat.balls}) <small style="color:rgba(255,255,255,0.4)">${bat.fours}x4 ${bat.sixes}x6</small></span>
+          <span>${bat.name} ${bat.isStriker ? "\u2605" : ""}</span>
+          <span><b>${bat.runs}</b> <small style="color:rgba(255,255,255,0.45)">(${bat.balls}b \u2022 ${bat.fours}x4 ${bat.sixes}x6)</small></span>
         </div>
       `).join("");
         const latestComment = sc.commentary && sc.commentary.length > 0 ? sc.commentary[0].text : "";
-        const homeFlag = sc.homeTeam.code === "NZ" ? "\u{1F1F3}\u{1F1FF}" : sc.homeTeam.code === "IND" ? "\u{1F1EE}\u{1F1F3}" : sc.homeTeam.code === "AUS" ? "\u{1F1E6}\u{1F1FA}" : sc.homeTeam.code === "ENG" ? "\u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}" : sc.homeTeam.code === "PAK" ? "\u{1F1F5}\u{1F1F0}" : sc.homeTeam.code === "SA" ? "\u{1F1FF}\u{1F1E6}" : "\u{1F3CF}";
-        const awayFlag = sc.awayTeam.code === "IND" ? "\u{1F1EE}\u{1F1F3}" : sc.awayTeam.code === "NZ" ? "\u{1F1F3}\u{1F1FF}" : sc.awayTeam.code === "AUS" ? "\u{1F1E6}\u{1F1FA}" : sc.awayTeam.code === "ENG" ? "\u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}" : sc.awayTeam.code === "PAK" ? "\u{1F1F5}\u{1F1F0}" : sc.awayTeam.code === "SA" ? "\u{1F1FF}\u{1F1E6}" : "\u{1F3CF}";
+        const homeRawScore = String(sc.homeTeam.score || "");
+        const awayRawScore = String(sc.awayTeam.score || "");
+        const homeOversMatch = homeRawScore.match(/\(\s*(\d+(\.\d+)?\s*ov)\s*\)/i);
+        const homeCleanScore = homeRawScore.replace(/\s*\(\s*\d+(\.\d+)?\s*ov\s*\)/gi, "").trim();
+        const homeOvers = homeOversMatch ? homeOversMatch[1] : sc.homeTeam.overs ? `${sc.homeTeam.overs} ov` : "";
+        const awayOversMatch = awayRawScore.match(/\(\s*(\d+(\.\d+)?\s*ov)\s*\)/i);
+        const awayCleanScore = awayRawScore.replace(/\s*\(\s*\d+(\.\d+)?\s*ov\s*\)/gi, "").trim();
+        const awayOvers = awayOversMatch ? awayOversMatch[1] : sc.awayTeam.overs ? `${sc.awayTeam.overs} ov` : "";
+        const homeCrest = this.getTeamCrest(sc.homeTeam.code);
+        const awayCrest = this.getTeamCrest(sc.awayTeam.code);
         const matchDay = act.matchDay || "Thursday";
         const matchDate = act.matchDate || "19 Nov 2026";
         const matchTime = act.matchTime || "11:00 AM NZDT (3:30 AM IST)";
         const venue = act.venue || "Basin Reserve, Wellington";
         const league = act.league || "India tour of New Zealand 2026/27";
         body.innerHTML = `
-        <div class="scorecard-tour-header">
-          <div class="tour-header-left">
-            <span class="tour-title">${league}</span>
-            <span class="tour-subtitle">${act.title || "1st Test \u2022 Basin Reserve, Wellington"}</span>
-          </div>
-          <div class="tour-header-right">
-            <span class="tour-status-tag">${act.statusText}</span>
-          </div>
-        </div>
-
-        <div class="scorecard-schedule-pill">
-          <span class="sched-item">\u{1F4C5} <b>${matchDay}</b>, ${matchDate}</span>
-          <span class="sched-divider">\u2022</span>
-          <span class="sched-item">\u23F0 <b>${matchTime}</b></span>
-          <span class="sched-divider">\u2022</span>
-          <span class="sched-item">\u{1F4CD} ${venue}</span>
-        </div>
-
-        <div class="scorecard-hero">
-          <div class="scorecard-team-box">
-            <div class="team-identity-row">
-              <span class="team-flag-icon">${homeFlag}</span>
-              <span class="scorecard-team-code">${sc.homeTeam.code}</span>
+        <div class="sports-layout-wrapper sports-cricket-theme">
+          <!-- 1. Hero Match Card (Similar to other tabs) -->
+          <div class="sports-hero-card">
+            <div class="scorecard-tour-header">
+              <div class="tour-header-left">
+                <span class="tour-title">${league}</span>
+                <span class="tour-subtitle">${act.title || "1st Test"}</span>
+              </div>
+              <div class="tour-header-right">
+                <span class="tour-status-tag">${act.statusText}</span>
+              </div>
             </div>
-            <span class="scorecard-team-name">${sc.homeTeam.name}</span>
-          </div>
-          <div class="scorecard-score-box">
-            <span class="scorecard-primary-score">${sc.homeTeam.score} <small style="font-size:12px; color:rgba(255,255,255,0.5)">(${sc.homeTeam.overs} ov)</small></span>
-            <span class="scorecard-status-sub">${act.statusText}</span>
-          </div>
-          <div class="scorecard-team-box" style="align-items:flex-end">
-            <div class="team-identity-row" style="flex-direction:row-reverse">
-              <span class="team-flag-icon">${awayFlag}</span>
-              <span class="scorecard-team-code">${sc.awayTeam.code}</span>
-            </div>
-            <span class="scorecard-team-name">${sc.awayTeam.name} (${sc.awayTeam.score})</span>
-          </div>
-        </div>
 
-        <div class="scorecard-subgrid">
-          <div class="scorecard-subbox">
-            <span class="subbox-title">Batters</span>
-            ${battersHtml}
-          </div>
-          <div class="scorecard-subbox">
-            <span class="subbox-title">Bowler & Recent Balls</span>
-            <div class="subbox-row">
-              <span>${sc.currentBowler.name}</span>
-              <span>${sc.currentBowler.overs}-${sc.currentBowler.maidens}-${sc.currentBowler.runs}-${sc.currentBowler.wickets} (Econ: ${sc.currentBowler.economy})</span>
+            <div class="scorecard-schedule-pill">
+              <span class="sched-item">\u{1F4C5} <b>${matchDay}</b>, ${matchDate}</span>
+              <span class="sched-divider">\u2022</span>
+              <span class="sched-item">\u23F0 <b>${matchTime}</b></span>
+              <span class="sched-divider">\u2022</span>
+              <span class="sched-item">\u{1F4CD} ${venue}</span>
             </div>
-            <div class="recent-balls-row">
-              ${recentHtml}
+
+            <div class="hero-duel-grid">
+              <div class="hero-team-column home">
+                <div class="team-crest-badge" style="background:${homeCrest.bg}; border-color:${homeCrest.border}; color:${homeCrest.text}; box-shadow:0 0 12px ${homeCrest.glow};">${sc.homeTeam.code}</div>
+                <div class="team-meta-block">
+                  <span class="team-full-name">${sc.homeTeam.name}</span>
+                  <span class="team-score-num">${homeCleanScore || "0/0"}</span>
+                  ${homeOvers ? `<span class="team-overs-sub">${homeOvers}${sc.homeTeam.runRate ? ` \u2022 CRR ${sc.homeTeam.runRate}` : ""}</span>` : ""}
+                </div>
+              </div>
+
+              <div class="hero-center-vs">
+                <div class="vs-glow-pill">VS</div>
+              </div>
+
+              <div class="hero-team-column away">
+                <div class="team-meta-block align-right">
+                  <span class="team-full-name">${sc.awayTeam.name}</span>
+                  <span class="team-score-num">${awayCleanScore || "0/0"}</span>
+                  ${awayOvers ? `<span class="team-overs-sub">${awayOvers}${sc.awayTeam.runRate ? ` \u2022 CRR ${sc.awayTeam.runRate}` : ""}</span>` : ""}
+                </div>
+                <div class="team-crest-badge" style="background:${awayCrest.bg}; border-color:${awayCrest.border}; color:${awayCrest.text}; box-shadow:0 0 12px ${awayCrest.glow};">${sc.awayTeam.code}</div>
+              </div>
             </div>
           </div>
-        </div>
 
-        ${latestComment ? `
-          <div style="font-size:10.5px; color:rgba(255,255,255,0.6); background:rgba(255,255,255,0.03); border-radius:8px; padding:6px 10px; line-height:1.4;">
-            <b style="color:#22e05a;">Live Commentary:</b> ${latestComment}
+          <!-- 2. Lower 2-Card Grid (Apple / TwoCode Card Standard) -->
+          <div class="sports-subcards-grid">
+            <div class="sports-subcard card-batting">
+              <div class="subcard-header">
+                <span class="subcard-title-icon">\u{1F3CF}</span>
+                <span class="subcard-title-text">BATTERS ON CREASE</span>
+              </div>
+              <div class="subcard-content">
+                ${battersHtml || '<div style="color:rgba(255,255,255,0.4); font-size:11px;">Innings Break</div>'}
+              </div>
+            </div>
+
+            <div class="sports-subcard card-bowling">
+              <div class="subcard-header">
+                <span class="subcard-title-icon">\u{1F3AF}</span>
+                <span class="subcard-title-text">CURRENT OVER & BOWLER</span>
+              </div>
+              <div class="subcard-content">
+                <div class="bowler-stats-row">
+                  <span class="bowler-name">${sc.currentBowler.name || "Bowler"}</span>
+                  <span class="bowler-figures">${sc.currentBowler.overs}-${sc.currentBowler.maidens}-${sc.currentBowler.runs}-${sc.currentBowler.wickets} <small>(Econ: ${sc.currentBowler.economy})</small></span>
+                </div>
+                <div class="recent-over-strip">
+                  <span class="over-strip-label">THIS OVER:</span>
+                  <div class="over-balls-container">${recentHtml}</div>
+                </div>
+              </div>
+            </div>
           </div>
-        ` : ""}
+
+          ${latestComment ? `
+            <div style="font-size:10px; color:rgba(255,255,255,0.65); background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:10px; padding:5px 10px; line-height:1.4;">
+              <b style="color:#10b981;">Live Commentary:</b> ${latestComment}
+            </div>
+          ` : ""}
+        </div>
       `;
       } else if (act.sport === "football" && act.scorecard.football) {
         const fb = act.scorecard.football;
@@ -11872,40 +11968,91 @@
           const icon = ev.type === "goal" ? "\u26BD" : ev.type === "card_yellow" ? "\u{1F7E8}" : "\u{1F7E5}";
           return `<div class="subbox-row"><span>${icon} ${ev.minute}'</span><span>${ev.player} (${ev.team})</span></div>`;
         }).join("");
+        const homeCrest = this.getTeamCrest(fb.homeTeam.code);
+        const awayCrest = this.getTeamCrest(fb.awayTeam.code);
         body.innerHTML = `
-        <div class="scorecard-hero">
-          <div class="scorecard-team-box">
-            <span class="scorecard-team-code">${fb.homeTeam.code}</span>
-            <span class="scorecard-team-name">${fb.homeTeam.name}</span>
-          </div>
-          <div class="scorecard-score-box">
-            <span class="scorecard-primary-score">${fb.homeTeam.score} - ${fb.awayTeam.score}</span>
-            <span class="scorecard-status-sub">${fb.matchClock} \u2022 ${fb.half}</span>
-          </div>
-          <div class="scorecard-team-box" style="align-items:flex-end">
-            <span class="scorecard-team-code">${fb.awayTeam.code}</span>
-            <span class="scorecard-team-name">${fb.awayTeam.name}</span>
-          </div>
-        </div>
+        <div class="sports-layout-wrapper sports-football-theme">
+          <div class="sports-hero-card">
+            <div class="scorecard-tour-header">
+              <div class="tour-header-left">
+                <span class="tour-title">${act.league || "Premier League"}</span>
+                <span class="tour-subtitle">${act.title || "Live Match"}</span>
+              </div>
+              <div class="tour-header-right">
+                <span class="tour-status-tag" style="background:rgba(59,130,246,0.18); border-color:rgba(59,130,246,0.45); color:#60a5fa;">${fb.matchClock} \u2022 ${fb.half}</span>
+              </div>
+            </div>
 
-        <div class="scorecard-subgrid">
-          <div class="scorecard-subbox">
-            <span class="subbox-title">Key Match Events</span>
-            ${eventsHtml || '<div style="color:rgba(255,255,255,0.4); font-size:11px;">No goals yet</div>'}
+            <div class="scorecard-schedule-pill">
+              <span class="sched-item">\u26BD <b>Live Matchday</b></span>
+              <span class="sched-divider">\u2022</span>
+              <span class="sched-item">\u23F1 ${fb.matchClock}</span>
+              <span class="sched-divider">\u2022</span>
+              <span class="sched-item">\u{1F4CD} ${act.venue || "Stadium Arena"}</span>
+            </div>
+
+            <div class="hero-duel-grid">
+              <div class="hero-team-column home">
+                <div class="team-crest-badge" style="background:${homeCrest.bg}; border-color:${homeCrest.border}; color:${homeCrest.text}; box-shadow:0 0 12px ${homeCrest.glow};">${fb.homeTeam.code}</div>
+                <div class="team-meta-block">
+                  <span class="team-full-name">${fb.homeTeam.name}</span>
+                </div>
+              </div>
+
+              <div class="hero-center-vs">
+                <div class="football-score-display">
+                  <span>${fb.homeTeam.score}</span>
+                  <span class="football-score-dash">-</span>
+                  <span>${fb.awayTeam.score}</span>
+                </div>
+              </div>
+
+              <div class="hero-team-column away">
+                <div class="team-meta-block align-right">
+                  <span class="team-full-name">${fb.awayTeam.name}</span>
+                </div>
+                <div class="team-crest-badge" style="background:${awayCrest.bg}; border-color:${awayCrest.border}; color:${awayCrest.text}; box-shadow:0 0 12px ${awayCrest.glow};">${fb.awayTeam.code}</div>
+              </div>
+            </div>
           </div>
-          <div class="scorecard-subbox">
-            <span class="subbox-title">Match Statistics</span>
-            <div class="subbox-row">
-              <span>Possession</span>
-              <span><b>${fb.stats.possession[0]}%</b> - <b>${fb.stats.possession[1]}%</b></span>
+
+          <div class="sports-subcards-grid">
+            <div class="sports-subcard card-football-events">
+              <div class="subcard-header">
+                <span class="subcard-title-icon">\u26A1</span>
+                <span class="subcard-title-text">KEY MATCH EVENTS</span>
+              </div>
+              <div class="subcard-content">
+                ${eventsHtml || '<div style="color:rgba(255,255,255,0.4); font-size:11px; padding:4px 0;">Match underway \u2022 No cards or goals yet</div>'}
+              </div>
             </div>
-            <div class="subbox-row">
-              <span>Shots on Target</span>
-              <span>${fb.stats.shotsOnTarget[0]} - ${fb.stats.shotsOnTarget[1]}</span>
-            </div>
-            <div class="subbox-row">
-              <span>Corners / Fouls</span>
-              <span>${fb.stats.corners[0]}-${fb.stats.corners[1]} / ${fb.stats.fouls[0]}-${fb.stats.fouls[1]}</span>
+
+            <div class="sports-subcard card-football-stats">
+              <div class="subcard-header">
+                <span class="subcard-title-icon">\u{1F4CA}</span>
+                <span class="subcard-title-text">MATCH STATISTICS</span>
+              </div>
+              <div class="subcard-content">
+                <div class="stat-progress-item">
+                  <div class="stat-progress-labels">
+                    <span>${fb.stats.possession[0]}%</span>
+                    <span class="stat-name">Possession</span>
+                    <span>${fb.stats.possession[1]}%</span>
+                  </div>
+                  <div class="stat-dual-bar">
+                    <div class="stat-bar-left" style="width:${fb.stats.possession[0]}%"></div>
+                    <div class="stat-bar-right" style="width:${fb.stats.possession[1]}%"></div>
+                  </div>
+                </div>
+                <div class="subbox-row">
+                  <span>Shots on Target</span>
+                  <span><b>${fb.stats.shotsOnTarget[0]}</b> - <b>${fb.stats.shotsOnTarget[1]}</b></span>
+                </div>
+                <div class="subbox-row">
+                  <span>Corners / Fouls</span>
+                  <span>${fb.stats.corners[0]}-${fb.stats.corners[1]} / ${fb.stats.fouls[0]}-${fb.stats.fouls[1]}</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -11924,24 +12071,58 @@
         </div>
       `).join("");
         body.innerHTML = `
-        <div class="scorecard-hero">
-          <div class="scorecard-team-box">
-            <span class="scorecard-team-code">${f1.grandPrix}</span>
-            <span class="scorecard-team-name">${f1.circuit}</span>
-          </div>
-          <div class="scorecard-score-box">
-            <span class="scorecard-primary-score">Lap ${f1.currentLap}/${f1.totalLaps}</span>
-            <span class="scorecard-status-sub">${f1.safetyCar !== "NONE" ? "\u26A0\uFE0F " + f1.safetyCar + " DEPLOYED" : "GREEN FLAG"}</span>
-          </div>
-          <div class="scorecard-team-box" style="align-items:flex-end">
-            <span class="scorecard-team-code" style="color:#a855f7;">FL: ${f1.fastestLap.driver}</span>
-            <span class="scorecard-team-name">${f1.fastestLap.lapTime}</span>
-          </div>
-        </div>
+        <div class="sports-layout-wrapper sports-f1-theme">
+          <div class="sports-hero-card">
+            <div class="scorecard-tour-header">
+              <div class="tour-header-left">
+                <span class="tour-title">FORMULA 1 2026</span>
+                <span class="tour-subtitle">${f1.grandPrix}</span>
+              </div>
+              <div class="tour-header-right">
+                <span class="tour-status-tag tour-status-tag f1-tag">${f1.safetyCar !== "NONE" ? "\u26A0\uFE0F " + f1.safetyCar + " DEPLOYED" : "GREEN FLAG"}</span>
+              </div>
+            </div>
 
-        <div class="scorecard-subbox" style="gap:2px;">
-          <span class="subbox-title">Driver Standings & Gaps</span>
-          ${driversHtml}
+            <div class="scorecard-schedule-pill">
+              <span class="sched-item">\u{1F3CE}\uFE0F <b>${f1.grandPrix}</b></span>
+              <span class="sched-divider">\u2022</span>
+              <span class="sched-item">\u{1F4CD} ${f1.circuit}</span>
+              <span class="sched-divider">\u2022</span>
+              <span class="sched-item">\u{1F3C1} Lap <b>${f1.currentLap}/${f1.totalLaps}</b></span>
+            </div>
+
+            <div class="hero-duel-grid">
+              <div class="hero-team-column home">
+                <div class="team-crest-badge" style="background:linear-gradient(135deg, #ef4444 0%, #991b1b 100%); border-color:#f87171; color:#fff; box-shadow:0 0 12px rgba(239,68,68,0.4);">F1</div>
+                <div class="team-meta-block">
+                  <span class="team-full-name">${f1.circuit}</span>
+                  <span style="font-size:10px; color:#a855f7; font-weight:700;">\u{1F7E3} FL: ${f1.fastestLap.driver} (${f1.fastestLap.lapTime})</span>
+                </div>
+              </div>
+
+              <div class="hero-center-vs">
+                <div class="vs-glow-pill" style="color:#ef4444; border-color:rgba(239,68,68,0.3); background:rgba(239,68,68,0.1);">LAP ${f1.currentLap}/${f1.totalLaps}</div>
+              </div>
+
+              <div class="hero-team-column away">
+                <div class="team-meta-block align-right">
+                  <span class="team-full-name">${f1.safetyCar !== "NONE" ? f1.safetyCar : "RACE LEADER"}</span>
+                  <span class="team-score-num" style="font-size:14px; color:#f87171;">${f1.leaderboard[0]?.driverCode || "P1"}</span>
+                </div>
+                <div class="team-crest-badge" style="background:linear-gradient(135deg, #1e293b 0%, #334155 100%); border-color:rgba(255,255,255,0.3); color:#fff;">P1</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="sports-subcard" style="gap:2px;">
+            <div class="subcard-header">
+              <span class="subcard-title-icon">\u{1F3C1}</span>
+              <span class="subcard-title-text">DRIVER STANDINGS & GAPS</span>
+            </div>
+            <div class="subcard-content" style="gap:2px;">
+              ${driversHtml}
+            </div>
+          </div>
         </div>
       `;
       }

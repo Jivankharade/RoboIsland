@@ -5543,6 +5543,27 @@ html, body {
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
 }
 
+.sport-tab-btn#sport-tab-cricket.active {
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.2);
+  border-color: rgba(16, 185, 129, 0.45);
+  box-shadow: 0 2px 10px rgba(16, 185, 129, 0.25);
+}
+
+.sport-tab-btn#sport-tab-football.active {
+  color: #60a5fa;
+  background: rgba(59, 130, 246, 0.2);
+  border-color: rgba(59, 130, 246, 0.45);
+  box-shadow: 0 2px 10px rgba(59, 130, 246, 0.25);
+}
+
+.sport-tab-btn#sport-tab-f1.active {
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.45);
+  box-shadow: 0 2px 10px rgba(239, 68, 68, 0.25);
+}
+
 .sports-header-right {
   display: flex;
   align-items: center;
@@ -5644,14 +5665,98 @@ html, body {
   flex-direction: column;
   flex: 1;
   overflow-y: auto;
-  gap: 8px;
+  gap: 10px;
+  padding: 2px;
 }
 
+/* Base Sports Layout Wrapper */
+.sports-layout-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+/* ==========================================================================
+   Apple-grade Sports Hero Duel Card (Frosted Glass with atmospheric glow)
+   ========================================================================== */
+.sports-hero-card {
+  position: relative;
+  border-radius: 20px;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: hidden;
+  user-select: none;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Cricket Stadium Theme (Deep Emerald & Warm Gold) */
+.sports-cricket-theme .sports-hero-card {
+  background:
+    radial-gradient(ellipse 90% 70% at 50% 120%, rgba(16, 185, 129, 0.32) 0%, rgba(16, 185, 129, 0.10) 55%, transparent 85%),
+    linear-gradient(180deg, #0d1312 0%, #0c0f11 40%, rgba(16, 185, 129, 0.08) 80%, rgba(16, 185, 129, 0.22) 100%),
+    #0c0d10;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.55), 0 0 24px rgba(16, 185, 129, 0.12);
+}
+
+.sports-cricket-theme .tour-title {
+  color: #34d399;
+}
+
+.sports-cricket-theme .tour-status-tag {
+  background: rgba(16, 185, 129, 0.18);
+  border: 1px solid rgba(16, 185, 129, 0.45);
+  color: #34d399;
+}
+
+/* Football Matchday Theme (Electric Azure Blue & Neon Cyan) */
+.sports-football-theme .sports-hero-card {
+  background:
+    radial-gradient(ellipse 90% 70% at 50% 120%, rgba(59, 130, 246, 0.32) 0%, rgba(59, 130, 246, 0.10) 55%, transparent 85%),
+    linear-gradient(180deg, #09101d 0%, #0a0d16 40%, rgba(59, 130, 246, 0.08) 80%, rgba(59, 130, 246, 0.22) 100%),
+    #0c0d10;
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.55), 0 0 24px rgba(59, 130, 246, 0.12);
+}
+
+.sports-football-theme .tour-title {
+  color: #60a5fa;
+}
+
+.sports-football-theme .tour-status-tag {
+  background: rgba(59, 130, 246, 0.18);
+  border: 1px solid rgba(59, 130, 246, 0.45);
+  color: #60a5fa;
+}
+
+/* Formula 1 High-Speed Theme (Racing Scarlet Red & Fire Orange) */
+.sports-f1-theme .sports-hero-card {
+  background:
+    radial-gradient(ellipse 90% 70% at 50% 120%, rgba(239, 68, 68, 0.32) 0%, rgba(239, 68, 68, 0.10) 55%, transparent 85%),
+    linear-gradient(180deg, #180c0d 0%, #120a0b 40%, rgba(239, 68, 68, 0.08) 80%, rgba(239, 68, 68, 0.22) 100%),
+    #0c0d10;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.55), 0 0 24px rgba(239, 68, 68, 0.12);
+}
+
+.sports-f1-theme .tour-title {
+  color: #f87171;
+}
+
+.sports-f1-theme .tour-status-tag {
+  background: rgba(239, 68, 68, 0.18);
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  color: #f87171;
+}
+
+/* Header & Schedule Pill */
 .scorecard-tour-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 4px 6px 2px 6px;
 }
 
 .tour-header-left {
@@ -5662,37 +5767,35 @@ html, body {
 
 .tour-title {
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.6px;
-  color: #38bdf8;
+  letter-spacing: 0.8px;
 }
 
 .tour-subtitle {
   font-size: 10px;
-  color: rgba(255, 255, 255, 0.6);
+  color: rgba(255, 255, 255, 0.55);
 }
 
 .tour-status-tag {
   font-size: 9.5px;
   font-weight: 700;
-  padding: 2px 7px;
-  border-radius: 8px;
-  background: rgba(34, 224, 90, 0.15);
-  border: 1px solid rgba(34, 224, 90, 0.35);
-  color: #22e05a;
+  padding: 3px 9px;
+  border-radius: 999px;
+  letter-spacing: 0.4px;
 }
 
 .scorecard-schedule-pill {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 10px;
-  padding: 4px 10px;
+  border-radius: 999px;
+  padding: 3px 10px;
   font-size: 10px;
-  color: rgba(255, 255, 255, 0.75);
+  color: rgba(255, 255, 255, 0.7);
+  width: fit-content;
 }
 
 .sched-item {
@@ -5706,105 +5809,247 @@ html, body {
   font-size: 8px;
 }
 
-.team-identity-row {
+/* Hero Duel Grid */
+.hero-duel-grid {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+  padding: 4px 0;
+}
+
+.hero-team-column {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hero-team-column.away {
+  justify-content: flex-end;
+}
+
+.team-crest-badge {
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  border: 1.5px solid;
+  transition: transform 0.2s ease;
+}
+
+.sports-hero-card:hover .team-crest-badge {
+  transform: scale(1.05);
+}
+
+.team-meta-block {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.team-meta-block.align-right {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.team-full-name {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.team-score-num {
+  font-size: 20px;
+  font-weight: 800;
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.4px;
+  line-height: 1.15;
+}
+
+.team-overs-sub {
+  font-size: 9.5px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.hero-center-vs {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.vs-glow-pill {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.football-score-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 26px;
+  font-weight: 900;
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.5px;
+}
+
+.football-score-dash {
+  color: rgba(255, 255, 255, 0.35);
+  font-weight: 300;
+}
+
+/* ==========================================================================
+   Lower Subcards Grid (Apple / TwoCode Standard 2-Card Layout)
+   ========================================================================== */
+.sports-subcards-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.sports-subcard {
+  position: relative;
+  background: #0c0d10;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.sports-subcard:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+}
+
+/* Cricket Subcard Accents */
+.sports-cricket-theme .card-batting {
+  background:
+    linear-gradient(180deg, #0e1215 0%, #0c0d10 40%, rgba(16, 185, 129, 0.05) 100%),
+    #0c0d10;
+  border-color: rgba(16, 185, 129, 0.2);
+}
+
+.sports-cricket-theme .card-bowling {
+  background:
+    linear-gradient(180deg, #0e1215 0%, #0c0d10 40%, rgba(245, 158, 11, 0.05) 100%),
+    #0c0d10;
+  border-color: rgba(245, 158, 11, 0.2);
+}
+
+/* Football Subcard Accents */
+.sports-football-theme .card-football-events {
+  background:
+    linear-gradient(180deg, #0a101d 0%, #0c0d10 40%, rgba(59, 130, 246, 0.05) 100%),
+    #0c0d10;
+  border-color: rgba(59, 130, 246, 0.2);
+}
+
+.sports-football-theme .card-football-stats {
+  background:
+    linear-gradient(180deg, #0a101d 0%, #0c0d10 40%, rgba(6, 182, 212, 0.05) 100%),
+    #0c0d10;
+  border-color: rgba(6, 182, 212, 0.2);
+}
+
+/* F1 Subcard Accents */
+.sports-f1-theme .sports-subcard {
+  background:
+    linear-gradient(180deg, #170d0d 0%, #0c0d10 40%, rgba(239, 68, 68, 0.05) 100%),
+    #0c0d10;
+  border-color: rgba(239, 68, 68, 0.2);
+}
+
+.subcard-header {
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.team-flag-icon {
-  font-size: 14px;
+.subcard-title-icon {
+  font-size: 11px;
 }
 
-.scorecard-hero {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 14px;
-  padding: 8px 14px;
-}
-
-.scorecard-team-box {
-  display: flex;
-  flex-direction: column;
-}
-
-.scorecard-team-code {
-  font-size: 14px;
-  font-weight: 800;
-  color: #ffffff;
-  letter-spacing: 0.5px;
-}
-
-.scorecard-team-name {
-  font-size: 10px;
-  color: rgba(255, 255, 255, 0.5);
-}
-
-.scorecard-score-box {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-}
-
-.scorecard-primary-score {
-  font-size: 18px;
-  font-weight: 800;
-  color: #ffffff;
-  font-variant-numeric: tabular-nums;
-}
-
-.scorecard-status-sub {
-  font-size: 10px;
-  font-weight: 600;
-  color: #22e05a;
-}
-
-.scorecard-subgrid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-
-.scorecard-subbox {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 12px;
-  padding: 6px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.subbox-title {
+.subcard-title-text {
   font-size: 9.5px;
   font-weight: 700;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.4);
-  letter-spacing: 0.5px;
+  letter-spacing: 0.6px;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.subcard-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .subbox-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 11px;
+  font-size: 10.5px;
   color: rgba(255, 255, 255, 0.85);
 }
 
 .subbox-row.striker {
-  color: #22e05a;
+  color: #34d399;
   font-weight: 600;
 }
 
-.recent-balls-row {
+.bowler-stats-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10.5px;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.bowler-name {
+  font-weight: 700;
+}
+
+.bowler-figures {
+  color: #f59e0b;
+  font-weight: 600;
+}
+
+.recent-over-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+}
+
+.over-strip-label {
+  font-size: 9px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.4);
+  letter-spacing: 0.5px;
+}
+
+.over-balls-container {
   display: flex;
   align-items: center;
   gap: 4px;
-  margin-top: 2px;
 }
 
 .recent-ball-pill {
@@ -5815,26 +6060,72 @@ html, body {
   height: 18px;
   border-radius: 50%;
   font-size: 9.5px;
-  font-weight: 700;
+  font-weight: 800;
   color: #ffffff;
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .recent-ball-pill.b4 {
-  background: #22e05a;
+  background: #10b981;
   color: #000000;
 }
 
 .recent-ball-pill.b6 {
-  background: #a855f7;
+  background: #8b5cf6;
   color: #ffffff;
 }
 
 .recent-ball-pill.bW {
-  background: #ff3b3b;
+  background: #ef4444;
   color: #ffffff;
 }
 
+/* Football Dual Stat Bar */
+.stat-progress-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 2px;
+}
+
+.stat-progress-labels {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.stat-name {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.stat-dual-bar {
+  display: flex;
+  height: 5px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.08);
+  gap: 2px;
+}
+
+.stat-bar-left {
+  background: #3b82f6;
+  border-radius: 2px 0 0 2px;
+  transition: width 0.3s ease;
+}
+
+.stat-bar-right {
+  background: #06b6d4;
+  border-radius: 0 2px 2px 0;
+  transition: width 0.3s ease;
+}
+
+/* F1 Telemetry Rows */
 .f1-driver-row {
   display: flex;
   align-items: center;
@@ -5878,8 +6169,8 @@ html, body {
   font-weight: 800;
 }
 
-.f1-tyre-badge.SOFT { background: #ff3b3b; color: #fff; }
-.f1-tyre-badge.MEDIUM { background: #ffd60a; color: #000; }
+.f1-tyre-badge.SOFT { background: #ef4444; color: #fff; }
+.f1-tyre-badge.MEDIUM { background: #f59e0b; color: #000; }
 .f1-tyre-badge.HARD { background: #ffffff; color: #000; }
 
 /* ==========================================================================
