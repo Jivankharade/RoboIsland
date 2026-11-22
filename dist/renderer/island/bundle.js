@@ -621,7 +621,7 @@
       const dy = pointerY - headCenterY;
       const dist = Math.sqrt(dx * dx + dy * dy);
       const maxLook = 1;
-      const isPointerOffscreen = pointerX < -3e3 || pointerY < -3e3 || pointerX > 5e3 || pointerY > 5e3;
+      const isPointerOffscreen = pointerX <= -8e3 || pointerY <= -8e3 || pointerX >= 8e3 || pointerY >= 8e3;
       if (!isPointerOffscreen && dist > 5) {
         this.targetLookX = Math.max(-maxLook, Math.min(maxLook, dx / 580));
         this.targetLookY = Math.max(-0.6, Math.min(maxLook, dy / 420));
@@ -638,28 +638,20 @@
         moodLookBiasX = 0.45;
         moodLookBiasY = -0.35;
       }
-      if (this.isCompactIdle && Math.abs(this.targetLookX) < 0.05 && Math.abs(this.targetLookY) < 0.05) {
-        this.saccadeX += (0 - this.saccadeX) * 0.15;
-        this.saccadeY = 0;
-      } else {
-        this.saccadeTimer -= dt;
-        if (this.saccadeTimer <= 0) {
-          this.targetSaccadeX = (Math.random() - 0.5) * 0.22;
-          this.targetSaccadeY = 0;
-          this.saccadeTimer = 2.5 + Math.random() * 3.5;
-        }
-        this.saccadeX += (this.targetSaccadeX - this.saccadeX) * 0.2;
-        this.saccadeY = 0;
-      }
-      const gazeDamping = 1 - Math.exp(-14 * dt);
-      this.targetGazeX = this.targetLookX + moodLookBiasX + this.saccadeX;
-      this.targetGazeY = this.targetLookY + moodLookBiasY + this.saccadeY;
-      if (Math.abs(this.targetGazeX - this.lookX) < 2e-3) {
+      this.saccadeX = 0;
+      this.saccadeY = 0;
+      this.targetSaccadeX = 0;
+      this.targetSaccadeY = 0;
+      this.saccadeTimer = 10;
+      const gazeDamping = 1 - Math.exp(-12 * dt);
+      this.targetGazeX = this.targetLookX + moodLookBiasX;
+      this.targetGazeY = this.targetLookY + moodLookBiasY;
+      if (Math.abs(this.targetGazeX - this.lookX) < 1e-3) {
         this.lookX = this.targetGazeX;
       } else {
         this.lookX += (this.targetGazeX - this.lookX) * gazeDamping;
       }
-      if (Math.abs(this.targetGazeY - this.lookY) < 2e-3) {
+      if (Math.abs(this.targetGazeY - this.lookY) < 1e-3) {
         this.lookY = this.targetGazeY;
       } else {
         this.lookY += (this.targetGazeY - this.lookY) * gazeDamping;
@@ -845,7 +837,7 @@
       }
       const lookX = Math.max(-1, Math.min(1, this.lookX)) * 4.2 * size;
       const lookY = Math.max(-1, Math.min(1, this.lookY)) * 2.8 * size;
-      const bob = (this.isDancing ? Math.sin(this.dancePhase) * 1.5 * size : this.isCompactIdle ? 0 : this.idleFloatY * size) + this.jumpY;
+      const bob = (this.isDancing ? Math.sin(this.dancePhase) * 1.5 * size : 0) + this.jumpY;
       const blinkYScale = this.isBlinking ? Math.max(0.06, 1 - Math.sin(this.blinkProgress * Math.PI) * 0.94) : 1;
       const t = Math.max(0, Math.min(1, this.sleepProgress));
       const smoothSleep = t * t * (3 - 2 * t);
@@ -4452,15 +4444,16 @@
       if (window.roboIsland) {
         if (window.roboIsland.onPointer) {
           window.roboIsland.onPointer((pt) => {
-            this.pointerX = pt.x;
-            this.pointerY = pt.y;
-            if (pt.insideWindow === false || pt.x < 0 || pt.y < 0) {
+            if (!pt || pt.offscreen || pt.x == null || pt.y == null || pt.x <= -8e3 || pt.y <= -8e3) {
               this.isHovered = false;
-              this.pointerX = -1;
-              this.pointerY = -1;
+              this.pointerX = -9999;
+              this.pointerY = -9999;
               this.requestRender();
               return;
             }
+            this.pointerX = pt.x;
+            this.pointerY = pt.y;
+            this.isHovered = Boolean(pt.insideWindow);
             this.mascot.resetInactivity();
             this.checkHitTest();
             this.requestRender();
@@ -6531,7 +6524,17 @@
           this.mascot.setMood("neutral");
         }
       }
-      this.mascot.update(dt, this.pointerX, this.pointerY, cx, topY + 13);
+      let mascotCx = cx;
+      let mascotCy = topY + 13;
+      if (this.mode === "expanded") {
+        const eyeSlot = this._mascotEyeSlotEl || (this._mascotEyeSlotEl = document.getElementById("mascot-eye-slot"));
+        if (eyeSlot && eyeSlot.offsetParent !== null) {
+          const rect = eyeSlot.getBoundingClientRect();
+          mascotCx = rect.left + rect.width / 2;
+          mascotCy = rect.top + rect.height / 2;
+        }
+      }
+      this.mascot.update(dt, this.pointerX, this.pointerY, mascotCx, mascotCy);
       const isMusicPlaying = Boolean(this.mediaState.playing && this.mediaState.active);
       SystemAudioVisualizer.getInstance().update(isMusicPlaying);
       if (this.isTucked) {
@@ -6583,9 +6586,9 @@
             const rect = eyeSlot.getBoundingClientRect();
             const eyeX = rect.left + rect.width / 2;
             const eyeY = rect.top + rect.height / 2;
-            this.mascot.drawFloatingEyes(this.ctx, eyeX, eyeY, 0.72);
+            this.mascot.drawFloatingEyes(this.ctx, eyeX, eyeY, 0.85);
           } else {
-            this.mascot.drawFloatingEyes(this.ctx, cx - 140, topY + 18, 0.72);
+            this.mascot.drawFloatingEyes(this.ctx, cx - 140, topY + 18, 0.85);
           }
         }
       }

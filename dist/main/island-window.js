@@ -145,51 +145,20 @@ class IslandWindow {
             const bounds = this.cachedBounds || (this.cachedBounds = this.window.getBounds());
             const insideWindow = cursor.x >= bounds.x && cursor.x < bounds.x + bounds.width &&
                 cursor.y >= bounds.y && cursor.y < bounds.y + bounds.height;
-            // Low-CPU optimization: When outside the window and already outside, avoid redundant IPC spam and sleep
-            if (!insideWindow && !this.wasInsideWindow) {
-                if (this.currentMode !== 'expanded' && !this.isLauncherActive && !this.isModalActive) {
-                    this.cursorTimer = setTimeout(tick, 90);
-                    return;
-                }
-            }
-            else if (!insideWindow && this.wasInsideWindow) {
-                // Transitioned from inside to outside: clear hover and reset coordinates once
-                this.wasInsideWindow = false;
-                this.lastSentRelX = -9999;
-                this.lastSentRelY = -9999;
-                if (this.currentMode !== 'expanded' && !this.isLauncherActive && !this.isModalActive) {
-                    this.setInteractive(false);
-                    this.window.webContents.send('companion:pointer', {
-                        x: -1,
-                        y: -1,
-                        insideWindow: false
-                    });
-                }
-                this.cursorTimer = setTimeout(tick, 90);
-                return;
-            }
-            const key = `${cursor.x},${cursor.y},${bounds.x},${bounds.y}`;
-            const now = Date.now();
-            if (key === this.lastCursorKey && now - this.lastCursorAt < 1000) {
-                this.cursorTimer = setTimeout(tick, insideWindow ? 32 : 90);
-                return;
-            }
-            this.lastCursorKey = key;
-            this.lastCursorAt = now;
             const config = config_store_1.configStore.get();
             const scale = config.islandScale || 1.0;
             const relX = (cursor.x - bounds.x) / scale;
             const relY = (cursor.y - bounds.y) / scale;
             const cx = (bounds.width / scale) / 2;
             // In expanded, launcher, dragging, or modal mode, maintain interactive = true
+            let inHoverZone = false;
             if (this.currentMode === 'expanded' || this.isLauncherActive || this.isDragging || this.isModalActive) {
-                this.setInteractive(true);
+                inHoverZone = true;
             }
             else if (this.isTucked) {
                 const tuckHalfW = 40;
-                const inHoverZone = relX >= (cx - tuckHalfW) && relX <= (cx + tuckHalfW) &&
+                inHoverZone = relX >= (cx - tuckHalfW) && relX <= (cx + tuckHalfW) &&
                     relY >= 0 && relY <= 14;
-                this.setInteractive(inHoverZone);
             }
             else {
                 const curW = (this.capsuleBounds.isSplit && this.capsuleBounds.splitSpan)
@@ -199,13 +168,21 @@ class IslandWindow {
                 const curTopY = typeof this.capsuleBounds.topY === 'number' ? this.capsuleBounds.topY : 10;
                 const halfW = curW / 2;
                 // Exact capsule hover zone (+1px subpixel tolerance) - zero dead-zone outside the capsule
-                const inHoverZone = relX >= (cx - halfW - 1) && relX <= (cx + halfW + 1) &&
+                inHoverZone = relX >= (cx - halfW - 1) && relX <= (cx + halfW + 1) &&
                     relY >= (curTopY - 1) && relY <= (curTopY + curH + 1);
-                this.setInteractive(inHoverZone);
             }
-            // Avoid redundant IPC when pointer is stationary
-            if (insideWindow === this.wasInsideWindow && Math.abs(relX - this.lastSentRelX) < 1.0 && Math.abs(relY - this.lastSentRelY) < 1.0) {
-                this.cursorTimer = setTimeout(tick, insideWindow ? 32 : 90);
+            this.setInteractive(inHoverZone);
+            const deltaScreen = Math.abs(cursor.x - this.lastSentScreenX) + Math.abs(cursor.y - this.lastSentScreenY);
+            // Low-CPU optimization: When outside the window and already outside
+            if (!insideWindow && !this.wasInsideWindow) {
+                if (deltaScreen < 2 && this.currentMode !== 'expanded' && !this.isLauncherActive && !this.isModalActive) {
+                    this.cursorTimer = setTimeout(tick, 32);
+                    return;
+                }
+            }
+            // Avoid redundant IPC when pointer is stationary (moved less than 1.5px)
+            if (deltaScreen < 1.5 && insideWindow === this.wasInsideWindow) {
+                this.cursorTimer = setTimeout(tick, 32);
                 return;
             }
             this.wasInsideWindow = insideWindow;
@@ -216,9 +193,9 @@ class IslandWindow {
             this.window.webContents.send('companion:pointer', {
                 x: relX,
                 y: relY,
-                insideWindow
+                insideWindow: inHoverZone
             });
-            this.cursorTimer = setTimeout(tick, insideWindow ? 32 : 90);
+            this.cursorTimer = setTimeout(tick, 32);
         };
         this.cursorTimer = setTimeout(tick, 32);
     }

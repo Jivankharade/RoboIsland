@@ -364,7 +364,7 @@ class RoboMascot {
         const dy = pointerY - headCenterY;
         const dist = Math.sqrt(dx * dx + dy * dy);
         const maxLook = 1.0;
-        const isPointerOffscreen = pointerX < -3000 || pointerY < -3000 || pointerX > 5000 || pointerY > 5000;
+        const isPointerOffscreen = pointerX <= -8000 || pointerY <= -8000 || pointerX >= 8000 || pointerY >= 8000;
         if (!isPointerOffscreen && dist > 5) {
             // Screen-wide normalization: eyes look around smoothly across the full desktop without premature clipping
             this.targetLookX = Math.max(-maxLook, Math.min(maxLook, dx / 580));
@@ -385,32 +385,23 @@ class RoboMascot {
             moodLookBiasX = 0.45;
             moodLookBiasY = -0.35;
         }
-        // Saccadic micro-movements (settles to 0 during compact idle so render loop can sleep at 0% CPU)
-        if (this.isCompactIdle && Math.abs(this.targetLookX) < 0.05 && Math.abs(this.targetLookY) < 0.05) {
-            this.saccadeX += (0 - this.saccadeX) * 0.15;
-            this.saccadeY = 0;
-        }
-        else {
-            this.saccadeTimer -= dt;
-            if (this.saccadeTimer <= 0) {
-                this.targetSaccadeX = (Math.random() - 0.5) * 0.22;
-                this.targetSaccadeY = 0;
-                this.saccadeTimer = 2.5 + Math.random() * 3.5;
-            }
-            this.saccadeX += (this.targetSaccadeX - this.saccadeX) * 0.2;
-            this.saccadeY = 0;
-        }
+        // Gaze stability: Completely eliminate saccade twitching/jitter so eyes are rock-solid and stable
+        this.saccadeX = 0;
+        this.saccadeY = 0;
+        this.targetSaccadeX = 0;
+        this.targetSaccadeY = 0;
+        this.saccadeTimer = 10.0;
         // Responsive, silky smooth gaze tracking with exponential damping returning smoothly to center
-        const gazeDamping = 1 - Math.exp(-14 * dt);
-        this.targetGazeX = this.targetLookX + moodLookBiasX + this.saccadeX;
-        this.targetGazeY = this.targetLookY + moodLookBiasY + this.saccadeY;
-        if (Math.abs(this.targetGazeX - this.lookX) < 0.002) {
+        const gazeDamping = 1 - Math.exp(-12 * dt);
+        this.targetGazeX = this.targetLookX + moodLookBiasX;
+        this.targetGazeY = this.targetLookY + moodLookBiasY;
+        if (Math.abs(this.targetGazeX - this.lookX) < 0.001) {
             this.lookX = this.targetGazeX;
         }
         else {
             this.lookX += (this.targetGazeX - this.lookX) * gazeDamping;
         }
-        if (Math.abs(this.targetGazeY - this.lookY) < 0.002) {
+        if (Math.abs(this.targetGazeY - this.lookY) < 0.001) {
             this.lookY = this.targetGazeY;
         }
         else {
@@ -627,8 +618,8 @@ class RoboMascot {
         // Cursor tracking gaze — clearly visible in the capsule (clamped to ±4.2px X, ±2.8px Y)
         const lookX = Math.max(-1, Math.min(1, this.lookX)) * 4.2 * size;
         const lookY = Math.max(-1, Math.min(1, this.lookY)) * 2.8 * size;
-        // Dancing bobbing or idle floating (strictly 0 during compact idle)
-        const bob = (this.isDancing ? Math.sin(this.dancePhase) * 1.5 * size : (this.isCompactIdle ? 0 : this.idleFloatY * size)) + this.jumpY;
+        // Dancing bobbing or jump reaction (strictly 0 during resting/tracking to ensure rock-solid stability)
+        const bob = (this.isDancing ? Math.sin(this.dancePhase) * 1.5 * size : 0) + this.jumpY;
         // Blink squish: animate vertical scale of eye, 1.0=open, 0.06=fully closed
         const blinkYScale = this.isBlinking
             ? Math.max(0.06, 1.0 - Math.sin(this.blinkProgress * Math.PI) * 0.94)

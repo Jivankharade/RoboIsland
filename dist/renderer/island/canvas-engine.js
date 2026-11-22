@@ -3291,15 +3291,16 @@ class CanvasEngine {
         if (window.roboIsland) {
             if (window.roboIsland.onPointer) {
                 window.roboIsland.onPointer((pt) => {
-                    this.pointerX = pt.x;
-                    this.pointerY = pt.y;
-                    if (pt.insideWindow === false || pt.x < 0 || pt.y < 0) {
+                    if (!pt || pt.offscreen || pt.x == null || pt.y == null || pt.x <= -8000 || pt.y <= -8000) {
                         this.isHovered = false;
-                        this.pointerX = -1;
-                        this.pointerY = -1;
+                        this.pointerX = -9999;
+                        this.pointerY = -9999;
                         this.requestRender();
                         return;
                     }
+                    this.pointerX = pt.x;
+                    this.pointerY = pt.y;
+                    this.isHovered = Boolean(pt.insideWindow);
                     this.mascot.resetInactivity();
                     this.checkHitTest();
                     this.requestRender();
@@ -5635,8 +5636,18 @@ class CanvasEngine {
                 this.mascot.setMood('neutral');
             }
         }
-        // Mascot state update (dead-center within the inner head capsule at topY + 13)
-        this.mascot.update(dt, this.pointerX, this.pointerY, cx, topY + 13);
+        // Mascot state update: in expanded mode, bind to the dedicated #mascot-eye-slot position, otherwise dead-center in capsule
+        let mascotCx = cx;
+        let mascotCy = topY + 13;
+        if (this.mode === 'expanded') {
+            const eyeSlot = this._mascotEyeSlotEl || (this._mascotEyeSlotEl = document.getElementById('mascot-eye-slot'));
+            if (eyeSlot && eyeSlot.offsetParent !== null) {
+                const rect = eyeSlot.getBoundingClientRect();
+                mascotCx = rect.left + rect.width / 2;
+                mascotCy = rect.top + rect.height / 2;
+            }
+        }
+        this.mascot.update(dt, this.pointerX, this.pointerY, mascotCx, mascotCy);
         // Real-time audio reactive equalizer update (TwoCode Parity)
         const isMusicPlaying = Boolean(this.mediaState.playing && this.mediaState.active);
         SystemAudioVisualizer.getInstance().update(isMusicPlaying);
@@ -5707,10 +5718,10 @@ class CanvasEngine {
                     const rect = eyeSlot.getBoundingClientRect();
                     const eyeX = rect.left + rect.width / 2;
                     const eyeY = rect.top + rect.height / 2;
-                    this.mascot.drawFloatingEyes(this.ctx, eyeX, eyeY, 0.72);
+                    this.mascot.drawFloatingEyes(this.ctx, eyeX, eyeY, 0.85);
                 }
                 else {
-                    this.mascot.drawFloatingEyes(this.ctx, cx - 140, topY + 18, 0.72);
+                    this.mascot.drawFloatingEyes(this.ctx, cx - 140, topY + 18, 0.85);
                 }
             }
         }
