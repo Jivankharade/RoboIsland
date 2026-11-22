@@ -2074,6 +2074,32 @@ async function runTests() {
     canvasEngineDragFix.includes('this.isDraggingOver = false;') &&
     canvasEngineDragFix.includes('(window as any).isDraggingFiles = false;'));
 
+  // --- 41. Testing Anti-Lag, OS Input Responsiveness & System Stability ---
+  console.log('\n--- 41. Testing Anti-Lag, OS Input Responsiveness & System Stability ---');
+  const islandWindowTsAntiLag = fs.readFileSync(path.join(__dirname, '../src/main/island-window.ts'), 'utf-8');
+  assert('island-window.ts omits { forward: true } on win32 to eliminate WH_MOUSE_LL system hook',
+    islandWindowTsAntiLag.includes("if (process.platform === 'win32')") &&
+    islandWindowTsAntiLag.includes("this.window.setIgnoreMouseEvents(!effectiveInteractive);"));
+
+  assert('island-window.ts removes periodic moveTop() loop to prevent disrupting other apps',
+    !islandWindowTsAntiLag.includes('this.lastTopmostCheckAt') &&
+    !islandWindowTsAntiLag.includes('this.window.moveTop()'));
+
+  const gameModeTs = fs.readFileSync(path.join(__dirname, '../src/main/game-mode.ts'), 'utf-8');
+  assert('game-mode.ts accepts passive fullscreen events from persistent media session',
+    gameModeTs.includes('handleFullscreenEvent') &&
+    gameModeTs.includes('pollIntervalMs: number = 30000;'));
+
+  const sportsServiceUpdated = fs.readFileSync(path.join(__dirname, '../src/main/sports-service.ts'), 'utf-8');
+  assert('sports-service.ts implements active sport polling isolation and 30s interval',
+    sportsServiceUpdated.includes('intervalMs: number = 30000') &&
+    sportsServiceUpdated.includes("active === 'cricket'"));
+
+  const systemDiagTsPerf = fs.readFileSync(path.join(__dirname, '../src/main/system-diagnostics.ts'), 'utf-8');
+  assert('system-diagnostics.ts caches battery and gates top process query to high RAM pressure',
+    systemDiagTsPerf.includes('cachedBattery') &&
+    systemDiagTsPerf.includes('memPercent >= 86'));
+
   // Summary
   console.log('\n====================================================');
   console.log(`TEST SUMMARY: ${passed} PASSED, ${failed} FAILED`);

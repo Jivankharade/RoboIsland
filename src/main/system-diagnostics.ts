@@ -34,6 +34,9 @@ export class SystemDiagnosticsManager {
   private highRamStreak = 0;
   private aiManager: AIProviderManager | null = null;
   private isAnalyzingScreen = false;
+  private cachedBattery: { percent: number; charging: boolean } = { percent: 100, charging: true };
+  private lastBatteryCheckAt = 0;
+  private isSampling = false;
 
   constructor(aiManager?: AIProviderManager) {
     this.aiManager = aiManager || null;
@@ -274,17 +277,26 @@ Respond with ONLY a raw JSON object (no markdown backticks, no text outside JSON
     let topProcessMemMb = 0;
 
     if (process.platform === 'win32') {
-      try {
-        const batteryInfo = await this.queryWindowsBattery();
-        batteryPercent = batteryInfo.percent;
-        isCharging = batteryInfo.charging;
-      } catch {}
+      const now = Date.now();
+      // Throttle WMI battery query to once every 60 seconds to prevent WmiPrvSE CPU spikes and freezing
+      if (now - this.lastBatteryCheckAt > 60000 || this.lastBatteryCheckAt === 0) {
+        this.lastBatteryCheckAt = now;
+        try {
+          const batteryInfo = await this.queryWindowsBattery();
+          this.cachedBattery = batteryInfo;
+        } catch {}
+      }
+      batteryPercent = this.cachedBattery.percent;
+      isCharging = this.cachedBattery.charging;
 
-      try {
-        const topMem = await this.queryTopMemoryProcess();
-        topProcess = topMem.name;
-        topProcessMemMb = topMem.memMb;
-      } catch {}
+      // Only query top process if memory pressure is actually detected (>= 86%)
+      if (memPercent >= 86) {
+        try {
+          const topMem = await this.queryTopMemoryProcess();
+          topProcess = topMem.name;
+          topProcessMemMb = topMem.memMb;
+        } catch {}
+      }
     }
 
     return {

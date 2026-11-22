@@ -5,6 +5,7 @@ import * as crypto from 'crypto';
 import { BrowserWindow, ipcMain, app, net } from 'electron';
 import { SpotifyPKCEClient } from './spotify-pkce';
 import { configStore, RoboIslandConfig } from './config-store';
+import { gameModeManager } from './game-mode';
 
 export interface MediaState {
   source: 'spotify' | 'smtc' | 'none';
@@ -418,6 +419,14 @@ export class MediaEngine {
             win.webContents.send('guard:front-changed', data.front);
           }
         });
+        return;
+      }
+
+      // 3b. Fullscreen Game Mode State from persistent media session
+      if ('fullscreen' in data) {
+        try {
+          gameModeManager.handleFullscreenEvent(Boolean(data.fullscreen));
+        } catch {}
         return;
       }
 

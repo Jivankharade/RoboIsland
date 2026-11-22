@@ -542,11 +542,13 @@ export class SportsService {
     return updated;
   }
 
+  private isPollingLive = false;
+
   public setBroadcastCallback(cb: (activity: SportsLiveActivity) => void): void {
     this.broadcastCallback = cb;
   }
 
-  public startPolling(intervalMs: number = 4000): void {
+  public startPolling(intervalMs: number = 30000): void {
     if (this.pollInterval) clearInterval(this.pollInterval);
     this.state.isPolling = true;
 
@@ -574,135 +576,148 @@ export class SportsService {
   }
 
   /**
-   * Polls live public endpoints (OpenF1, ESPN Soccer) with strict circuit breaker fallback.
+   * Polls live public endpoints (OpenF1, ESPN Soccer, Cricbuzz) with strict circuit breaker fallback.
    */
   public async pollLiveFeeds(): Promise<void> {
+    if (this.isPollingLive) return;
+    this.isPollingLive = true;
     this.state.lastPoll = Date.now();
 
-    // 1. Football: ESPN Soccer API
     try {
-      const fbData = await this.fetchJson('https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/scoreboard');
-      if (fbData && fbData.events && fbData.events.length > 0) {
-        const ev = fbData.events[0];
-        const comp = ev.competitions?.[0];
-        const competitors = comp?.competitors || [];
-        const home = competitors.find((c: any) => c.homeAway === 'home') || competitors[0];
-        const away = competitors.find((c: any) => c.homeAway === 'away') || competitors[1];
+      const active = this.state.activeSport;
 
-        if (home && away) {
-          const homeScore = parseInt(home.score || '0', 10);
-          const awayScore = parseInt(away.score || '0', 10);
-          const clock = comp?.status?.displayClock || "75'";
-          const statusText = comp?.status?.type?.detail || "In Progress";
+      // 1. Football: ESPN Soccer API (poll when active or initial)
+      if (active === 'football' || !this.state.activities.football) {
+        try {
+          const fbData = await this.fetchJson('https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/scoreboard');
+          if (fbData && fbData.events && fbData.events.length > 0) {
+            const ev = fbData.events[0];
+            const comp = ev.competitions?.[0];
+            const competitors = comp?.competitors || [];
+            const home = competitors.find((c: any) => c.homeAway === 'home') || competitors[0];
+            const away = competitors.find((c: any) => c.homeAway === 'away') || competitors[1];
 
-          this.state.activities.football = {
-            id: String(ev.id || 'espn-soccer-match'),
-            sport: 'football',
-            title: `${home.team?.abbreviation || 'HOME'} vs ${away.team?.abbreviation || 'AWAY'}`,
-            league: ev.league?.name || 'Premier League',
-            status: comp?.status?.type?.state === 'post' ? 'finished' : 'live',
-            statusText,
-            isLive: true,
-            isSimulated: false,
-            lastUpdated: Date.now(),
-            pill: {
-              leftBadge: home.team?.abbreviation || 'HOME',
-              leftScore: String(homeScore),
-              badgeText: clock,
-              rightScore: String(awayScore),
-              rightBadge: away.team?.abbreviation || 'AWAY'
-            },
-            scorecard: {
-              football: {
-                homeTeam: { name: home.team?.displayName || 'Home Team', code: home.team?.abbreviation || 'HOM', score: homeScore },
-                awayTeam: { name: away.team?.displayName || 'Away Team', code: away.team?.abbreviation || 'AWY', score: awayScore },
-                matchClock: clock,
-                half: '2H',
-                events: (comp?.details || []).slice(0, 5).map((d: any) => ({
-                  minute: d.clock?.value || 0,
-                  type: d.type?.text?.toLowerCase().includes('goal') ? 'goal' : 'card_yellow',
-                  team: d.team?.abbreviation || '',
-                  player: (d.athletesInvolved && d.athletesInvolved[0]?.displayName) || 'Player'
-                })),
-                stats: {
-                  possession: [52, 48],
-                  shotsOnTarget: [6, 4],
-                  corners: [5, 3],
-                  fouls: [7, 9]
+            if (home && away) {
+              const homeScore = parseInt(home.score || '0', 10);
+              const awayScore = parseInt(away.score || '0', 10);
+              const clock = comp?.status?.displayClock || "75'";
+              const statusText = comp?.status?.type?.detail || "In Progress";
+
+              this.state.activities.football = {
+                id: String(ev.id || 'espn-soccer-match'),
+                sport: 'football',
+                title: `${home.team?.abbreviation || 'HOME'} vs ${away.team?.abbreviation || 'AWAY'}`,
+                league: ev.league?.name || 'Premier League',
+                status: comp?.status?.type?.state === 'post' ? 'finished' : 'live',
+                statusText,
+                isLive: true,
+                isSimulated: false,
+                lastUpdated: Date.now(),
+                pill: {
+                  leftBadge: home.team?.abbreviation || 'HOME',
+                  leftScore: String(homeScore),
+                  badgeText: clock,
+                  rightScore: String(awayScore),
+                  rightBadge: away.team?.abbreviation || 'AWAY'
+                },
+                scorecard: {
+                  football: {
+                    homeTeam: { name: home.team?.displayName || 'Home Team', code: home.team?.abbreviation || 'HOM', score: homeScore },
+                    awayTeam: { name: away.team?.displayName || 'Away Team', code: away.team?.abbreviation || 'AWY', score: awayScore },
+                    matchClock: clock,
+                    half: '2H',
+                    events: (comp?.details || []).slice(0, 5).map((d: any) => ({
+                      minute: d.clock?.value || 0,
+                      type: d.type?.text?.toLowerCase().includes('goal') ? 'goal' : 'card_yellow',
+                      team: d.team?.abbreviation || '',
+                      player: (d.athletesInvolved && d.athletesInvolved[0]?.displayName) || 'Player'
+                    })),
+                    stats: {
+                      possession: [52, 48],
+                      shotsOnTarget: [6, 4],
+                      corners: [5, 3],
+                      fouls: [7, 9]
+                    }
+                  }
                 }
-              }
-            }
-          };
-          this.failureCounts.football = 0;
-        }
-      }
-    } catch {
-      this.failureCounts.football++;
-      // Fallback to simulation
-      this.state.activities.football = this.simulator.getFootballActivity();
-    }
-
-    // 2. F1: OpenF1 API
-    try {
-      const f1Data = await this.fetchJson('https://api.openf1.org/v1/sessions?year=2024&session_name=Race');
-      if (Array.isArray(f1Data) && f1Data.length > 0) {
-        const session = f1Data[f1Data.length - 1];
-        const circuitName = session.circuit_short_name || 'Bahrain';
-        this.state.activities.f1 = {
-          id: `openf1-${session.session_key || '9472'}`,
-          sport: 'f1',
-          title: `${circuitName} Grand Prix`,
-          league: 'Formula 1 World Championship',
-          status: 'live',
-          statusText: 'Race in progress',
-          isLive: true,
-          isSimulated: false,
-          lastUpdated: Date.now(),
-          pill: {
-            leftBadge: 'VER',
-            leftScore: 'P1',
-            badgeText: 'L48',
-            rightScore: '+2.41s',
-            rightBadge: 'NOR'
-          },
-          scorecard: {
-            f1: {
-              grandPrix: `${circuitName} Grand Prix`,
-              circuit: session.location || circuitName,
-              currentLap: 48,
-              totalLaps: 57,
-              safetyCar: 'NONE',
-              fastestLap: { driver: 'VER', lapTime: '1:32.608', lapNumber: 39 },
-              leaderboard: this.simulator.getF1Activity().scorecard.f1?.leaderboard || [],
-              raceControlMessages: [{ time: '16:15', message: 'DRS ENABLED' }]
+              };
+              this.failureCounts.football = 0;
             }
           }
-        };
-        this.failureCounts.f1 = 0;
+        } catch {
+          this.failureCounts.football++;
+          this.state.activities.football = this.simulator.getFootballActivity();
+        }
       }
-    } catch {
-      this.failureCounts.f1++;
-      this.state.activities.f1 = this.simulator.getF1Activity();
-    }
 
-    // 3. Cricket: Real live feed from Cricbuzz with ESPN fallback
-    try {
-      const cricbuzzAct = await this.fetchCricbuzzLiveScores();
-      if (cricbuzzAct) {
-        this.state.activities.cricket = cricbuzzAct;
-        this.failureCounts.cricket = 0;
-      } else {
-        await this.pollEspnCricket();
+      // 2. F1: OpenF1 API (poll when active or initial)
+      if (active === 'f1' || !this.state.activities.f1) {
+        try {
+          const f1Data = await this.fetchJson('https://api.openf1.org/v1/sessions?year=2024&session_name=Race');
+          if (Array.isArray(f1Data) && f1Data.length > 0) {
+            const session = f1Data[f1Data.length - 1];
+            const circuitName = session.circuit_short_name || 'Bahrain';
+            this.state.activities.f1 = {
+              id: `openf1-${session.session_key || '9472'}`,
+              sport: 'f1',
+              title: `${circuitName} Grand Prix`,
+              league: 'Formula 1 World Championship',
+              status: 'live',
+              statusText: 'Race in progress',
+              isLive: true,
+              isSimulated: false,
+              lastUpdated: Date.now(),
+              pill: {
+                leftBadge: 'VER',
+                leftScore: 'P1',
+                badgeText: 'L48',
+                rightScore: '+2.41s',
+                rightBadge: 'NOR'
+              },
+              scorecard: {
+                f1: {
+                  grandPrix: `${circuitName} Grand Prix`,
+                  circuit: session.location || circuitName,
+                  currentLap: 48,
+                  totalLaps: 57,
+                  safetyCar: 'NONE',
+                  fastestLap: { driver: 'VER', lapTime: '1:32.608', lapNumber: 39 },
+                  leaderboard: this.simulator.getF1Activity().scorecard.f1?.leaderboard || [],
+                  raceControlMessages: [{ time: '16:15', message: 'DRS ENABLED' }]
+                }
+              }
+            };
+            this.failureCounts.f1 = 0;
+          }
+        } catch {
+          this.failureCounts.f1++;
+          this.state.activities.f1 = this.simulator.getF1Activity();
+        }
       }
-    } catch {
-      await this.pollEspnCricket().catch(() => {
-        this.failureCounts.cricket++;
-        this.state.activities.cricket = this.simulator.getCricketActivity();
-      });
-    }
 
-    if (this.broadcastCallback) {
-      this.broadcastCallback(this.getActiveActivity());
+      // 3. Cricket: Real live feed from Cricbuzz with ESPN fallback (poll when active or initial)
+      if (active === 'cricket' || !this.state.activities.cricket) {
+        try {
+          const cricbuzzAct = await this.fetchCricbuzzLiveScores();
+          if (cricbuzzAct) {
+            this.state.activities.cricket = cricbuzzAct;
+            this.failureCounts.cricket = 0;
+          } else {
+            await this.pollEspnCricket();
+          }
+        } catch {
+          await this.pollEspnCricket().catch(() => {
+            this.failureCounts.cricket++;
+            this.state.activities.cricket = this.simulator.getCricketActivity();
+          });
+        }
+      }
+
+      if (this.broadcastCallback) {
+        this.broadcastCallback(this.getActiveActivity());
+      }
+    } finally {
+      this.isPollingLive = false;
     }
   }
 

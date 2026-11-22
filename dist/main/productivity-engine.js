@@ -227,7 +227,7 @@ class ProductivityEngine {
                 }
             }
             catch { }
-        }, 1500);
+        }, 2500);
     }
     getFileId(filePath) {
         return crypto.createHash('sha1').update(filePath).digest('hex').slice(0, 10);

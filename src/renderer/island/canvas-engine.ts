@@ -3482,6 +3482,13 @@ export class CanvasEngine {
         window.roboIsland.onPointer((pt: any) => {
           this.pointerX = pt.x;
           this.pointerY = pt.y;
+          if (pt.insideWindow === false || pt.x < 0 || pt.y < 0) {
+            this.isHovered = false;
+            this.pointerX = -1;
+            this.pointerY = -1;
+            this.requestRender();
+            return;
+          }
           this.mascot.resetInactivity();
           this.checkHitTest();
           this.requestRender();

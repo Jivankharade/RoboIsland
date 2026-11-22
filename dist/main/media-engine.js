@@ -41,6 +41,7 @@ const crypto = __importStar(require("crypto"));
 const electron_1 = require("electron");
 const spotify_pkce_1 = require("./spotify-pkce");
 const config_store_1 = require("./config-store");
+const game_mode_1 = require("./game-mode");
 class MediaEngine {
     child = null;
     spotifyClient;
@@ -368,6 +369,14 @@ class MediaEngine {
                         win.webContents.send('guard:front-changed', data.front);
                     }
                 });
+                return;
+            }
+            // 3b. Fullscreen Game Mode State from persistent media session
+            if ('fullscreen' in data) {
+                try {
+                    game_mode_1.gameModeManager.handleFullscreenEvent(Boolean(data.fullscreen));
+                }
+                catch { }
                 return;
             }
             // 4. Windows Toast Notifications (WhatsApp, Mail, Telegram, System Toasts)

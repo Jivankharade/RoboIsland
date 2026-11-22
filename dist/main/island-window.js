@@ -111,8 +111,6 @@ class IslandWindow {
             this.setupGlobalShortcuts();
         });
         this.window.on('blur', () => {
-            // Re-assert topmost overlay so background focus shifts (e.g. clicking WhatsApp) never bury the island
-            this.ensureTopmost();
             if (this.currentMode === 'expanded') {
                 this.window?.webContents.send('island:request-collapse');
             }
@@ -147,20 +145,33 @@ class IslandWindow {
             const bounds = this.cachedBounds || (this.cachedBounds = this.window.getBounds());
             const insideWindow = cursor.x >= bounds.x && cursor.x < bounds.x + bounds.width &&
                 cursor.y >= bounds.y && cursor.y < bounds.y + bounds.height;
-            // Low-CPU optimization: When outside the window and already reported outside with stationary cursor, avoid redundant IPC spam and back off poll frequency
-            if (!insideWindow && !this.wasInsideWindow && Math.abs(cursor.x - this.lastSentScreenX) < 3 && Math.abs(cursor.y - this.lastSentScreenY) < 3 && this.currentMode !== 'expanded' && !this.isInteractive && !this.isLauncherActive && !this.isModalActive) {
-                this.cursorTimer = setTimeout(tick, 75);
+            // Low-CPU optimization: When outside the window and already outside, avoid redundant IPC spam and sleep
+            if (!insideWindow && !this.wasInsideWindow) {
+                if (this.currentMode !== 'expanded' && !this.isLauncherActive && !this.isModalActive) {
+                    this.cursorTimer = setTimeout(tick, 90);
+                    return;
+                }
+            }
+            else if (!insideWindow && this.wasInsideWindow) {
+                // Transitioned from inside to outside: clear hover and reset coordinates once
+                this.wasInsideWindow = false;
+                this.lastSentRelX = -9999;
+                this.lastSentRelY = -9999;
+                if (this.currentMode !== 'expanded' && !this.isLauncherActive && !this.isModalActive) {
+                    this.setInteractive(false);
+                    this.window.webContents.send('companion:pointer', {
+                        x: -1,
+                        y: -1,
+                        insideWindow: false
+                    });
+                }
+                this.cursorTimer = setTimeout(tick, 90);
                 return;
             }
             const key = `${cursor.x},${cursor.y},${bounds.x},${bounds.y}`;
             const now = Date.now();
-            // Periodic topmost enforcement (every 2.5s) to guarantee overlay above WhatsApp and focused apps
-            if (now - this.lastTopmostCheckAt > 2500) {
-                this.lastTopmostCheckAt = now;
-                this.ensureTopmost();
-            }
             if (key === this.lastCursorKey && now - this.lastCursorAt < 1000) {
-                this.cursorTimer = setTimeout(tick, insideWindow ? 32 : 75);
+                this.cursorTimer = setTimeout(tick, insideWindow ? 32 : 90);
                 return;
             }
             this.lastCursorKey = key;
@@ -194,7 +205,7 @@ class IslandWindow {
             }
             // Avoid redundant IPC when pointer is stationary
             if (insideWindow === this.wasInsideWindow && Math.abs(relX - this.lastSentRelX) < 1.0 && Math.abs(relY - this.lastSentRelY) < 1.0) {
-                this.cursorTimer = setTimeout(tick, insideWindow ? 32 : 75);
+                this.cursorTimer = setTimeout(tick, insideWindow ? 32 : 90);
                 return;
             }
             this.wasInsideWindow = insideWindow;
@@ -207,7 +218,7 @@ class IslandWindow {
                 y: relY,
                 insideWindow
             });
-            this.cursorTimer = setTimeout(tick, insideWindow ? 32 : 75);
+            this.cursorTimer = setTimeout(tick, insideWindow ? 32 : 90);
         };
         this.cursorTimer = setTimeout(tick, 32);
     }
@@ -220,7 +231,14 @@ class IslandWindow {
             return;
         this.isInteractive = effectiveInteractive;
         try {
-            this.window.setIgnoreMouseEvents(!effectiveInteractive, { forward: true });
+            if (process.platform === 'win32') {
+                // On Windows, pass ONLY boolean to avoid installing low-level WH_MOUSE_LL hook.
+                // Pure setIgnoreMouseEvents(!effectiveInteractive) uses native WS_EX_TRANSPARENT (0% CPU, 0 lag).
+                this.window.setIgnoreMouseEvents(!effectiveInteractive);
+            }
+            else {
+                this.window.setIgnoreMouseEvents(!effectiveInteractive, { forward: true });
+            }
         }
         catch {
             try {
@@ -245,7 +263,6 @@ class IslandWindow {
             return;
         try {
             this.window.setAlwaysOnTop(true, 'screen-saver', 1);
-            this.window.moveTop();
         }
         catch { }
     }

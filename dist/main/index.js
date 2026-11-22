@@ -126,7 +126,7 @@ electron_1.app.whenReady().then(() => {
     sports_service_1.sportsService.setBroadcastCallback((data) => {
         islandWindow?.getWindow()?.webContents.send('island:sports-update', data);
     });
-    sports_service_1.sportsService.startPolling(4000);
+    sports_service_1.sportsService.startPolling(30000);
     screen_glance_engine_1.screenGlanceEngine.onErrorsChanged((errors) => {
         islandWindow?.getWindow()?.webContents.send('island:glance-error', errors);
     });
@@ -147,7 +147,7 @@ electron_1.app.whenReady().then(() => {
     bluetooth_monitor_1.bluetoothMonitorService.setBroadcastCallback((channel, data) => {
         islandWindow?.getWindow()?.webContents.send(channel, data);
     });
-    bluetooth_monitor_1.bluetoothMonitorService.startPolling(8000);
+    bluetooth_monitor_1.bluetoothMonitorService.startPolling(60000);
     voice_companion_service_1.voiceCompanionService.setDependencies({
         sportsService: sports_service_1.sportsService,
         launcherEngine: launcher_engine_1.launcherEngine,

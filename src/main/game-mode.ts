@@ -68,7 +68,7 @@ export function checkForegroundBoundsMatch(
  */
 export class GameModeManager {
   private timer: NodeJS.Timeout | null = null;
-  private pollIntervalMs: number = 2500;
+  private pollIntervalMs: number = 30000;
   private inGame: boolean = false;
   private lastStateCode: number = 1;
   private override: boolean = false;
@@ -79,6 +79,16 @@ export class GameModeManager {
     this.targetIslandWindow = islandWindowInstance;
     this.setupIPC();
     this.start();
+  }
+
+  public handleFullscreenEvent(inGame: boolean, stateCode = inGame ? 3 : 1): void {
+    const changed = inGame !== this.inGame || stateCode !== this.lastStateCode;
+    this.inGame = inGame;
+    this.lastStateCode = stateCode;
+    if (changed) {
+      this.applyVisibility();
+      this.broadcastState();
+    }
   }
 
   public setIslandWindow(win: any): void {

@@ -99,7 +99,7 @@ app.whenReady().then(() => {
   sportsService.setBroadcastCallback((data) => {
     islandWindow?.getWindow()?.webContents.send('island:sports-update', data);
   });
-  sportsService.startPolling(4000);
+  sportsService.startPolling(30000);
 
   screenGlanceEngine.onErrorsChanged((errors) => {
     islandWindow?.getWindow()?.webContents.send('island:glance-error', errors);
@@ -122,7 +122,7 @@ app.whenReady().then(() => {
   bluetoothMonitorService.setBroadcastCallback((channel, data) => {
     islandWindow?.getWindow()?.webContents.send(channel, data);
   });
-  bluetoothMonitorService.startPolling(8000);
+  bluetoothMonitorService.startPolling(60000);
 
   voiceCompanionService.setDependencies({
     sportsService,

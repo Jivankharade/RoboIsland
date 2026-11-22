@@ -220,6 +220,7 @@ export class BluetoothMonitorService {
   private devices: Map<string, BluetoothDeviceStatus> = new Map();
   private pollTimer: NodeJS.Timeout | null = null;
   private isPollingActive = false;
+  private isQuerying = false;
   private eventEmitter: EventEmitter = new EventEmitter();
   private broadcastCallback: ((channel: string, payload: any) => void) | null = null;
   private simulator: BluetoothSimulator = new BluetoothSimulator();
@@ -427,8 +428,17 @@ export class BluetoothMonitorService {
     if (this.simulationMode || process.platform !== 'win32') {
       return this.getAllDevices();
     }
+    if (this.isQuerying) {
+      return this.getAllDevices();
+    }
+    this.isQuerying = true;
 
     return new Promise<BluetoothDeviceStatus[]>((resolve) => {
+      const finish = (result: BluetoothDeviceStatus[]) => {
+        this.isQuerying = false;
+        resolve(result);
+      };
+
       // Safe PowerShell command extracting Bluetooth devices with battery property if present
       const psScript = `
         $ProgressPreference = 'SilentlyContinue';
@@ -459,7 +469,7 @@ export class BluetoothMonitorService {
       exec(cmd, { timeout: timeoutMs, windowsHide: true }, (err, stdout) => {
         if (err || !stdout || !stdout.trim()) {
           // Graceful fallback: return current devices without failing
-          resolve(this.getAllDevices());
+          finish(this.getAllDevices());
           return;
         }
 
@@ -491,12 +501,12 @@ export class BluetoothMonitorService {
           }
 
           if (parsed.length > 0) {
-            resolve(parsed);
+            finish(parsed);
           } else {
-            resolve(this.getAllDevices());
+            finish(this.getAllDevices());
           }
         } catch {
-          resolve(this.getAllDevices());
+          finish(this.getAllDevices());
         }
       });
     });
@@ -513,7 +523,7 @@ export class BluetoothMonitorService {
     }
   }
 
-  public startPolling(intervalMs = 6000): void {
+  public startPolling(intervalMs = 60000): void {
     if (this.isPollingActive) return;
     this.isPollingActive = true;
 

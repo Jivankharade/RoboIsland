@@ -55,7 +55,7 @@ function checkForegroundBoundsMatch(winBounds, displayBounds) {
  */
 class GameModeManager {
     timer = null;
-    pollIntervalMs = 2500;
+    pollIntervalMs = 30000;
     inGame = false;
     lastStateCode = 1;
     override = false;
@@ -65,6 +65,15 @@ class GameModeManager {
         this.targetIslandWindow = islandWindowInstance;
         this.setupIPC();
         this.start();
+    }
+    handleFullscreenEvent(inGame, stateCode = inGame ? 3 : 1) {
+        const changed = inGame !== this.inGame || stateCode !== this.lastStateCode;
+        this.inGame = inGame;
+        this.lastStateCode = stateCode;
+        if (changed) {
+            this.applyVisibility();
+            this.broadcastState();
+        }
     }
     setIslandWindow(win) {
         this.targetIslandWindow = win;
