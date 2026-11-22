@@ -3953,8 +3953,8 @@ class CanvasEngine {
                     this.targetHeight = 280;
                     break;
                 case 'sports':
-                    this.targetWidth = 560;
-                    this.targetHeight = 320;
+                    this.targetWidth = 580;
+                    this.targetHeight = 360;
                     break;
                 case 'home':
                 default:
@@ -11528,6 +11528,172 @@ class CanvasEngine {
         this.ctx.fillText(pill.rightScore, pillLeft + w - 12 - rBadgeW - 5, midY);
         this.ctx.restore();
     }
+    getCountryFlagSVG(code) {
+        const c = (code || '').toUpperCase().trim();
+        switch (c) {
+            case 'IND':
+            case 'INDIA': {
+                const spokes = Array.from({ length: 24 }, (_, i) => {
+                    const rad = (i * 15 * Math.PI) / 180;
+                    return `<line x1="30" y1="20" x2="${(30 + 5.2 * Math.cos(rad)).toFixed(2)}" y2="${(20 + 5.2 * Math.sin(rad)).toFixed(2)}"/>`;
+                }).join('');
+                return `<svg viewBox="0 0 60 40" width="100%" height="100%" preserveAspectRatio="none">
+          <rect width="60" height="13.33" fill="#FF9933"/>
+          <rect y="13.33" width="60" height="13.34" fill="#FFFFFF"/>
+          <rect y="26.67" width="60" height="13.33" fill="#138808"/>
+          <circle cx="30" cy="20" r="5.2" fill="none" stroke="#000080" stroke-width="0.8"/>
+          <circle cx="30" cy="20" r="1.1" fill="#000080"/>
+          <g stroke="#000080" stroke-width="0.4">${spokes}</g>
+        </svg>`;
+            }
+            case 'NZ':
+            case 'NEW ZEALAND':
+                return `<svg viewBox="0 0 60 40" width="100%" height="100%" preserveAspectRatio="none">
+          <rect width="60" height="40" fill="#00247D"/>
+          <clipPath id="nz-canton"><rect width="30" height="20"/></clipPath>
+          <g clip-path="url(#nz-canton)">
+            <line x1="0" y1="0" x2="30" y2="20" stroke="#FFFFFF" stroke-width="4"/>
+            <line x1="30" y1="0" x2="0" y2="20" stroke="#FFFFFF" stroke-width="4"/>
+            <line x1="0" y1="0" x2="30" y2="20" stroke="#CC142B" stroke-width="2"/>
+            <line x1="30" y1="0" x2="0" y2="20" stroke="#CC142B" stroke-width="2"/>
+            <rect x="12" y="0" width="6" height="20" fill="#FFFFFF"/>
+            <rect x="0" y="7" width="30" height="6" fill="#FFFFFF"/>
+            <rect x="13.2" y="0" width="3.6" height="20" fill="#CC142B"/>
+            <rect x="0" y="8.2" width="30" height="3.6" fill="#CC142B"/>
+          </g>
+          <polygon points="45,6 46,9 49,9 46.5,11 47.5,14 45,12 42.5,14 43.5,11 41,9 44,9" fill="#CC142B" stroke="#FFFFFF" stroke-width="0.8"/>
+          <polygon points="45,26 46,29 49,29 46.5,31 47.5,34 45,32 42.5,34 43.5,31 41,29 44,29" fill="#CC142B" stroke="#FFFFFF" stroke-width="0.8"/>
+          <polygon points="38,16 39,18.5 41.5,18.5 39.5,20 40.5,22.5 38,21 35.5,22.5 36.5,20 34.5,18.5 37,18.5" fill="#CC142B" stroke="#FFFFFF" stroke-width="0.8"/>
+          <polygon points="52,14 53,16.5 55.5,16.5 53.5,18 54.5,20.5 52,19 49.5,20.5 50.5,18 48.5,16.5 51,16.5" fill="#CC142B" stroke="#FFFFFF" stroke-width="0.8"/>
+        </svg>`;
+            case 'AUS':
+            case 'AUSTRALIA':
+                return `<svg viewBox="0 0 60 40" width="100%" height="100%" preserveAspectRatio="none">
+          <rect width="60" height="40" fill="#00008B"/>
+          <clipPath id="aus-canton"><rect width="30" height="20"/></clipPath>
+          <g clip-path="url(#aus-canton)">
+            <line x1="0" y1="0" x2="30" y2="20" stroke="#FFFFFF" stroke-width="4"/>
+            <line x1="30" y1="0" x2="0" y2="20" stroke="#FFFFFF" stroke-width="4"/>
+            <line x1="0" y1="0" x2="30" y2="20" stroke="#CC142B" stroke-width="2"/>
+            <line x1="30" y1="0" x2="0" y2="20" stroke="#CC142B" stroke-width="2"/>
+            <rect x="12" y="0" width="6" height="20" fill="#FFFFFF"/>
+            <rect x="0" y="7" width="30" height="6" fill="#FFFFFF"/>
+            <rect x="13.2" y="0" width="3.6" height="20" fill="#CC142B"/>
+            <rect x="0" y="8.2" width="30" height="3.6" fill="#CC142B"/>
+          </g>
+          <polygon points="15,26 16.5,29 20,29 17,31 18,34 15,32 12,34 13,31 10,29 13.5,29" fill="#FFFFFF"/>
+          <circle cx="45" cy="8" r="1.4" fill="#FFFFFF"/>
+          <circle cx="45" cy="32" r="1.4" fill="#FFFFFF"/>
+          <circle cx="38" cy="18" r="1.4" fill="#FFFFFF"/>
+          <circle cx="52" cy="16" r="1.4" fill="#FFFFFF"/>
+          <circle cx="47" cy="23" r="1" fill="#FFFFFF"/>
+        </svg>`;
+            case 'ENG':
+            case 'ENGLAND':
+                return `<svg viewBox="0 0 60 40" width="100%" height="100%" preserveAspectRatio="none">
+          <rect width="60" height="40" fill="#FFFFFF"/>
+          <rect x="25" y="0" width="10" height="40" fill="#CF081F"/>
+          <rect x="0" y="15" width="60" height="10" fill="#CF081F"/>
+        </svg>`;
+            case 'SA':
+            case 'SOUTH AFRICA':
+                return `<svg viewBox="0 0 60 40" width="100%" height="100%" preserveAspectRatio="none">
+          <rect width="60" height="20" fill="#E03C31"/>
+          <rect y="20" width="60" height="20" fill="#001489"/>
+          <polygon points="0,0 24,16 60,16 60,24 24,24 0,40" fill="#FFFFFF"/>
+          <polygon points="0,3 20,17 60,17 60,23 20,23 0,37" fill="#007749"/>
+          <polygon points="0,5 15,20 0,35" fill="#FFB81C"/>
+          <polygon points="0,8 12,20 0,32" fill="#000000"/>
+        </svg>`;
+            case 'PAK':
+            case 'PAKISTAN':
+                return `<svg viewBox="0 0 60 40" width="100%" height="100%" preserveAspectRatio="none">
+          <rect width="60" height="40" fill="#01411C"/>
+          <rect width="15" height="40" fill="#FFFFFF"/>
+          <circle cx="37" cy="20" r="9" fill="#FFFFFF"/>
+          <circle cx="39.5" cy="18" r="8.2" fill="#01411C"/>
+          <polygon points="41,13 42,15.5 44.5,15.5 42.5,17 43.5,19.5 41,18 38.5,19.5 39.5,17 37.5,15.5 40,15.5" fill="#FFFFFF"/>
+        </svg>`;
+            case 'WI':
+            case 'WEST INDIES':
+                return `<svg viewBox="0 0 60 40" width="100%" height="100%" preserveAspectRatio="none">
+          <rect width="60" height="40" fill="#7B1113"/>
+          <circle cx="30" cy="20" r="10" fill="#FDB913"/>
+          <circle cx="30" cy="20" r="8.5" fill="#7B1113"/>
+          <path d="M28 15h4v10h-4z M25 17h2v8h-2z M33 17h2v8h-2z" fill="#FDB913"/>
+        </svg>`;
+            case 'SL':
+            case 'SRI LANKA':
+                return `<svg viewBox="0 0 60 40" width="100%" height="100%" preserveAspectRatio="none">
+          <rect width="60" height="40" fill="#FFBE29"/>
+          <rect x="5" y="4" width="8" height="32" fill="#005A36"/>
+          <rect x="14" y="4" width="8" height="32" fill="#EB7400"/>
+          <rect x="23" y="4" width="33" height="32" fill="#8D153A"/>
+          <circle cx="39.5" cy="20" r="6" fill="#FFBE29"/>
+        </svg>`;
+            case 'BAN':
+            case 'BANGLADESH':
+                return `<svg viewBox="0 0 60 40" width="100%" height="100%" preserveAspectRatio="none">
+          <rect width="60" height="40" fill="#006A4E"/>
+          <circle cx="26" cy="20" r="10.5" fill="#F42A41"/>
+        </svg>`;
+            case 'AFG':
+            case 'AFGHANISTAN':
+                return `<svg viewBox="0 0 60 40" width="100%" height="100%" preserveAspectRatio="none">
+          <rect width="20" height="40" fill="#000000"/>
+          <rect x="20" width="20" height="40" fill="#D32011"/>
+          <rect x="40" width="20" height="40" fill="#007A3D"/>
+          <circle cx="30" cy="20" r="6" fill="none" stroke="#FFFFFF" stroke-width="1"/>
+        </svg>`;
+            case 'MCI':
+                return `<svg viewBox="0 0 60 40" width="100%" height="100%" preserveAspectRatio="none">
+          <rect width="60" height="40" fill="#6CABDD"/>
+          <circle cx="30" cy="20" r="14" fill="#1C2C5B"/>
+          <circle cx="30" cy="20" r="11" fill="#FFFFFF"/>
+          <path d="M25 15h10l-2 5h-6z M30 11v4" stroke="#DDA835" stroke-width="1.5" fill="#DDA835"/>
+        </svg>`;
+            case 'ARS':
+                return `<svg viewBox="0 0 60 40" width="100%" height="100%" preserveAspectRatio="none">
+          <rect width="60" height="40" fill="#DB0007"/>
+          <path d="M22 17h16v6H22z" fill="#9C824A"/>
+          <circle cx="25" cy="23" r="3.5" fill="#023474" stroke="#9C824A" stroke-width="1"/>
+          <circle cx="35" cy="23" r="3.5" fill="#023474" stroke="#9C824A" stroke-width="1"/>
+        </svg>`;
+            case 'LIV':
+                return `<svg viewBox="0 0 60 40" width="100%" height="100%" preserveAspectRatio="none">
+          <rect width="60" height="40" fill="#C8102E"/>
+          <circle cx="30" cy="20" r="12" fill="none" stroke="#F6EB61" stroke-width="1.5"/>
+          <path d="M30 13c1 3-2 5-1 8s3 3 1 5c-3-2-2-5-1-8s-1-4 1-5z" fill="#F6EB61"/>
+        </svg>`;
+            case 'RMA':
+                return `<svg viewBox="0 0 60 40" width="100%" height="100%" preserveAspectRatio="none">
+          <rect width="60" height="40" fill="#FFFFFF"/>
+          <circle cx="30" cy="20" r="13" fill="none" stroke="#EE9A1C" stroke-width="2"/>
+          <line x1="20" y1="12" x2="40" y2="28" stroke="#5D2A84" stroke-width="3"/>
+          <path d="M24 8l3 4 3-4 3 4 3-4v2h-12z" fill="#EE9A1C"/>
+        </svg>`;
+            case 'BAR':
+            case 'FCB':
+                return `<svg viewBox="0 0 60 40" width="100%" height="100%" preserveAspectRatio="none">
+          <rect width="20" height="40" fill="#004D98"/>
+          <rect x="20" width="20" height="40" fill="#A50044"/>
+          <rect x="40" width="20" height="40" fill="#004D98"/>
+          <circle cx="30" cy="20" r="8" fill="#EDBB00"/>
+        </svg>`;
+            case 'F1':
+                return `<svg viewBox="0 0 60 40" width="100%" height="100%" preserveAspectRatio="none">
+          <rect width="60" height="40" fill="#15151E"/>
+          <path d="M12 28L25 12H34L23 28H12Z" fill="#E10600"/>
+          <path d="M27 12H38L32 19H28L30 15H25Z" fill="#FFFFFF"/>
+          <path d="M31 28L43 12H50L39 28H31Z" fill="#E10600"/>
+        </svg>`;
+            default:
+                return `<svg viewBox="0 0 60 40" width="100%" height="100%" preserveAspectRatio="none">
+          <rect width="60" height="40" fill="#1E293B"/>
+          <text x="30" y="25" fill="#FFFFFF" font-size="14" font-weight="800" text-anchor="middle" font-family="sans-serif">${c.slice(0, 3)}</text>
+        </svg>`;
+        }
+    }
     getTeamCrest(code) {
         const c = (code || '').toUpperCase().trim();
         switch (c) {
@@ -11619,7 +11785,10 @@ class CanvasEngine {
             }).join('');
             const battersHtml = sc.currentBatters.map((bat) => `
         <div class="subbox-row ${bat.isStriker ? 'striker' : ''}">
-          <span>${bat.name} ${bat.isStriker ? '★' : ''}</span>
+          <span class="batter-name-cell">
+            ${bat.isStriker ? '<span class="striker-dot"></span>' : ''}
+            ${bat.name}
+          </span>
           <span><b>${bat.runs}</b> <small style="color:rgba(255,255,255,0.45)">(${bat.balls}b • ${bat.fours}x4 ${bat.sixes}x6)</small></span>
         </div>
       `).join('');
@@ -11633,8 +11802,8 @@ class CanvasEngine {
             const awayOversMatch = awayRawScore.match(/\(\s*(\d+(\.\d+)?\s*ov)\s*\)/i);
             const awayCleanScore = awayRawScore.replace(/\s*\(\s*\d+(\.\d+)?\s*ov\s*\)/gi, '').trim();
             const awayOvers = awayOversMatch ? awayOversMatch[1] : (sc.awayTeam.overs ? `${sc.awayTeam.overs} ov` : '');
-            const homeCrest = this.getTeamCrest(sc.homeTeam.code);
-            const awayCrest = this.getTeamCrest(sc.awayTeam.code);
+            const homeFlagSvg = this.getCountryFlagSVG(sc.homeTeam.code);
+            const awayFlagSvg = this.getCountryFlagSVG(sc.awayTeam.code);
             const matchDay = act.matchDay || 'Thursday';
             const matchDate = act.matchDate || '19 Nov 2026';
             const matchTime = act.matchTime || '11:00 AM NZDT (3:30 AM IST)';
@@ -11642,7 +11811,7 @@ class CanvasEngine {
             const league = act.league || 'India tour of New Zealand 2026/27';
             body.innerHTML = `
         <div class="sports-layout-wrapper sports-cricket-theme">
-          <!-- 1. Hero Match Card (Similar to other tabs) -->
+          <!-- 1. Hero Broadcast Duel Card -->
           <div class="sports-hero-card">
             <div class="scorecard-tour-header">
               <div class="tour-header-left">
@@ -11650,48 +11819,70 @@ class CanvasEngine {
                 <span class="tour-subtitle">${act.title || '1st Test'}</span>
               </div>
               <div class="tour-header-right">
-                <span class="tour-status-tag">${act.statusText}</span>
+                <span class="tour-status-tag" title="${act.statusText}">${act.statusText}</span>
               </div>
             </div>
 
             <div class="scorecard-schedule-pill">
-              <span class="sched-item">📅 <b>${matchDay}</b>, ${matchDate}</span>
+              <span class="sched-item">
+                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                <span><b>${matchDay}</b>, ${matchDate}</span>
+              </span>
               <span class="sched-divider">•</span>
-              <span class="sched-item">⏰ <b>${matchTime}</b></span>
+              <span class="sched-item">
+                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <span><b>${matchTime}</b></span>
+              </span>
               <span class="sched-divider">•</span>
-              <span class="sched-item">📍 ${venue}</span>
+              <span class="sched-item">
+                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                <span>${venue}</span>
+              </span>
             </div>
 
             <div class="hero-duel-grid">
+              <!-- Home Team -->
               <div class="hero-team-column home">
-                <div class="team-crest-badge" style="background:${homeCrest.bg}; border-color:${homeCrest.border}; color:${homeCrest.text}; box-shadow:0 0 12px ${homeCrest.glow};">${sc.homeTeam.code}</div>
+                <div class="team-flag-badge" title="${sc.homeTeam.name}">
+                  ${homeFlagSvg}
+                </div>
                 <div class="team-meta-block">
-                  <span class="team-full-name">${sc.homeTeam.name}</span>
+                  <div class="team-name-row">
+                    <span class="team-full-name">${sc.homeTeam.name}</span>
+                    <span class="team-code-pill">${sc.homeTeam.code}</span>
+                  </div>
                   <span class="team-score-num">${homeCleanScore || '0/0'}</span>
                   ${homeOvers ? `<span class="team-overs-sub">${homeOvers}${sc.homeTeam.runRate ? ` • CRR ${sc.homeTeam.runRate}` : ''}</span>` : ''}
                 </div>
               </div>
 
+              <!-- Center VS -->
               <div class="hero-center-vs">
                 <div class="vs-glow-pill">VS</div>
               </div>
 
+              <!-- Away Team -->
               <div class="hero-team-column away">
                 <div class="team-meta-block align-right">
-                  <span class="team-full-name">${sc.awayTeam.name}</span>
+                  <div class="team-name-row justify-end">
+                    <span class="team-code-pill">${sc.awayTeam.code}</span>
+                    <span class="team-full-name">${sc.awayTeam.name}</span>
+                  </div>
                   <span class="team-score-num">${awayCleanScore || '0/0'}</span>
                   ${awayOvers ? `<span class="team-overs-sub">${awayOvers}${sc.awayTeam.runRate ? ` • CRR ${sc.awayTeam.runRate}` : ''}</span>` : ''}
                 </div>
-                <div class="team-crest-badge" style="background:${awayCrest.bg}; border-color:${awayCrest.border}; color:${awayCrest.text}; box-shadow:0 0 12px ${awayCrest.glow};">${sc.awayTeam.code}</div>
+                <div class="team-flag-badge" title="${sc.awayTeam.name}">
+                  ${awayFlagSvg}
+                </div>
               </div>
             </div>
           </div>
 
-          <!-- 2. Lower 2-Card Grid (Apple / TwoCode Card Standard) -->
+          <!-- 2. Lower 2-Card Grid (Batters & Bowling Details) -->
           <div class="sports-subcards-grid">
             <div class="sports-subcard card-batting">
               <div class="subcard-header">
-                <span class="subcard-title-icon">🏏</span>
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m14 14 6-6a3 3 0 0 0-4.24-4.24l-6 6"/><path d="m5 19 3-3"/></svg>
                 <span class="subcard-title-text">BATTERS ON CREASE</span>
               </div>
               <div class="subcard-content">
@@ -11701,7 +11892,7 @@ class CanvasEngine {
 
             <div class="sports-subcard card-bowling">
               <div class="subcard-header">
-                <span class="subcard-title-icon">🎯</span>
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
                 <span class="subcard-title-text">CURRENT OVER & BOWLER</span>
               </div>
               <div class="subcard-content">
@@ -11718,7 +11909,7 @@ class CanvasEngine {
           </div>
 
           ${latestComment ? `
-            <div style="font-size:10px; color:rgba(255,255,255,0.65); background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:10px; padding:5px 10px; line-height:1.4;">
+            <div style="font-size:10px; color:rgba(255,255,255,0.65); background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:10px; padding:4px 10px; line-height:1.4;">
               <b style="color:#10b981;">Live Commentary:</b> ${latestComment}
             </div>
           ` : ''}
@@ -11728,11 +11919,15 @@ class CanvasEngine {
         else if (act.sport === 'football' && act.scorecard.football) {
             const fb = act.scorecard.football;
             const eventsHtml = fb.events.slice(0, 4).map((ev) => {
-                const icon = ev.type === 'goal' ? '⚽' : (ev.type === 'card_yellow' ? '🟨' : '🟥');
-                return `<div class="subbox-row"><span>${icon} ${ev.minute}'</span><span>${ev.player} (${ev.team})</span></div>`;
+                let badge = '<span class="event-pill-icon goal">GOAL</span>';
+                if (ev.type === 'card_yellow')
+                    badge = '<span class="match-card-rect yellow"></span>';
+                else if (ev.type === 'card_red')
+                    badge = '<span class="match-card-rect red"></span>';
+                return `<div class="subbox-row"><span>${badge} ${ev.minute}'</span><span>${ev.player} (${ev.team})</span></div>`;
             }).join('');
-            const homeCrest = this.getTeamCrest(fb.homeTeam.code);
-            const awayCrest = this.getTeamCrest(fb.awayTeam.code);
+            const homeFlagSvg = this.getCountryFlagSVG(fb.homeTeam.code);
+            const awayFlagSvg = this.getCountryFlagSVG(fb.awayTeam.code);
             body.innerHTML = `
         <div class="sports-layout-wrapper sports-football-theme">
           <div class="sports-hero-card">
@@ -11747,18 +11942,32 @@ class CanvasEngine {
             </div>
 
             <div class="scorecard-schedule-pill">
-              <span class="sched-item">⚽ <b>Live Matchday</b></span>
+              <span class="sched-item">
+                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="12 7 15 9.5 14 13.5 10 13.5 9 9.5 12 7" fill="currentColor"/></svg>
+                <span><b>Live Matchday</b></span>
+              </span>
               <span class="sched-divider">•</span>
-              <span class="sched-item">⏱ ${fb.matchClock}</span>
+              <span class="sched-item">
+                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <span>${fb.matchClock}</span>
+              </span>
               <span class="sched-divider">•</span>
-              <span class="sched-item">📍 ${act.venue || 'Stadium Arena'}</span>
+              <span class="sched-item">
+                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                <span>${act.venue || 'Stadium Arena'}</span>
+              </span>
             </div>
 
             <div class="hero-duel-grid">
               <div class="hero-team-column home">
-                <div class="team-crest-badge" style="background:${homeCrest.bg}; border-color:${homeCrest.border}; color:${homeCrest.text}; box-shadow:0 0 12px ${homeCrest.glow};">${fb.homeTeam.code}</div>
+                <div class="team-flag-badge" title="${fb.homeTeam.name}">
+                  ${homeFlagSvg}
+                </div>
                 <div class="team-meta-block">
-                  <span class="team-full-name">${fb.homeTeam.name}</span>
+                  <div class="team-name-row">
+                    <span class="team-full-name">${fb.homeTeam.name}</span>
+                    <span class="team-code-pill">${fb.homeTeam.code}</span>
+                  </div>
                 </div>
               </div>
 
@@ -11772,9 +11981,14 @@ class CanvasEngine {
 
               <div class="hero-team-column away">
                 <div class="team-meta-block align-right">
-                  <span class="team-full-name">${fb.awayTeam.name}</span>
+                  <div class="team-name-row justify-end">
+                    <span class="team-code-pill">${fb.awayTeam.code}</span>
+                    <span class="team-full-name">${fb.awayTeam.name}</span>
+                  </div>
                 </div>
-                <div class="team-crest-badge" style="background:${awayCrest.bg}; border-color:${awayCrest.border}; color:${awayCrest.text}; box-shadow:0 0 12px ${awayCrest.glow};">${fb.awayTeam.code}</div>
+                <div class="team-flag-badge" title="${fb.awayTeam.name}">
+                  ${awayFlagSvg}
+                </div>
               </div>
             </div>
           </div>
@@ -11782,17 +11996,17 @@ class CanvasEngine {
           <div class="sports-subcards-grid">
             <div class="sports-subcard card-football-events">
               <div class="subcard-header">
-                <span class="subcard-title-icon">⚡</span>
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                 <span class="subcard-title-text">KEY MATCH EVENTS</span>
               </div>
               <div class="subcard-content">
-                ${eventsHtml || '<div style="color:rgba(255,255,255,0.4); font-size:11px; padding:4px 0;">Match underway • No cards or goals yet</div>'}
+                ${eventsHtml || '<div style="color:rgba(255,255,255,0.4); font-size:11px; padding:4px 0;">Match underway • Clean sheet</div>'}
               </div>
             </div>
 
             <div class="sports-subcard card-football-stats">
               <div class="subcard-header">
-                <span class="subcard-title-icon">📊</span>
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
                 <span class="subcard-title-text">MATCH STATISTICS</span>
               </div>
               <div class="subcard-content">
@@ -11834,6 +12048,7 @@ class CanvasEngine {
           <span style="font-size:11px; font-weight:600; color:rgba(255,255,255,0.85);">${d.gapToLeader}</span>
         </div>
       `).join('');
+            const f1FlagSvg = this.getCountryFlagSVG('F1');
             body.innerHTML = `
         <div class="sports-layout-wrapper sports-f1-theme">
           <div class="sports-hero-card">
@@ -11843,24 +12058,35 @@ class CanvasEngine {
                 <span class="tour-subtitle">${f1.grandPrix}</span>
               </div>
               <div class="tour-header-right">
-                <span class="tour-status-tag tour-status-tag f1-tag">${f1.safetyCar !== 'NONE' ? '⚠️ ' + f1.safetyCar + ' DEPLOYED' : 'GREEN FLAG'}</span>
+                <span class="tour-status-tag tour-status-tag f1-tag">${f1.safetyCar !== 'NONE' ? f1.safetyCar + ' DEPLOYED' : 'GREEN FLAG'}</span>
               </div>
             </div>
 
             <div class="scorecard-schedule-pill">
-              <span class="sched-item">🏎️ <b>${f1.grandPrix}</b></span>
+              <span class="sched-item">
+                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+                <span><b>${f1.grandPrix}</b></span>
+              </span>
               <span class="sched-divider">•</span>
-              <span class="sched-item">📍 ${f1.circuit}</span>
+              <span class="sched-item">
+                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                <span>${f1.circuit}</span>
+              </span>
               <span class="sched-divider">•</span>
-              <span class="sched-item">🏁 Lap <b>${f1.currentLap}/${f1.totalLaps}</b></span>
+              <span class="sched-item">
+                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <span>Lap <b>${f1.currentLap}/${f1.totalLaps}</b></span>
+              </span>
             </div>
 
             <div class="hero-duel-grid">
               <div class="hero-team-column home">
-                <div class="team-crest-badge" style="background:linear-gradient(135deg, #ef4444 0%, #991b1b 100%); border-color:#f87171; color:#fff; box-shadow:0 0 12px rgba(239,68,68,0.4);">F1</div>
+                <div class="team-flag-badge">
+                  ${f1FlagSvg}
+                </div>
                 <div class="team-meta-block">
                   <span class="team-full-name">${f1.circuit}</span>
-                  <span style="font-size:10px; color:#a855f7; font-weight:700;">🟣 FL: ${f1.fastestLap.driver} (${f1.fastestLap.lapTime})</span>
+                  <span style="font-size:10px; color:#a855f7; font-weight:700;">FL: ${f1.fastestLap.driver} (${f1.fastestLap.lapTime})</span>
                 </div>
               </div>
 
@@ -11873,14 +12099,16 @@ class CanvasEngine {
                   <span class="team-full-name">${f1.safetyCar !== 'NONE' ? f1.safetyCar : 'RACE LEADER'}</span>
                   <span class="team-score-num" style="font-size:14px; color:#f87171;">${f1.leaderboard[0]?.driverCode || 'P1'}</span>
                 </div>
-                <div class="team-crest-badge" style="background:linear-gradient(135deg, #1e293b 0%, #334155 100%); border-color:rgba(255,255,255,0.3); color:#fff;">P1</div>
+                <div class="team-flag-badge">
+                  <div style="background:#1e293b; color:#fff; width:100%; height:100%; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:12px;">P1</div>
+                </div>
               </div>
             </div>
           </div>
 
           <div class="sports-subcard" style="gap:2px;">
             <div class="subcard-header">
-              <span class="subcard-title-icon">🏁</span>
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
               <span class="subcard-title-text">DRIVER STANDINGS & GAPS</span>
             </div>
             <div class="subcard-content" style="gap:2px;">

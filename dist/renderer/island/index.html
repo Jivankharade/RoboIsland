@@ -1013,21 +1013,33 @@
           <div class="sports-header-bar">
             <div class="sport-switcher-tabs">
               <button type="button" class="sport-tab-btn active" id="sport-tab-cricket" data-sport="cricket">
-                <span class="sport-tab-icon">🏏</span>
+                <svg class="sport-tab-svg" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="m14 14 6-6a3 3 0 0 0-4.24-4.24l-6 6"/>
+                  <path d="m5 19 3-3"/>
+                  <circle cx="18" cy="18" r="3"/>
+                </svg>
                 <span class="sport-tab-label">Cricket</span>
               </button>
               <button type="button" class="sport-tab-btn" id="sport-tab-football" data-sport="football">
-                <span class="sport-tab-icon">⚽</span>
+                <svg class="sport-tab-svg" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <polygon points="12 7 15 9.5 14 13.5 10 13.5 9 9.5 12 7" fill="currentColor"/>
+                </svg>
                 <span class="sport-tab-label">Football</span>
               </button>
               <button type="button" class="sport-tab-btn" id="sport-tab-f1" data-sport="f1">
-                <span class="sport-tab-icon">🏎️</span>
+                <svg class="sport-tab-svg" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/>
+                  <line x1="4" y1="22" x2="4" y2="15"/>
+                </svg>
                 <span class="sport-tab-label">F1</span>
               </button>
             </div>
             <div class="sports-header-right">
               <button type="button" id="sport-island-toggle" class="sport-island-toggle-btn" aria-label="Toggle Live Score in Dynamic Island">
-                <span class="sport-island-toggle-icon">🏝️</span>
+                <svg class="sport-island-svg" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                  <rect x="3" y="7" width="18" height="10" rx="5"/>
+                </svg>
                 <span id="sport-island-toggle-text">Show on Island: OFF</span>
               </button>
               <button type="button" id="sport-sim-step" class="sport-sim-step-btn" aria-label="Step Simulation">
