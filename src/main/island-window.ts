@@ -12,9 +12,9 @@ export class IslandWindow {
   public isModalActive = false;
   private currentMode: 'rest' | 'compact' | 'expanded' = 'compact';
   private capsuleBounds: { width: number; height: number; topY: number; isSplit?: boolean; splitSpan?: number } = {
-    width: 98,
-    height: 26,
-    topY: 10,
+    width: 200,
+    height: 36,
+    topY: 0,
     isSplit: false,
     splitSpan: 0
   };
@@ -53,7 +53,6 @@ export class IslandWindow {
       alwaysOnTop: true,
       focusable: true,
       hasShadow: false,
-      type: process.platform === 'linux' ? 'toolbar' : undefined,
       show: false,
       webPreferences: {
         preload: path.join(__dirname, '../preload/island-preload.js'),
@@ -80,10 +79,24 @@ export class IslandWindow {
     this.window.loadFile(htmlPath);
 
     this.window.once('ready-to-show', () => {
+      this.reposition();
       this.window?.show();
+      this.reposition();
       this.ensureTopmost();
       this.startCursorTracking();
       this.setupGlobalShortcuts();
+    });
+
+    this.window.on('move', () => {
+      if (this.window && !this.window.isDestroyed()) {
+        this.cachedBounds = this.window.getBounds();
+      }
+    });
+
+    this.window.on('resize', () => {
+      if (this.window && !this.window.isDestroyed()) {
+        this.cachedBounds = this.window.getBounds();
+      }
     });
 
     this.window.on('blur', () => {
@@ -106,6 +119,7 @@ export class IslandWindow {
   private lastCursorAt = 0;
   private wasInsideWindow = false;
   private cachedBounds: Electron.Rectangle | null = null;
+  private lastBoundsCheckAt = 0;
   private lastTopmostCheckAt = 0;
   private lastSentRelX = -9999;
   private lastSentRelY = -9999;
@@ -120,7 +134,13 @@ export class IslandWindow {
         return;
       }
       const cursor = screen.getCursorScreenPoint();
-      const bounds = this.cachedBounds || (this.cachedBounds = this.window.getBounds());
+      if (!this.cachedBounds || performance.now() - this.lastBoundsCheckAt > 1000) {
+        this.lastBoundsCheckAt = performance.now();
+        try {
+          this.cachedBounds = this.window.getBounds();
+        } catch {}
+      }
+      const bounds = this.cachedBounds || this.window.getBounds();
       const insideWindow = cursor.x >= bounds.x && cursor.x < bounds.x + bounds.width &&
                            cursor.y >= bounds.y && cursor.y < bounds.y + bounds.height;
 
@@ -143,11 +163,13 @@ export class IslandWindow {
           ? this.capsuleBounds.splitSpan
           : (this.capsuleBounds.width || (this.currentMode === 'rest' ? 98 : 200));
         const curH = this.capsuleBounds.height || (this.currentMode === 'rest' ? 26 : 36);
-        const curTopY = typeof this.capsuleBounds.topY === 'number' ? this.capsuleBounds.topY : 10;
+        const curTopY = typeof this.capsuleBounds.topY === 'number' ? this.capsuleBounds.topY : (config.islandStyle === 'notch' ? 0 : 6);
         const halfW = curW / 2;
-        // Exact capsule hover zone (+1px subpixel tolerance) - zero dead-zone outside the capsule
-        inHoverZone = relX >= (cx - halfW - 1) && relX <= (cx + halfW + 1) &&
-                      relY >= (curTopY - 1) && relY <= (curTopY + curH + 1);
+        // Exact capsule hover zone (+2px subpixel tolerance) - zero dead-zone outside the capsule
+        const minY = config.islandStyle === 'notch' ? 0 : Math.max(0, curTopY - 2);
+        const maxY = curTopY + curH + 2;
+        inHoverZone = relX >= (cx - halfW - 2) && relX <= (cx + halfW + 2) &&
+                      relY >= minY && relY <= maxY;
       }
       this.setInteractive(inHoverZone);
 
@@ -161,8 +183,8 @@ export class IslandWindow {
         }
       }
 
-      // Avoid redundant IPC when pointer is stationary (moved less than 1.5px)
-      if (deltaScreen < 1.5 && insideWindow === this.wasInsideWindow) {
+      // Avoid redundant IPC when pointer is stationary (moved less than 1.5px) and hover state didn't change
+      if (deltaScreen < 1.5 && insideWindow === this.wasInsideWindow && inHoverZone === this.isInteractive) {
         this.cursorTimer = setTimeout(tick, 32);
         return;
       }

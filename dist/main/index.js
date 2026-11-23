@@ -69,11 +69,13 @@ if (!gotTheLock) {
 electron_1.app.commandLine.appendSwitch('js-flags', '--max-old-space-size=128');
 electron_1.app.commandLine.appendSwitch('renderer-process-limit', '4');
 electron_1.app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
-// Linux Fedora / KDE Plasma / Wayland compatibility:
-// Auto-detect Wayland vs X11/XWayland with smooth compositor integration & window decorations
+// Linux Fedora / KDE Plasma compatibility:
+// Native Wayland (xdg_shell) strictly prohibits client-side absolute positioning (window.setPosition/setBounds)
+// and global cursor tracking (screen.getCursorScreenPoint). Forcing 'ozone-platform' to 'x11' directs Electron
+// through XWayland, which restores pixel-perfect top-notch coordinate placement, global cursor detection,
+// transparent click-through, and smooth KWin compositing.
 if (process.platform === 'linux') {
-    electron_1.app.commandLine.appendSwitch('ozone-platform-hint', 'auto');
-    electron_1.app.commandLine.appendSwitch('enable-features', 'WaylandWindowDecorations');
+    electron_1.app.commandLine.appendSwitch('ozone-platform', 'x11');
 }
 process.on('uncaughtException', (err) => {
     console.error('[RoboIsland] Uncaught exception:', err);

@@ -748,9 +748,8 @@ async function runTests() {
   const docConverterTs = fs.readFileSync(path.join(__dirname, '../src/main/document-converter.ts'), 'utf-8');
   const buddyManagerTs = fs.readFileSync(path.join(__dirname, '../src/main/buddy-manager.ts'), 'utf-8');
 
-  assert('index.ts configures Wayland Ozone auto-platform hints and WaylandWindowDecorations',
-    indexTs.includes('ozone-platform-hint') &&
-    indexTs.includes('WaylandWindowDecorations'));
+  assert('index.ts configures Linux Ozone platform for exact notch positioning and cursor tracking',
+    indexTs.includes('ozone-platform'));
 
   assert('index.ts handles Linux WhatsApp send fallback gracefully via browser',
     indexTs.includes("process.platform === 'linux'") &&
@@ -2104,8 +2103,11 @@ async function runTests() {
   // --- 42. Testing Fedora Linux & KDE Plasma Compatibility ---
   console.log('\n--- 42. Testing Fedora Linux & KDE Plasma Compatibility ---');
   const islandWindowLinux = fs.readFileSync(path.join(__dirname, '../src/main/island-window.ts'), 'utf-8');
-  assert('island-window.ts configures toolbar window type on Linux for KDE Plasma overlay',
-    islandWindowLinux.includes("type: process.platform === 'linux' ? 'toolbar' : undefined"));
+  const indexLinux = fs.readFileSync(path.join(__dirname, '../src/main/index.ts'), 'utf-8');
+  assert('island-window.ts preserves exact notch top positioning by avoiding KWin toolbar displacement',
+    !islandWindowLinux.includes("type: process.platform === 'linux' ? 'toolbar' : undefined"));
+  assert('index.ts forces ozone-platform x11 on Linux for pixel-perfect positioning and cursor tracking',
+    indexLinux.includes("app.commandLine.appendSwitch('ozone-platform', 'x11')"));
   assert('island-window.ts handles Linux click-through cleanly without Wayland pointer errors',
     islandWindowLinux.includes("else if (process.platform === 'linux')") &&
     islandWindowLinux.includes("this.window.setIgnoreMouseEvents(!effectiveInteractive);"));
