@@ -1108,8 +1108,9 @@ async function runTests() {
     islandPreloadTs.includes('launchLauncherItem:') &&
     islandPreloadTs.includes('onToggleLauncher:'));
 
-  assert('island-window.ts registers Alt+Space global shortcut with CommandOrControl+Space fallback',
-    islandWindowTs.includes("'Alt+Space'") &&
+  assert('island-window.ts removes Alt+Space shortcut to respect Fedora KRunner and uses CommandOrControl+Shift+Space / CommandOrControl+Space',
+    !islandWindowTs.includes("globalShortcut.register('Alt+Space'") &&
+    islandWindowTs.includes("'CommandOrControl+Shift+Space'") &&
     islandWindowTs.includes("'CommandOrControl+Space'") &&
     islandWindowTs.includes('toggleLauncherShortcut'));
 
@@ -2154,6 +2155,9 @@ async function runTests() {
     pkgJson.build && pkgJson.build.linux &&
     pkgJson.build.linux.target.includes('rpm') &&
     pkgJson.build.linux.target.includes('AppImage'));
+
+  assert('island-window.ts omits Alt+Space to prevent conflict with native Fedora KRunner',
+    !islandWindowTs.includes("globalShortcut.register('Alt+Space'"));
 
   // Summary
   console.log('\n====================================================');

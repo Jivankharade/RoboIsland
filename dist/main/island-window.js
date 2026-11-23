@@ -361,25 +361,20 @@ class IslandWindow {
                     return;
                 this.window.webContents.send('island:show-speedometer-hud');
             });
-            // Universal Spotlight / Raycast Launcher shortcut (Alt+Space with CommandOrControl+Space fallback) per R2
+            // Universal Spotlight / Raycast Launcher shortcut
+            // Note: 'Alt+Space' is removed because on Fedora Linux (and KDE Plasma), Alt+Space is natively
+            // bound to KRunner. Removing Alt+Space prevents hijacking or conflicting with Fedora's native runner.
+            // We use CommandOrControl+Shift+Space (Ctrl+Shift+Space) and CommandOrControl+Space instead.
             try {
-                const regAltSpace = electron_1.globalShortcut.register('Alt+Space', () => {
+                electron_1.globalShortcut.register('CommandOrControl+Shift+Space', () => {
                     this.toggleLauncherShortcut();
                 });
-                if (!regAltSpace) {
-                    electron_1.globalShortcut.register('CommandOrControl+Space', () => {
-                        this.toggleLauncherShortcut();
-                    });
-                }
+                electron_1.globalShortcut.register('CommandOrControl+Space', () => {
+                    this.toggleLauncherShortcut();
+                });
             }
             catch (err) {
-                console.warn('[IslandWindow] Failed to register Alt+Space launcher shortcut:', err);
-                try {
-                    electron_1.globalShortcut.register('CommandOrControl+Space', () => {
-                        this.toggleLauncherShortcut();
-                    });
-                }
-                catch { }
+                console.warn('[IslandWindow] Failed to register launcher shortcut:', err);
             }
         }
         catch (err) {
