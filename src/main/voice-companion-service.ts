@@ -12,7 +12,7 @@
  * 7. Zero runtime dependencies, safe fallback handling, and zero memory leaks.
  */
 
-import { spawn, ChildProcess } from 'child_process';
+import { spawn, exec, ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
 
 export type VoiceCompanionState = 'IDLE' | 'LISTENING' | 'THINKING' | 'SPEAKING' | 'ERROR';
@@ -545,7 +545,46 @@ export class VoiceCompanionService {
     this.stopSpeaking();
     this.setState('SPEAKING', { response: speechText });
 
-    if (this.simulationMode || process.platform !== 'win32') {
+    if (this.simulationMode) {
+      return this.simulateSpeech(speechText);
+    }
+
+    if (process.platform === 'linux') {
+      return new Promise<boolean>((resolve) => {
+        const sanitized = speechText
+          .replace(/[\r\n\t]+/g, ' ')
+          .replace(/["'`$\\]/g, ' ')
+          .slice(0, 400);
+
+        // Native Fedora Linux speech: speech-dispatcher (spd-say) is preinstalled on Fedora KDE
+        const cmd = `spd-say "${sanitized}" 2>/dev/null || espeak-ng "${sanitized}" 2>/dev/null || espeak "${sanitized}" 2>/dev/null`;
+
+        let hasResolved = false;
+        const finish = (ok: boolean) => {
+          if (hasResolved) return;
+          hasResolved = true;
+          if (this.ttsTimeoutTimer) {
+            clearTimeout(this.ttsTimeoutTimer);
+            this.ttsTimeoutTimer = null;
+          }
+          if (!this.isDisposed && this.state === 'SPEAKING') {
+            this.setState('IDLE');
+          }
+          resolve(ok);
+        };
+
+        this.ttsTimeoutTimer = setTimeout(() => finish(true), 5000);
+        exec(cmd, (err: any) => {
+          if (err) {
+            this.simulateSpeech(speechText).then(finish);
+          } else {
+            finish(true);
+          }
+        });
+      });
+    }
+
+    if (process.platform !== 'win32') {
       return this.simulateSpeech(speechText);
     }
 

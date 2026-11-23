@@ -1,5 +1,5 @@
 import { BrowserWindow, screen, ipcMain, app } from 'electron';
-import { spawn } from 'child_process';
+import { spawn, exec } from 'child_process';
 import * as path from 'path';
 import { configStore } from './config-store';
 
@@ -100,8 +100,12 @@ export class BuddyManager {
     if (!text) return;
     try {
       const sanitized = text.replace(/["'\\]/g, ' ');
-      const ps = `Add-Type -AssemblyName System.Speech; $s = New-Object System.Speech.Synthesis.SpeechSynthesizer; $s.Speak("${sanitized}")`;
-      spawn('powershell.exe', ['-NoProfile', '-Command', ps], { windowsHide: true });
+      if (process.platform === 'linux') {
+        exec(`spd-say "${sanitized}" 2>/dev/null || espeak-ng "${sanitized}" 2>/dev/null`);
+      } else if (process.platform === 'win32') {
+        const ps = `Add-Type -AssemblyName System.Speech; $s = New-Object System.Speech.Synthesis.SpeechSynthesizer; $s.Speak("${sanitized}")`;
+        spawn('powershell.exe', ['-NoProfile', '-Command', ps], { windowsHide: true });
+      }
     } catch {}
   }
 

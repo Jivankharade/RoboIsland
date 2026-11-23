@@ -1,4 +1,5 @@
 import * as path from 'path';
+import * as os from 'os';
 import * as fs from 'fs';
 import { spawn } from 'child_process';
 import { shell } from 'electron';
@@ -747,7 +748,11 @@ export class AppFileSearch {
         await this.indexDirectory(startMenuCommon);
         await this.indexDirectory(startMenuUser);
       } else if (process.platform === 'linux') {
+        const homeDir = os.homedir();
         await this.indexDirectory('/usr/share/applications');
+        await this.indexDirectory('/var/lib/flatpak/exports/share/applications');
+        await this.indexDirectory(path.join(homeDir, '.local/share/flatpak/exports/share/applications'));
+        await this.indexDirectory(path.join(homeDir, '.local/share/applications'));
       }
     } catch (err) {
       console.warn('[AppFileSearch] Indexing warning:', err);
@@ -764,7 +769,21 @@ export class AppFileSearch {
         if (entry.isDirectory()) {
           await this.indexDirectory(fullPath);
         } else if (/\.(lnk|url|desktop)$/i.test(entry.name)) {
-          const cleanName = entry.name.replace(/\.(lnk|url|desktop)$/i, '');
+          let cleanName = entry.name.replace(/\.(lnk|url|desktop)$/i, '');
+          let icon = '🚀';
+          if (/\.desktop$/i.test(entry.name)) {
+            try {
+              const content = await fs.promises.readFile(fullPath, 'utf8');
+              const nameMatch = content.match(/^Name=(.+)$/m);
+              if (nameMatch && nameMatch[1]) {
+                cleanName = nameMatch[1].trim();
+              }
+              const iconMatch = content.match(/^Icon=(.+)$/m);
+              if (iconMatch && iconMatch[1]) {
+                icon = iconMatch[1].trim();
+              }
+            } catch {}
+          }
           // Avoid duplicate system app names
           if (!this.indexedApps.some(a => a.name.toLowerCase() === cleanName.toLowerCase())) {
             this.indexedApps.push({
@@ -772,7 +791,7 @@ export class AppFileSearch {
               name: cleanName,
               path: fullPath,
               type: /\.url$/i.test(entry.name) ? 'url' : 'app',
-              icon: '🚀',
+              icon,
               category: 'installed'
             });
           }

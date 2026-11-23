@@ -249,8 +249,21 @@ class FocusGuard extends events_1.EventEmitter {
         if (this.customForegroundProvider) {
             return await this.customForegroundProvider();
         }
-        // Windows native inspection via user32.dll GetForegroundWindow & GetWindowText
+        // Windows native inspection via user32.dll & Linux KDE inspection
         return new Promise((resolve) => {
+            if (process.platform === 'linux') {
+                (0, child_process_1.exec)('xdotool getactivewindow getwindowname 2>/dev/null || qdbus org.kde.KWin /KWin org.kde.KWin.activeWindow 2>/dev/null', { timeout: 1500 }, (err, stdout) => {
+                    if (!err && stdout && stdout.trim()) {
+                        const title = stdout.trim();
+                        const proc = title.split(/[-–—]/)[0].trim().toLowerCase();
+                        resolve({ title, processName: proc });
+                    }
+                    else {
+                        resolve({ title: '', processName: '' });
+                    }
+                });
+                return;
+            }
             if (process.platform !== 'win32') {
                 resolve({ title: '', processName: '' });
                 return;

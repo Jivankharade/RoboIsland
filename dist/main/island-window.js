@@ -84,6 +84,7 @@ class IslandWindow {
             alwaysOnTop: true,
             focusable: true,
             hasShadow: false,
+            type: process.platform === 'linux' ? 'toolbar' : undefined,
             show: false,
             webPreferences: {
                 preload: path.join(__dirname, '../preload/island-preload.js'),
@@ -211,6 +212,10 @@ class IslandWindow {
             if (process.platform === 'win32') {
                 // On Windows, pass ONLY boolean to avoid installing low-level WH_MOUSE_LL hook.
                 // Pure setIgnoreMouseEvents(!effectiveInteractive) uses native WS_EX_TRANSPARENT (0% CPU, 0 lag).
+                this.window.setIgnoreMouseEvents(!effectiveInteractive);
+            }
+            else if (process.platform === 'linux') {
+                // On Linux / Wayland / KDE Plasma, pure boolean avoids pointer forward protocol crashes
                 this.window.setIgnoreMouseEvents(!effectiveInteractive);
             }
             else {

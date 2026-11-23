@@ -425,13 +425,49 @@ export class BluetoothMonitorService {
    * Uses safe 3000ms timeout and handles failures gracefully without crashing.
    */
   public async queryNativeDevices(timeoutMs = 3000): Promise<BluetoothDeviceStatus[]> {
-    if (this.simulationMode || process.platform !== 'win32') {
+    if (this.simulationMode) {
       return this.getAllDevices();
     }
     if (this.isQuerying) {
       return this.getAllDevices();
     }
     this.isQuerying = true;
+
+    if (process.platform === 'linux') {
+      return new Promise<BluetoothDeviceStatus[]>((resolve) => {
+        exec('bluetoothctl devices Connected 2>/dev/null', { timeout: timeoutMs }, async (err, stdout) => {
+          this.isQuerying = false;
+          if (err || !stdout || !stdout.trim()) {
+            resolve(this.getAllDevices());
+            return;
+          }
+          const lines = stdout.trim().split('\n');
+          const devices: BluetoothDeviceStatus[] = [];
+          for (const line of lines) {
+            const parts = line.split(' ');
+            if (parts.length >= 3 && parts[0] === 'Device') {
+              const mac = parts[1];
+              const name = parts.slice(2).join(' ');
+              const devType = classifyBluetoothDeviceType(name);
+              devices.push(this.simulator.createDevice({
+                id: mac,
+                name: name || 'Bluetooth Device',
+                deviceType: devType,
+                connected: true,
+                batteryPercent: 85,
+                lastSeen: Date.now()
+              }));
+            }
+          }
+          resolve(devices.length > 0 ? devices : this.getAllDevices());
+        });
+      });
+    }
+
+    if (process.platform !== 'win32') {
+      this.isQuerying = false;
+      return this.getAllDevices();
+    }
 
     return new Promise<BluetoothDeviceStatus[]>((resolve) => {
       const finish = (result: BluetoothDeviceStatus[]) => {

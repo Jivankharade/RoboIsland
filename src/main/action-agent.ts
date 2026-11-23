@@ -414,7 +414,11 @@ export class AutonomousActionAgent {
         break;
 
       case 'take_screenshot':
-        exec('powershell -command "[System.Windows.Forms.SendKeys]::SendWait(\'%{PRTSC}\')"');
+        if (process.platform === 'linux') {
+          exec('spectacle -b -n 2>/dev/null || grim 2>/dev/null || maim 2>/dev/null');
+        } else {
+          exec('powershell -command "[System.Windows.Forms.SendKeys]::SendWait(\'%{PRTSC}\')"');
+        }
         break;
 
       case 'optimize_ram':
@@ -427,16 +431,28 @@ export class AutonomousActionAgent {
 
       case 'set_volume':
         if (typeof params.level === 'number') {
-          exec(`powershell -c "[Audio]::Volume = ${params.level / 100}"`, () => {});
+          if (process.platform === 'linux') {
+            exec(`wpctl set-volume @DEFAULT_AUDIO_SINK@ ${params.level / 100} 2>/dev/null || pactl set-sink-volume @DEFAULT_SINK@ ${params.level}% 2>/dev/null`, () => {});
+          } else {
+            exec(`powershell -c "[Audio]::Volume = ${params.level / 100}"`, () => {});
+          }
         }
         break;
 
       case 'mute_audio':
-        exec('powershell -c "(New-Object -com WScript.Shell).SendKeys([char]173)"', () => {});
+        if (process.platform === 'linux') {
+          exec('wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle 2>/dev/null || pactl set-sink-mute @DEFAULT_SINK@ toggle 2>/dev/null', () => {});
+        } else {
+          exec('powershell -c "(New-Object -com WScript.Shell).SendKeys([char]173)"', () => {});
+        }
         break;
 
       case 'lock_screen':
-        exec('rundll32.exe user32.dll,LockWorkStation');
+        if (process.platform === 'linux') {
+          exec('qdbus org.freedesktop.ScreenSaver /ScreenSaver Lock 2>/dev/null || loginctl lock-session 2>/dev/null');
+        } else {
+          exec('rundll32.exe user32.dll,LockWorkStation');
+        }
         break;
 
       default:
@@ -741,34 +757,35 @@ Return ONLY JSON:
   private async tryLaunchNamedApp(appName: string): Promise<boolean> {
     const name = appName.toLowerCase().trim();
 
+    const isLinux = process.platform === 'linux';
     const appMap: Record<string, string> = {
-      chrome: 'start chrome',
-      'google chrome': 'start chrome',
-      edge: 'start msedge',
-      'microsoft edge': 'start msedge',
-      firefox: 'start firefox',
-      notepad: 'notepad',
-      'notepad++': 'start notepadplusplus',
-      calculator: 'calc',
-      calc: 'calc',
-      terminal: 'start wt.exe || powershell',
-      powershell: 'start powershell',
-      cmd: 'start cmd',
-      'command prompt': 'start cmd',
-      spotify: 'start spotify',
-      discord: 'start discord',
-      slack: 'start slack',
-      zoom: 'start zoom',
-      teams: 'start teams',
-      paint: 'mspaint',
-      word: 'start winword',
-      excel: 'start excel',
-      powerpoint: 'start powerpnt',
-      outlook: 'start outlook',
-      explorer: 'explorer',
-      camera: 'start microsoft.windows.camera:',
-      photos: 'start ms-photos:',
-      settings: 'start ms-settings:',
+      chrome: isLinux ? 'google-chrome || chromium-browser || firefox' : 'start chrome',
+      'google chrome': isLinux ? 'google-chrome || chromium-browser || firefox' : 'start chrome',
+      edge: isLinux ? 'microsoft-edge || google-chrome || firefox' : 'start msedge',
+      'microsoft edge': isLinux ? 'microsoft-edge || google-chrome || firefox' : 'start msedge',
+      firefox: isLinux ? 'firefox' : 'start firefox',
+      notepad: isLinux ? 'kate || kwrite || gedit || nano' : 'notepad',
+      'notepad++': isLinux ? 'kate || notepadqq' : 'start notepadplusplus',
+      calculator: isLinux ? 'kcalc || gnome-calculator' : 'calc',
+      calc: isLinux ? 'kcalc || gnome-calculator' : 'calc',
+      terminal: isLinux ? 'konsole || x-terminal-emulator || gnome-terminal' : 'start wt.exe || powershell',
+      powershell: isLinux ? 'konsole' : 'start powershell',
+      cmd: isLinux ? 'konsole' : 'start cmd',
+      'command prompt': isLinux ? 'konsole' : 'start cmd',
+      spotify: isLinux ? 'spotify' : 'start spotify',
+      discord: isLinux ? 'discord' : 'start discord',
+      slack: isLinux ? 'slack' : 'start slack',
+      zoom: isLinux ? 'zoom' : 'start zoom',
+      teams: isLinux ? 'teams-for-linux || teams' : 'start teams',
+      paint: isLinux ? 'kolourpaint || gimp' : 'mspaint',
+      word: isLinux ? 'libreoffice --writer' : 'start winword',
+      excel: isLinux ? 'libreoffice --calc' : 'start excel',
+      powerpoint: isLinux ? 'libreoffice --impress' : 'start powerpnt',
+      outlook: isLinux ? 'kmail || thunderbird' : 'start outlook',
+      explorer: isLinux ? 'dolphin || nautilus' : 'explorer',
+      camera: isLinux ? 'kamoso || cheese' : 'start microsoft.windows.camera:',
+      photos: isLinux ? 'gwenview || eog' : 'start ms-photos:',
+      settings: isLinux ? 'systemsettings || gnome-control-center' : 'start ms-settings:',
     };
 
     if (name.includes('code') || name.includes('vs code') || name.includes('vscode')) {

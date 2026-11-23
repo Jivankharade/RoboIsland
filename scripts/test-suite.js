@@ -2100,6 +2100,61 @@ async function runTests() {
     systemDiagTsPerf.includes('cachedBattery') &&
     systemDiagTsPerf.includes('memPercent >= 86'));
 
+  // --- 42. Testing Fedora Linux & KDE Plasma Compatibility ---
+  console.log('\n--- 42. Testing Fedora Linux & KDE Plasma Compatibility ---');
+  const islandWindowLinux = fs.readFileSync(path.join(__dirname, '../src/main/island-window.ts'), 'utf-8');
+  assert('island-window.ts configures toolbar window type on Linux for KDE Plasma overlay',
+    islandWindowLinux.includes("type: process.platform === 'linux' ? 'toolbar' : undefined"));
+  assert('island-window.ts handles Linux click-through cleanly without Wayland pointer errors',
+    islandWindowLinux.includes("else if (process.platform === 'linux')") &&
+    islandWindowLinux.includes("this.window.setIgnoreMouseEvents(!effectiveInteractive);"));
+
+  const mediaEngineLinux = fs.readFileSync(path.join(__dirname, '../src/main/media-engine.ts'), 'utf-8');
+  assert('media-engine.ts implements PipeWire (wpctl), PulseAudio, and NetworkManager (nmcli) for Fedora Linux',
+    mediaEngineLinux.includes('wpctl get-volume @DEFAULT_AUDIO_SINK@') &&
+    mediaEngineLinux.includes('nmcli radio wifi') &&
+    mediaEngineLinux.includes('nmcli -t -f active,ssid dev wifi'));
+
+  const bluetoothLinux = fs.readFileSync(path.join(__dirname, '../src/main/bluetooth-monitor.ts'), 'utf-8');
+  assert('bluetooth-monitor.ts implements native Linux BlueZ discovery via bluetoothctl',
+    bluetoothLinux.includes("if (process.platform === 'linux')") &&
+    bluetoothLinux.includes('bluetoothctl devices Connected'));
+
+  const systemDiagLinux = fs.readFileSync(path.join(__dirname, '../src/main/system-diagnostics.ts'), 'utf-8');
+  assert('system-diagnostics.ts implements Linux sysfs battery reading and top memory process monitoring',
+    systemDiagLinux.includes('queryLinuxBattery') &&
+    systemDiagLinux.includes('/sys/class/power_supply/BAT0') &&
+    systemDiagLinux.includes('queryLinuxTopMemoryProcess'));
+
+  const voiceLinux = fs.readFileSync(path.join(__dirname, '../src/main/voice-companion-service.ts'), 'utf-8');
+  assert('voice-companion-service.ts implements native Fedora speech-dispatcher (spd-say) & espeak-ng',
+    voiceLinux.includes("if (process.platform === 'linux')") &&
+    voiceLinux.includes('spd-say'));
+
+  const launcherLinux = fs.readFileSync(path.join(__dirname, '../src/main/launcher-engine.ts'), 'utf-8');
+  assert('launcher-engine.ts indexes system apps and Flatpaks with .desktop parsing',
+    launcherLinux.includes('/var/lib/flatpak/exports/share/applications') &&
+    launcherLinux.includes('.local/share/flatpak/exports/share/applications') &&
+    launcherLinux.includes('Name='));
+
+  const screenGlanceLinux = fs.readFileSync(path.join(__dirname, '../src/main/screen-glance-engine.ts'), 'utf-8');
+  assert('screen-glance-engine.ts queries active window on Linux KDE Plasma via xdotool & KWin qdbus',
+    screenGlanceLinux.includes("if (process.platform === 'linux')") &&
+    screenGlanceLinux.includes('qdbus org.kde.KWin /KWin org.kde.KWin.activeWindow'));
+
+  const actionAgentLinux = fs.readFileSync(path.join(__dirname, '../src/main/action-agent.ts'), 'utf-8');
+  assert('action-agent.ts maps KDE Plasma default apps (konsole, kcalc, kate, dolphin) and Spectacle screenshot',
+    actionAgentLinux.includes('konsole') &&
+    actionAgentLinux.includes('kcalc') &&
+    actionAgentLinux.includes('kate') &&
+    actionAgentLinux.includes('spectacle'));
+
+  const pkgJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../package.json'), 'utf-8'));
+  assert('package.json configures Fedora rpm and AppImage build targets',
+    pkgJson.build && pkgJson.build.linux &&
+    pkgJson.build.linux.target.includes('rpm') &&
+    pkgJson.build.linux.target.includes('AppImage'));
+
   // Summary
   console.log('\n====================================================');
   console.log(`TEST SUMMARY: ${passed} PASSED, ${failed} FAILED`);

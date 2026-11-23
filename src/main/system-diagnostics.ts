@@ -1,6 +1,7 @@
 import { BrowserWindow, ipcMain, globalShortcut, clipboard } from 'electron';
 import * as os from 'os';
 import * as path from 'path';
+import * as fs from 'fs';
 import { exec } from 'child_process';
 import { AIProviderManager } from './ai-provider-manager';
 
@@ -297,6 +298,25 @@ Respond with ONLY a raw JSON object (no markdown backticks, no text outside JSON
           topProcessMemMb = topMem.memMb;
         } catch {}
       }
+    } else if (process.platform === 'linux') {
+      const now = Date.now();
+      if (now - this.lastBatteryCheckAt > 30000 || this.lastBatteryCheckAt === 0) {
+        this.lastBatteryCheckAt = now;
+        try {
+          const batteryInfo = await this.queryLinuxBattery();
+          this.cachedBattery = batteryInfo;
+        } catch {}
+      }
+      batteryPercent = this.cachedBattery.percent;
+      isCharging = this.cachedBattery.charging;
+
+      if (memPercent >= 86) {
+        try {
+          const topMem = await this.queryLinuxTopMemoryProcess();
+          topProcess = topMem.name;
+          topProcessMemMb = topMem.memMb;
+        } catch {}
+      }
     }
 
     return {
@@ -310,6 +330,53 @@ Respond with ONLY a raw JSON object (no markdown backticks, no text outside JSON
       topProcess,
       topProcessMemMb
     };
+  }
+
+  private queryLinuxBattery(): Promise<{ percent: number; charging: boolean }> {
+    return new Promise((resolve) => {
+      try {
+        const batPaths = ['/sys/class/power_supply/BAT0', '/sys/class/power_supply/BAT1'];
+        for (const bp of batPaths) {
+          const capFile = path.join(bp, 'capacity');
+          const statusFile = path.join(bp, 'status');
+          if (fs.existsSync(capFile)) {
+            const cap = parseInt(fs.readFileSync(capFile, 'utf8').trim(), 10) || 100;
+            const status = fs.existsSync(statusFile) ? fs.readFileSync(statusFile, 'utf8').trim() : 'Full';
+            const charging = status === 'Charging' || status === 'Full';
+            resolve({ percent: cap, charging });
+            return;
+          }
+        }
+      } catch {}
+
+      exec("upower -i $(upower -e 2>/dev/null | grep -m1 'battery') 2>/dev/null", (err, stdout) => {
+        if (!err && stdout) {
+          const pMatch = stdout.match(/percentage:\s*(\d+)%/);
+          const sMatch = stdout.match(/state:\s*(\w+)/);
+          const percent = pMatch ? parseInt(pMatch[1], 10) : 100;
+          const charging = sMatch ? (sMatch[1] === 'charging' || sMatch[1] === 'fully-charged') : true;
+          resolve({ percent, charging });
+          return;
+        }
+        resolve({ percent: 100, charging: true });
+      });
+    });
+  }
+
+  private queryLinuxTopMemoryProcess(): Promise<{ name: string; memMb: number }> {
+    return new Promise((resolve) => {
+      exec(`ps -eo comm,rss --sort=-rss 2>/dev/null | awk 'NR==2 {print $1, int($2/1024)}'`, (err, stdout) => {
+        if (!err && stdout && stdout.trim()) {
+          const parts = stdout.trim().split(' ');
+          resolve({
+            name: parts[0] || '',
+            memMb: parseInt(parts[1], 10) || 0
+          });
+          return;
+        }
+        resolve({ name: '', memMb: 0 });
+      });
+    });
   }
 
   private queryTopMemoryProcess(): Promise<{ name: string; memMb: number }> {
@@ -397,6 +464,12 @@ Respond with ONLY a raw JSON object (no markdown backticks, no text outside JSON
           resolve();
         });
       });
+    } else if (process.platform === 'linux') {
+      await new Promise<void>((resolve) => {
+        exec('rm -rf /tmp/roboisland-* ~/.cache/thumbnails/* 2>/dev/null; resolvectl flush-caches 2>/dev/null || systemd-resolve --flush-caches 2>/dev/null', () => {
+          resolve();
+        });
+      });
     }
 
     this.broadcastNotification({
@@ -413,7 +486,10 @@ Respond with ONLY a raw JSON object (no markdown backticks, no text outside JSON
   private async terminateProcess(procName: string): Promise<void> {
     if (!procName) return;
     const cleanName = procName.replace(/[^a-zA-Z0-9_\-\.]/g, '');
-    exec(`powershell -NoProfile -Command "Stop-Process -Name '${cleanName}' -Force -ErrorAction SilentlyContinue"`, () => {
+    const killCmd = process.platform === 'win32'
+      ? `powershell -NoProfile -Command "Stop-Process -Name '${cleanName}' -Force -ErrorAction SilentlyContinue"`
+      : `pkill -f "${cleanName}" 2>/dev/null || killall "${cleanName}" 2>/dev/null`;
+    exec(killCmd, () => {
       this.broadcastNotification({
         id: 'proc-killed-' + Date.now(),
         title: 'Process Terminated',

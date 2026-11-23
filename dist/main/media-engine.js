@@ -306,8 +306,10 @@ class MediaEngine {
             clearInterval(this.linuxMediaTimer);
             this.linuxMediaTimer = null;
         }
+        let lastVolumeCheck = 0;
+        let lastNetCheck = 0;
         const pollLinuxMedia = () => {
-            // Query MPRIS2 metadata via playerctl or D-Bus qdbus fallback
+            // 1. Query MPRIS2 metadata via playerctl or D-Bus qdbus fallback
             (0, child_process_1.exec)(`playerctl metadata --format '{"active":true,"playing":"{{lc(status)}}","title":"{{markup_escape(title)}}","artist":"{{markup_escape(artist)}}","album":"{{markup_escape(album)}}","position":{{position}},"art":"{{mpris:artUrl}}"}' 2>/dev/null`, (_err, stdout) => {
                 if (!stdout || !stdout.trim()) {
                     if (this.smtcState.active) {
@@ -331,6 +333,51 @@ class MediaEngine {
                 }
                 catch { }
             });
+            const now = Date.now();
+            // 2. Query PipeWire / WirePlumber or PulseAudio system volume on Linux (every 2.4s)
+            if (now - lastVolumeCheck > 2400) {
+                lastVolumeCheck = now;
+                (0, child_process_1.exec)(`wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null || pactl get-sink-volume @DEFAULT_SINK@ 2>/dev/null || amixer get Master 2>/dev/null`, (_err, vOut) => {
+                    if (!vOut)
+                        return;
+                    const str = vOut.trim();
+                    // wpctl output: "Volume: 0.65" or "Volume: 0.65 [MUTED]"
+                    const wpMatch = str.match(/Volume:\s*([\d\.]+)(\s*\[MUTED\])?/i);
+                    if (wpMatch) {
+                        const vol = Math.round((parseFloat(wpMatch[1]) || 0) * 100);
+                        const muted = Boolean(wpMatch[2]);
+                        this.handleWorkerLine(JSON.stringify({ volume: vol, muted }));
+                        return;
+                    }
+                    // pactl output: "... 65% ..."
+                    const paMatch = str.match(/(\d+)%/);
+                    if (paMatch) {
+                        const vol = parseInt(paMatch[1], 10);
+                        const muted = /mute:\s*yes/i.test(str);
+                        this.handleWorkerLine(JSON.stringify({ volume: vol, muted }));
+                    }
+                });
+            }
+            // 3. Query NetworkManager Wi-Fi and Bluetooth state on Linux (every 4.8s)
+            if (now - lastNetCheck > 4800) {
+                lastNetCheck = now;
+                (0, child_process_1.exec)(`nmcli -t -f active,ssid dev wifi 2>/dev/null | grep '^yes:' | cut -d: -f2; nmcli radio wifi 2>/dev/null; bluetoothctl show 2>/dev/null | grep "Powered:"`, (_err, nOut) => {
+                    if (!nOut)
+                        return;
+                    const lines = nOut.trim().split('\n');
+                    const ssid = lines[0] && !['enabled', 'disabled', 'yes', 'no'].includes(lines[0].toLowerCase()) ? lines[0].trim() : '';
+                    const isWifiEnabled = nOut.includes('enabled');
+                    const isBtPowered = /Powered:\s*yes/i.test(nOut);
+                    this.handleWorkerLine(JSON.stringify({
+                        net: {
+                            wifi: isWifiEnabled,
+                            wifiSsid: ssid,
+                            bt: isBtPowered,
+                            btConnected: false
+                        }
+                    }));
+                });
+            }
         };
         // Low CPU: Poll every 1200ms when running on Linux
         this.linuxMediaTimer = setInterval(pollLinuxMedia, 1200);

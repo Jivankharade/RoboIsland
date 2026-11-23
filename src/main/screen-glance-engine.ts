@@ -713,10 +713,34 @@ Add-Type @"
       } catch {}
     }
 
+    if (process.platform === 'linux') {
+      try {
+        const result = await new Promise<string>((resolve) => {
+          // On KDE Plasma / KWin / X11 / Wayland:
+          const cmd = "xdotool getactivewindow getwindowname 2>/dev/null || qdbus org.kde.KWin /KWin org.kde.KWin.activeWindow 2>/dev/null || kdotool getactivewindow getwindowname 2>/dev/null";
+          exec(cmd, { timeout: 1500 }, (err, stdout) => {
+            if (err || !stdout) resolve('');
+            else resolve(stdout.trim());
+          });
+        });
+
+        if (result) {
+          const category = this.classifyWindow('', result);
+          this.activeWindow = {
+            title: result,
+            processName: result.split(/[-–—]/)[0].trim().toLowerCase(),
+            category,
+            pid: 0
+          };
+          return this.activeWindow;
+        }
+      } catch {}
+    }
+
     // Default / Non-Windows fallback
     this.activeWindow = {
       title: 'Active Window',
-      processName: 'explorer.exe',
+      processName: process.platform === 'linux' ? 'plasma-desktop' : 'explorer.exe',
       category: 'general'
     };
     return this.activeWindow;

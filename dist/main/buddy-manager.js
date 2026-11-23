@@ -126,8 +126,13 @@ class BuddyManager {
             return;
         try {
             const sanitized = text.replace(/["'\\]/g, ' ');
-            const ps = `Add-Type -AssemblyName System.Speech; $s = New-Object System.Speech.Synthesis.SpeechSynthesizer; $s.Speak("${sanitized}")`;
-            (0, child_process_1.spawn)('powershell.exe', ['-NoProfile', '-Command', ps], { windowsHide: true });
+            if (process.platform === 'linux') {
+                (0, child_process_1.exec)(`spd-say "${sanitized}" 2>/dev/null || espeak-ng "${sanitized}" 2>/dev/null`);
+            }
+            else if (process.platform === 'win32') {
+                const ps = `Add-Type -AssemblyName System.Speech; $s = New-Object System.Speech.Synthesis.SpeechSynthesizer; $s.Speak("${sanitized}")`;
+                (0, child_process_1.spawn)('powershell.exe', ['-NoProfile', '-Command', ps], { windowsHide: true });
+            }
         }
         catch { }
     }
